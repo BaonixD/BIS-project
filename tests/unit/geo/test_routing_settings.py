@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,13 @@ from taxi_service.modules.geo.config import RoutingSettings
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 SECRET = "eyJ-routing-secret-value"
+
+
+@pytest.fixture(autouse=True)
+def _isolate_routing_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in list(os.environ):
+        if name.startswith("ROUTING_"):
+            monkeypatch.delenv(name)
 
 
 def test_defaults_without_environment_have_no_key() -> None:

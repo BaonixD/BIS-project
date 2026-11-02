@@ -1,4 +1,5 @@
 import json
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -21,6 +22,13 @@ DESTINATION = Coordinates(longitude=76.9286, latitude=43.2187)
 LINE = [[76.957247, 43.238911], [76.941002, 43.229514], [76.928612, 43.218701]]
 
 Reply = httpx.Response | type[httpx.TransportError]
+
+
+@pytest.fixture(autouse=True)
+def _isolate_routing_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in list(os.environ):
+        if name.startswith("ROUTING_"):
+            monkeypatch.delenv(name)
 
 
 class FakeProvider:
