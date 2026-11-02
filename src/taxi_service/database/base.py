@@ -1,12 +1,23 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import DateTime, Dialect, TypeDecorator
+from sqlalchemy import DateTime, Dialect, MetaData, TypeDecorator
 from sqlalchemy.orm import DeclarativeBase
+
+# Stable, predictable names so migrations can refer to constraints on any database.
+NAMING_CONVENTION = {
+    "ix": "ix_%(table_name)s_%(column_0_N_name)s",
+    "uq": "uq_%(table_name)s_%(column_0_N_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_N_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s",
+}
 
 
 class Base(DeclarativeBase):
-    pass
+    """Declarative base of every ORM model; models register in ``Base.metadata``."""
+
+    metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
 class UtcDateTime(TypeDecorator[datetime]):
