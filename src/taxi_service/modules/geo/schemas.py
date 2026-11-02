@@ -20,6 +20,15 @@ class Coordinates(BaseModel):
         return (self.longitude, self.latitude)
 
 
+class RouteRequest(BaseModel):
+    """Two points of a road route, in driving order."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    origin: Coordinates
+    destination: Coordinates
+
+
 class RouteGeometry(BaseModel):
     """GeoJSON LineString; every position is ``[longitude, latitude]``."""
 
