@@ -18,7 +18,7 @@
 | [T07](tasks/T07-ride-lifecycle.md) | Жизненный цикл и отмена поездки | T06 | `task/t07-ride-lifecycle` | часть A integrated (`f8686ab`, [отчёт](reports/T07.md)); часть B queued после T06 |
 | [T08](tasks/T08-payments.md) | Наличные и Kaspi-ссылка | T07 | `task/t08-payments` | часть A integrated (`8a56b31`, [отчёт](reports/T08.md)); часть B queued после T07 |
 | [T09](tasks/T09-history-admin.md) | История и административное чтение | T07 | `task/t09-history-admin` | integrated (`4381f72`, [отчёт](reports/T09.md)); payment-поля после T08 часть B |
-| [T10](tasks/T10-acceptance.md) | Seed, E2E, документация и передача | T08, T09 | `task/t10-acceptance` | queued |
+| [T10](tasks/T10-acceptance.md) | Seed, E2E, документация и передача | T08, T09 | `task/t10-acceptance` | часть A (seed) integrated (`3a40ba8`, [отчёт](reports/T10.md)); часть B queued после T08, T09 |
 | [T11](tasks/T11-google.md) | Google-вход | T10 + отдельный запуск | `task/t11-google` | deferred |
 
 ## Что может идти параллельно
