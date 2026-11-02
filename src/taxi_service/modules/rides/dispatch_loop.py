@@ -10,6 +10,7 @@ application was down. No Celery, Redis or separate process.
 import asyncio
 import contextlib
 import logging
+import uuid
 
 from sqlalchemy.engine import URL
 
@@ -40,6 +41,7 @@ class DispatchLoop:
         self._interval_s = interval_s
         self._database_url = database_url
         self._task: asyncio.Task[None] | None = None
+        self._failing_rides: set[uuid.UUID] = set()
 
     @property
     def running(self) -> bool:
@@ -64,7 +66,8 @@ class DispatchLoop:
         if sqlite_file_missing(self._database_url):
             return 0
         async with self._session_factory() as session:
-            return await DispatchService(session, self._clock, self._policy).process_due()
+            service = DispatchService(session, self._clock, self._policy)
+            return await service.process_due(self._failing_rides)
 
     async def _run(self) -> None:
         failing = False

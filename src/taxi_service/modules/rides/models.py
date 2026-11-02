@@ -41,6 +41,7 @@ SEARCHING_DEADLINE_INDEX: Final = "ix_rides_searching_search_deadline"
 PENDING_OFFER_RIDE_INDEX: Final = "uq_ride_offers_pending_ride_id"
 PENDING_OFFER_DRIVER_INDEX: Final = "uq_ride_offers_pending_driver_id"
 PENDING_OFFER_EXPIRY_INDEX: Final = "ix_ride_offers_pending_expires_at"
+SEARCH_OFFER_CONSTRAINT: Final = "uq_ride_offers_ride_id_driver_id"
 
 # Statuses with an accepted driver; ``cancelled`` may keep the driver it had.
 ASSIGNED_RIDE_STATUSES: Final = frozenset(

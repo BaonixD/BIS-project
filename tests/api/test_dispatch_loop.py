@@ -111,7 +111,7 @@ async def test_loop_keeps_running_after_a_failed_pass(
 ) -> None:
     calls: list[int] = []
 
-    async def flaky(self: DispatchService) -> int:
+    async def flaky(self: DispatchService, *args: object) -> int:
         calls.append(1)
         if len(calls) == 1:
             raise RuntimeError("database hiccup")

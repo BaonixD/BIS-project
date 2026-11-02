@@ -86,7 +86,7 @@ async def create_ride(
     if creation.replayed:
         response.headers[REPLAYED_HEADER] = "true"
         return RideResponse.build(creation.ride)
-    return RideResponse.build(await dispatch.start_search(creation.ride))
+    return RideResponse.build(await dispatch.start_search(creation.ride.id))
 
 
 @router.get("/{ride_id}", responses=error_responses(401, 404))

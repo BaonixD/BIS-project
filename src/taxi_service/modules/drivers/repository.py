@@ -20,14 +20,17 @@ class DriverRepository:
     async def get_for_update(self, user_id: uuid.UUID) -> DriverProfile | None:
         """Like :meth:`get`, locking the profile row for the rest of the write transaction.
 
-        ``FOR UPDATE OF driver_profiles``: PostgreSQL refuses to lock the
-        nullable side of the vehicle outer join. SQLite has no row locks and
-        omits the clause; its writes are serialized by ``BEGIN IMMEDIATE``.
+        ``FOR NO KEY UPDATE OF driver_profiles``: PostgreSQL refuses to lock the
+        nullable side of the vehicle outer join, and the key is never changed,
+        so foreign-key checks of rides and ride_offers (``FOR KEY SHARE``) do not
+        wait for this lock: a driver going offline cannot deadlock with an
+        accept that holds the ride and offer rows (ADR 0006). SQLite has no row
+        locks and omits the clause; its writes are serialized by ``BEGIN IMMEDIATE``.
         """
         result = await self._session.execute(
             select(DriverProfile)
             .where(DriverProfile.user_id == user_id)
-            .with_for_update(of=DriverProfile)
+            .with_for_update(of=DriverProfile, key_share=True)
             .execution_options(populate_existing=True)
         )
         return result.scalar_one_or_none()

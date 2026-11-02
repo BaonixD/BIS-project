@@ -87,32 +87,49 @@ class DispatchService:
                 await self._step(ride, self._clock.now())
         return ride
 
-    async def start_search(self, ride: Ride) -> Ride:
+    async def start_search(self, ride_id: uuid.UUID) -> Ride:
         """First step right after the ride was committed; the ride as it is afterwards.
 
-        A failing step is logged and the ride is returned as stored: it is still
-        ``searching`` and the background loop takes it up.
+        A failing step is logged and the ride is read again as committed (still
+        ``searching``); the background loop takes it up. Pass the id, not the
+        object: a rolled-back step expires every object of the session.
         """
+        processed: Ride | None
         try:
-            processed = await self.process_ride(ride.id)
+            processed = await self.process_ride(ride_id)
         except Exception:
-            logger.exception("First dispatch step failed for ride %s", ride.id)
-            return ride
-        return processed or ride
+            logger.exception("First dispatch step failed for ride %s", ride_id)
+            processed = None
+        if processed is None:
+            async with read_transaction(self._session):
+                processed = await self._offers.get_ride(ride_id)
+        if processed is None:
+            raise RuntimeError(f"Ride {ride_id} disappeared after it was created")
+        return processed
 
-    async def process_due(self) -> int:
+    async def process_due(self, failing_rides: set[uuid.UUID] | None = None) -> int:
         """Loop pass: a read-only check for rides needing a step, then one step per ride.
 
         Returns how many rides needed a step. A failing ride is logged and does
-        not stop the others.
+        not stop the others. ``failing_rides`` (kept by the caller between
+        passes) limits the log to one traceback per series of failures of a
+        ride; later ones are a one-line warning until a step succeeds.
         """
+        failing = failing_rides if failing_rides is not None else set()
         async with read_transaction(self._session):
             ride_ids = await self._offers.rides_needing_work(self._clock.now())
+        failing.intersection_update(ride_ids)
         for ride_id in ride_ids:
             try:
                 await self.process_ride(ride_id)
-            except Exception:
-                logger.exception("Dispatch step failed for ride %s", ride_id)
+            except Exception as error:
+                if ride_id in failing:
+                    logger.warning("Dispatch step failed again for ride %s: %r", ride_id, error)
+                else:
+                    logger.exception("Dispatch step failed for ride %s", ride_id)
+                    failing.add(ride_id)
+            else:
+                failing.discard(ride_id)
         return len(ride_ids)
 
     async def accept_offer(self, offer_id: uuid.UUID, driver_id: uuid.UUID) -> Ride:

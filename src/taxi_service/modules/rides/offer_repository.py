@@ -15,7 +15,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.dml import Update
 
-from taxi_service.modules.rides.models import Ride, RideOffer
+from taxi_service.database.errors import violates_unique
+from taxi_service.modules.rides.models import (
+    PENDING_OFFER_DRIVER_INDEX,
+    PENDING_OFFER_RIDE_INDEX,
+    SEARCH_OFFER_CONSTRAINT,
+    Ride,
+    RideOffer,
+)
 from taxi_service.modules.rides.states import OfferStatus, RideStatus
 
 
@@ -48,13 +55,25 @@ class OfferRepository:
             )
         )
 
+    async def get_ride(self, ride_id: uuid.UUID) -> Ride | None:
+        """The ride as committed, replacing whatever the session still holds."""
+        result = await self._session.execute(
+            select(Ride).where(Ride.id == ride_id).execution_options(populate_existing=True)
+        )
+        return result.scalar_one_or_none()
+
     async def try_add_offer(self, offer: RideOffer) -> bool:
-        """Insert in a savepoint; ``False`` if a unique index refused it (a lost race)."""
+        """Insert in a savepoint; ``False`` if an offer unique index refused it (a lost race).
+
+        Any other integrity error (a missing driver, a CHECK) is re-raised.
+        """
         try:
             async with self._session.begin_nested():
                 self._session.add(offer)
                 await self._session.flush()
-        except IntegrityError:
+        except IntegrityError as error:
+            if not _lost_offer_race(error):
+                raise
             return False
         return True
 
@@ -156,6 +175,18 @@ class OfferRepository:
             statement, execution_options={"synchronize_session": False}
         )
         return cast(CursorResult[Any], result).rowcount
+
+
+def _lost_offer_race(error: IntegrityError) -> bool:
+    """One pending offer per ride or per driver, or this driver already asked in this search."""
+    return any(
+        violates_unique(error, constraint=constraint, table="ride_offers", column=column)
+        for constraint, column in (
+            (PENDING_OFFER_RIDE_INDEX, "ride_id"),
+            (PENDING_OFFER_DRIVER_INDEX, "driver_id"),
+            (SEARCH_OFFER_CONSTRAINT, "ride_id"),
+        )
+    )
 
 
 def _open_offers(driver_id: uuid.UUID, now: datetime) -> Select[RideOffer, Ride]:
