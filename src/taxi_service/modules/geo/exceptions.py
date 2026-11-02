@@ -36,6 +36,17 @@ class RoutingProviderError(AppError):
         self.reason = reason
 
 
+class RoutePointsIdenticalError(AppError):
+    """Origin and destination are the same point; the provider is not asked."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=422,
+            code="route_points_identical",
+            message="Origin and destination must be different points.",
+        )
+
+
 class RouteNotFoundError(AppError):
     """The provider found no drivable road route between the points."""
 
