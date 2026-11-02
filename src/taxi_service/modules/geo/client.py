@@ -7,7 +7,7 @@ import httpx
 from pydantic import BaseModel, Field, SecretStr
 
 from taxi_service.modules.geo.config import RoutingSettings
-from taxi_service.modules.geo.exceptions import RoutingUnavailableError
+from taxi_service.modules.geo.exceptions import RoutingProviderError, RoutingUnavailableError
 from taxi_service.modules.geo.schemas import Coordinates, RouteGeometry, RouteResult
 
 Sleep = Callable[[float], Awaitable[None]]
@@ -90,7 +90,17 @@ class OpenRouteServiceClient:
                 "Accept": "application/geo+json, application/json",
             },
         )
-        feature = _OrsFeatureCollection.model_validate(response.json()).features[0]
+        return self._parse_route(response)
+
+    def _parse_route(self, response: httpx.Response) -> RouteResult:
+        try:
+            payload = response.json()
+            feature = _OrsFeatureCollection.model_validate(payload).features[0]
+        except ValueError:
+            # Covers JSONDecodeError and pydantic.ValidationError.
+            raise RoutingProviderError(
+                "invalid_response", provider_status=response.status_code
+            ) from None
         return RouteResult(
             distance_m=_round_metric(feature.properties.summary.distance),
             duration_s=_round_metric(feature.properties.summary.duration),
