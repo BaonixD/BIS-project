@@ -17,6 +17,21 @@ class DriverRepository:
         """The profile with its vehicle (joined), or ``None`` before the first write."""
         return await self._session.get(DriverProfile, user_id)
 
+    async def get_for_update(self, user_id: uuid.UUID) -> DriverProfile | None:
+        """Like :meth:`get`, locking the profile row for the rest of the write transaction.
+
+        ``FOR UPDATE OF driver_profiles``: PostgreSQL refuses to lock the
+        nullable side of the vehicle outer join. SQLite has no row locks and
+        omits the clause; its writes are serialized by ``BEGIN IMMEDIATE``.
+        """
+        result = await self._session.execute(
+            select(DriverProfile)
+            .where(DriverProfile.user_id == user_id)
+            .with_for_update(of=DriverProfile)
+            .execution_options(populate_existing=True)
+        )
+        return result.scalar_one_or_none()
+
     async def add(self, profile: DriverProfile) -> None:
         self._session.add(profile)
         await self._session.flush()

@@ -75,7 +75,7 @@ class DriverService:
     async def set_availability(self, driver_id: uuid.UUID, *, online: bool) -> DriverProfile | None:
         """Go online (approved, complete drivers only) or offline (always)."""
         async with self._session.begin():
-            profile = await self._drivers.get(driver_id)
+            profile = await self._drivers.get_for_update(driver_id)
             if online:
                 if profile is None or profile.approval_status is not ApprovalStatus.APPROVED:
                     raise DriverNotApprovedError
@@ -104,7 +104,7 @@ class DriverService:
         INSERT (possible on PostgreSQL); the savepoint keeps the transaction
         usable and the row that won is used instead.
         """
-        profile = await self._drivers.get(driver_id)
+        profile = await self._drivers.get_for_update(driver_id)
         if profile is not None:
             return profile
         profile = DriverProfile.new(driver_id, self._clock.now())
@@ -112,7 +112,7 @@ class DriverService:
             async with self._session.begin_nested():
                 await self._drivers.add(profile)
         except IntegrityError:
-            existing = await self._drivers.get(driver_id)
+            existing = await self._drivers.get_for_update(driver_id)
             if existing is None:
                 raise
             return existing
@@ -166,7 +166,7 @@ class DriverAdminService:
             user = await self._drivers.get_driver_user(driver_id)
             if user is None:
                 raise DriverNotFoundError
-            profile = await self._drivers.get(driver_id)
+            profile = await self._drivers.get_for_update(driver_id)
             missing = missing_fields(profile)
             if profile is None or missing:
                 raise DriverProfileIncompleteError(missing)

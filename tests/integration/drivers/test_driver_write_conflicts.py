@@ -78,7 +78,9 @@ async def test_concurrent_first_driver_write_uses_the_existing_row(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     driver = await driver_factory.driver("dana", approved=False)
-    monkeypatch.setattr(DriverRepository, "get", missing_once(DriverRepository.get))
+    monkeypatch.setattr(
+        DriverRepository, "get_for_update", missing_once(DriverRepository.get_for_update)
+    )
 
     async with session_factory() as session:
         profile = await DriverService(session, clock).update_location(driver, POINT)
