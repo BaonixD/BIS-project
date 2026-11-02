@@ -1,7 +1,9 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Final
 
+from taxi_service.modules.rides.exceptions import InvalidRideTransitionError
 from taxi_service.modules.users.models import UserRole
 
 
@@ -23,10 +25,12 @@ class OfferStatus(StrEnum):
     REVOKED = "revoked"
 
 
-ACTIVE_RIDE_STATUSES: Final[frozenset[RideStatus]] = frozenset()
-TERMINAL_RIDE_STATUSES: Final[frozenset[RideStatus]] = frozenset()
-PRE_START_RIDE_STATUSES: Final[frozenset[RideStatus]] = frozenset()
-TERMINAL_OFFER_STATUSES: Final[frozenset[OfferStatus]] = frozenset()
+PRE_START_RIDE_STATUSES: Final = frozenset(
+    {RideStatus.SEARCHING, RideStatus.ASSIGNED, RideStatus.ARRIVED}
+)
+ACTIVE_RIDE_STATUSES: Final = PRE_START_RIDE_STATUSES | {RideStatus.IN_PROGRESS}
+TERMINAL_RIDE_STATUSES: Final = frozenset(RideStatus) - ACTIVE_RIDE_STATUSES
+TERMINAL_OFFER_STATUSES: Final = frozenset(OfferStatus) - {OfferStatus.PENDING}
 
 
 class RideCommand(StrEnum):
@@ -49,5 +53,22 @@ class Actor:
 SYSTEM_ACTOR: Final = Actor(role=None)
 
 
+_TRANSITIONS: Final[Mapping[RideCommand, Mapping[RideStatus, RideStatus]]] = {
+    RideCommand.ASSIGN: {RideStatus.SEARCHING: RideStatus.ASSIGNED},
+    RideCommand.ARRIVE: {RideStatus.ASSIGNED: RideStatus.ARRIVED},
+    RideCommand.START: {RideStatus.ARRIVED: RideStatus.IN_PROGRESS},
+    RideCommand.COMPLETE: {RideStatus.IN_PROGRESS: RideStatus.COMPLETED},
+    RideCommand.MARK_NO_DRIVER: {RideStatus.SEARCHING: RideStatus.NO_DRIVER},
+    RideCommand.CANCEL: {status: RideStatus.CANCELLED for status in PRE_START_RIDE_STATUSES},
+    RideCommand.RELEASE: {
+        RideStatus.ASSIGNED: RideStatus.SEARCHING,
+        RideStatus.ARRIVED: RideStatus.SEARCHING,
+    },
+}
+
+
 def next_status(current: RideStatus, command: RideCommand, actor: Actor) -> RideStatus:
-    return current
+    target = _TRANSITIONS[command].get(current)
+    if target is None:
+        raise InvalidRideTransitionError(current_status=current.value, command=command.value)
+    return target
