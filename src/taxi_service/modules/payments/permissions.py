@@ -9,9 +9,9 @@ from taxi_service.modules.payments.exceptions import (
     InvalidConfirmationReferenceError,
     PaymentActionForbiddenError,
     RideNotCompletedError,
-    RideNotFoundError,
 )
 from taxi_service.modules.payments.rules import PaymentAction, PaymentMethod
+from taxi_service.modules.rides.exceptions import RideNotFoundError
 from taxi_service.modules.users.models import UserRole
 
 MAX_CONFIRMATION_REFERENCE_LENGTH: Final = 200

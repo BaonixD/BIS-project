@@ -6,7 +6,6 @@ from taxi_service.modules.payments.exceptions import (
     InvalidConfirmationReferenceError,
     PaymentActionForbiddenError,
     RideNotCompletedError,
-    RideNotFoundError,
 )
 from taxi_service.modules.payments.permissions import (
     MAX_CONFIRMATION_REFERENCE_LENGTH,
@@ -15,6 +14,7 @@ from taxi_service.modules.payments.permissions import (
     normalize_confirmation_reference,
 )
 from taxi_service.modules.payments.rules import PaymentAction, PaymentMethod
+from taxi_service.modules.rides.exceptions import RideNotFoundError
 from taxi_service.modules.users.models import UserRole
 
 CASH = PaymentMethod.CASH

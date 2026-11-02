@@ -3,13 +3,6 @@
 from taxi_service.core.errors import AppError
 
 
-class RideNotFoundError(AppError):
-    """The ride is missing or belongs to someone else; both look the same to the caller."""
-
-    def __init__(self) -> None:
-        super().__init__(status_code=404, code="ride_not_found", message="Ride not found.")
-
-
 class PaymentActionForbiddenError(AppError):
     def __init__(self, *, action: str) -> None:
         super().__init__(
