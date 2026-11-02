@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from support.clock import ManualClock
 from support.dispatch import Dispatcher
 from support.drivers import DriverFactory
+from support.payments import isolate_payment_environment, kaspi_off
 from support.rides import PICKUP, RideFactory
 from support.routing import FakeRoutingProvider, isolate_routing_environment
 from taxi_service.core.config import Settings
@@ -30,6 +31,7 @@ from taxi_service.database.session import (
 )
 from taxi_service.main import create_app
 from taxi_service.modules.auth.passwords import PasswordHasher
+from taxi_service.modules.payments.config import PaymentSettings
 
 
 def sqlite_url(path: Path) -> str:
@@ -126,6 +128,17 @@ def _isolated_routing_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     isolate_routing_environment(monkeypatch)
 
 
+@pytest.fixture(autouse=True)
+def _isolated_payment_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    isolate_payment_environment(monkeypatch)
+
+
+@pytest.fixture
+def payment_settings() -> PaymentSettings:
+    """Kaspi off; payment tests override it with ``support.payments.kaspi_on()``."""
+    return kaspi_off()
+
+
 @pytest.fixture
 def routing_provider() -> FakeRoutingProvider:
     """Deterministic routes; tests inspect ``calls`` or use ``fail_with``."""
@@ -133,8 +146,18 @@ def routing_provider() -> FakeRoutingProvider:
 
 
 @pytest.fixture
-def app(settings: Settings, clock: ManualClock, routing_provider: FakeRoutingProvider) -> FastAPI:
-    return create_app(settings, clock=clock, routing_provider=routing_provider)
+def app(
+    settings: Settings,
+    clock: ManualClock,
+    routing_provider: FakeRoutingProvider,
+    payment_settings: PaymentSettings,
+) -> FastAPI:
+    return create_app(
+        settings,
+        clock=clock,
+        routing_provider=routing_provider,
+        payment_settings=payment_settings,
+    )
 
 
 @pytest.fixture

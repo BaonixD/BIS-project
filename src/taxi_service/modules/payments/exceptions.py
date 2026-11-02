@@ -63,3 +63,12 @@ class InvalidConfirmationReferenceError(AppError):
             ),
             details={"max_length": max_length},
         )
+
+
+class PaymentNotFoundError(AppError):
+    """A completed ride without its payment record; completion always opens one."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=404, code="payment_not_found", message="The ride has no payment record."
+        )

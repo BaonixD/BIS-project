@@ -42,7 +42,7 @@ cp .env.example .env  # локальные настройки; .env не ком�
 | --- | --- | --- |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` или `CRITICAL`, без учёта регистра |
 | `DATABASE_URL` | — (обязательна) | URL БД для приложения и Alembic; локально `sqlite+aiosqlite:///./taxi.db` |
-| `KASPI_PAYMENT_URL` | пусто | Ссылка Kaspi владельца (хост `pay.kaspi.kz`); используется с T08, только в локальном `.env` |
+| `KASPI_PAYMENT_URL` | пусто | Ссылка Kaspi владельца `https://pay.kaspi.kz/pay/<id>`, только в локальном `.env`; пусто — Kaspi выключен, наличные работают (см. «Оплата») |
 | `ROUTING_API_KEY` | пусто | Ключ сервиса дорожных маршрутов; используется с T04, только в локальном `.env` |
 | `SESSION_COOKIE_SECURE` | `true` | Флаг `Secure` cookie сессии; для локального `http://` — `false` (так в `.env.example`) |
 | `CORS_ALLOWED_ORIGINS` | пусто | Origin браузерных клиентов через запятую, без `*`: CORS с credentials и проверка `Origin` у login/register |
@@ -344,7 +344,7 @@ curl -s -b jar.txt -X POST "$API/rides" -H "X-CSRF-Token: $CSRF" -H "Idempotency
 
 Фильтры поездок сочетаются через И: `status` — один или несколько (`?status=completed&status=cancelled`); `created_from` — включительно, `created_to` — исключительно, то есть `[from, to)`. Время — ISO 8601 обязательно со смещением (`2026-11-03T09:00:00Z` или `+05:00`; в URL `+` кодируется как `%2B`), без смещения — `422 validation_error`; `created_from` позже `created_to` — `422 invalid_date_range`.
 
-Элемент поездки (`RideSummary`): `id`, `status`, `passenger_id`, `driver_id`, `pickup`, `dropoff`, `distance_m`, `duration_s`, `amount_kzt`, `currency`, `created_at`, `updated_at`. Геометрии маршрута в списке нет — её отдаёт `GET /rides/{id}`. Пароли, хэши, токены сессии и CSRF, телефоны в ответы не попадают; изменить роль или статус через эти маршруты нельзя (`POST/PUT/PATCH/DELETE` — `404/405`).
+Элемент поездки (`RideSummary`): `id`, `status`, `passenger_id`, `driver_id`, `pickup`, `dropoff`, `distance_m`, `duration_s`, `amount_kzt`, `currency`, `created_at`, `updated_at`, `payment_status`, `payment_method` (оба `null` до завершения поездки; один `LEFT JOIN payments`, число запросов не растёт). Геометрии маршрута в списке нет — её отдаёт `GET /rides/{id}`. Пароли, хэши, токены сессии и CSRF, телефоны в ответы не попадают; изменить роль или статус через эти маршруты нельзя (`POST/PUT/PATCH/DELETE` — `404/405`).
 
 Страница стоит одинаковое число SQL-запросов при любом размере: проверка сессии, строки страницы и `count` (`tests/api/test_list_statement_count.py`).
 
@@ -438,7 +438,7 @@ assigned / arrived → searching  (release)
 - История: каждый переход — строка `ride_events` (`from_status`, `to_status`, `command`, `actor_id`, `reason`, `created_at`) в той же транзакции, что и смена статуса, включая системные `assign` (accept) и `mark_no_driver` (`actor_id = null`). Координат и секретов там нет.
 - `GET /rides/{id}` для пассажира и назначенного водителя активной поездки (`assigned/arrived/in_progress`) содержит `driver`: `full_name`, `phone`, `vehicle` (`make`, `model`, `color`, `plate_number`), последнюю `location` и `location_updated_at`. Admin и другие статусы — `driver: null`. Устаревшая координата поездку не завершает и не отменяет — клиент показывает время последнего обновления.
 - Водитель во время поездки не уходит offline и не меняет профиль и машину (`409 driver_on_active_ride`).
-- Завершение вызывает в той же транзакции точку расширения оплаты `modules/rides/completion.py::on_ride_completed` (T08 создаёт там запись неоплаченной стоимости); сейчас она ничего не делает — платежей нет.
+- Завершение вызывает в той же транзакции точку расширения оплаты `modules/rides/completion.py::on_ride_completed`: она открывает неоплаченную наличную оплату поездки (см. «Оплата»); сбой открытия откатывает завершение.
 
 Пример (водитель вошёл, `$RIDE_ID` — его поездка):
 
@@ -449,3 +449,38 @@ curl -s -b jar.txt -X POST "$API/rides/$RIDE_ID/release" -H "X-CSRF-Token: $CSRF
 ```
 
 В тестах: `support.lifecycle` — `trip_in("arrived", client, driver_factory, dispatcher)` (пассажир `pat`, водитель `dana`), `send(client, ride_id, "start", "dana")`, `ride_events(session_factory, ride_id)`; фикстура `other_client` — второй браузер на том же приложении для конкурентных запросов; хук завершения подменяется через `app.state.ride_completion_hook`.
+
+## Оплата
+
+Учёт оплаты завершённой поездки: наличные по умолчанию и Kaspi по ссылке владельца с **ручной** сверкой. Сервер не обращается к Kaspi, не получает от него статусов и нигде не утверждает, что платёж подтвердил Kaspi: в каждом ответе `verification: "manual"`. Подробности — [ADR 0004](docs/decisions/0004-payments-cash-kaspi.md).
+
+- Завершение поездки (`complete`) в той же транзакции открывает одну запись оплаты: `cash`, `unpaid`, сумма — копия `amount_kzt` поездки, событие аудита `open`. Вторая запись для поездки невозможна (`UNIQUE ride_id`).
+- Статусы: `unpaid → reported → confirmed`; наличные — `unpaid → confirmed`. `reported` — только заявление пассажира «Я оплатил» по Kaspi.
+- Ссылка берётся только из `KASPI_PAYMENT_URL` (формат `https://pay.kaspi.kz/pay/<id>`), читается один раз при сборке приложения (`create_app`), из тела запроса не принимается. Сумму покупатель вводит в Kaspi сам; открытие ссылки, QR или возврат из приложения ничего не подтверждают. Без ссылки Kaspi недоступен, наличные работают.
+
+| Маршрут (`/api/v1`) | Кто | Что делает |
+| --- | --- | --- |
+| `GET /rides/{id}/payment` | пассажир, назначенный водитель, admin | инструкции: `amount_kzt`, `currency`, `method`, `status`, `verification`, `kaspi_available`, `payment_url` (только `kaspi_link` до подтверждения), `amount_entered_by_buyer`, `notice`, `reported_at`, `confirmed_at`, `confirmed_by`, `confirmation_reference` (только admin) |
+| `PUT /rides/{id}/payment/method`, тело `{"method": "kaspi_link"}` или `"cash"` | пассажир | смена метода до подтверждения; статус снова `unpaid` (заявление Kaspi на наличные не переносится); Kaspi без ссылки — `503 kaspi_unavailable` |
+| `POST /rides/{id}/payment/report` | пассажир | `kaspi_link`: `unpaid → reported` (не `confirmed`); для наличных — `409` |
+| `POST /rides/{id}/payment/confirm`, тело `{"reference": "..."}` | cash: назначенный водитель или admin; kaspi_link: только admin | ручное подтверждение; для Kaspi `reference` (заметка сверки с POS, до 200 символов, без секретов) обязательна, для наличных — по желанию |
+
+- Команды (`PUT`/`POST`) требуют `X-CSRF-Token`; тела закрыты — лишние поля (`amount_kzt`, `payment_url`, `status`…) дают `422 validation_error`. Ответ команды — те же поля плюс `changed`: повтор уже применённой команды (второй `confirm`, повторный `report`, тот же метод) — `200` с `changed: false`, без второго события.
+- Ошибки: чужая или несуществующая поездка — `404 ride_not_found`; участник без права (пассажир на `confirm`, водитель или admin на `report`/`method`, водитель на `confirm` Kaspi) — `403 payment_action_forbidden`; поездка не завершена — `409 ride_not_completed` (до завершения записи оплаты нет); переход не по правилам (смена метода после подтверждения, `report` для наличных) — `409 invalid_payment_transition`; Kaspi без заметки — `422 confirmation_reference_required`, некорректная заметка — `422 invalid_confirmation_reference`. `404 payment_not_found` — завершённая поездка без записи; при нормальной работе не возникает: миграция `272671ab4753` открыла записи для поездок, завершённых до неё.
+- Аудит — таблица `payment_events` (`action`: `open`, `change_method`, `report`, `confirm`; `from_status`/`to_status`, `from_method`/`to_method`, `actor_id`, `reference`, `created_at`) в одной транзакции с изменением; `open` — системное (`actor_id = null`). Конкурентные подтверждения дают одно событие: команда блокирует поездку, затем оплату (`rides → payments`).
+- В истории (`GET /rides`) и `GET /admin/rides` у каждой поездки есть `payment_status` и `payment_method`.
+- Откат миграции `272671ab4753` удаляет `payments` и `payment_events` вместе с данными — перед ним сделайте резервную копию.
+
+Пример (пассажир вошёл, Kaspi включён). Реальная оплата по ссылке владельца не проверялась — `external_pending`.
+
+```bash
+curl -s -b jar.txt "$API/rides/$RIDE_ID/payment"
+curl -s -b jar.txt -X PUT "$API/rides/$RIDE_ID/payment/method" -H "X-CSRF-Token: $CSRF" \
+  -H "Content-Type: application/json" -d '{"method": "kaspi_link"}'
+curl -s -b jar.txt -X POST "$API/rides/$RIDE_ID/payment/report" -H "X-CSRF-Token: $CSRF"
+# admin после сверки в Kaspi POS:
+curl -s -b admin.txt -X POST "$API/rides/$RIDE_ID/payment/confirm" -H "X-CSRF-Token: $ADMIN_CSRF" \
+  -H "Content-Type: application/json" -d '{"reference": "POS receipt 0042"}'
+```
+
+В тестах: `support.payments` — `pay(client, ride_id, "confirm", "dana")`, `read_payment`, `stored_payment`, `payment_events`; фикстура `payment_settings` по умолчанию выключает Kaspi, тесты Kaspi подменяют её на `kaspi_on()` с контролируемой ссылкой `https://pay.kaspi.kz/pay/test123`. `KASPI_PAYMENT_URL` из окружения и локального `.env` в тесты не попадает.

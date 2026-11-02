@@ -169,3 +169,50 @@ async def insert_event(
     }
     await insert(session_factory, "ride_events", row)
     return event_id
+
+
+async def insert_payment(
+    session_factory: SessionFactory, ride_id: str | None, **values: Any
+) -> str:
+    """One ``payments`` row: an unpaid cash payment of 2200 KZT unless ``values`` say otherwise."""
+    payment_id = uuid.uuid4().hex
+    row = {
+        "id": payment_id,
+        "ride_id": ride_id,
+        "amount_kzt": 2200,
+        "currency": "KZT",
+        "method": "cash",
+        "status": "unpaid",
+        "verification": "manual",
+        "reported_at": None,
+        "confirmed_at": None,
+        "confirmed_by": None,
+        "confirmation_reference": None,
+        "created_at": NOW,
+        "updated_at": NOW,
+        **values,
+    }
+    await insert(session_factory, "payments", row)
+    return payment_id
+
+
+async def insert_payment_event(
+    session_factory: SessionFactory, payment_id: str | None, **values: Any
+) -> str:
+    """One ``payment_events`` row: the system opening an unpaid cash payment."""
+    event_id = uuid.uuid4().hex
+    row = {
+        "id": event_id,
+        "payment_id": payment_id,
+        "action": "open",
+        "from_status": None,
+        "to_status": "unpaid",
+        "from_method": None,
+        "to_method": "cash",
+        "actor_id": None,
+        "reference": None,
+        "created_at": NOW,
+        **values,
+    }
+    await insert(session_factory, "payment_events", row)
+    return event_id

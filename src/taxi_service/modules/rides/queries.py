@@ -1,8 +1,9 @@
 """Read side of rides: a participant's history and the admin list (MVP_SPEC §3, §8).
 
-One page costs two statements whatever its size: the rows and the total.
-Rows are loaded without ``route_geometry``; the full route is read with
-``GET /rides/{id}``.
+One page costs two statements whatever its size: the rows, each joined with
+the status and method of its payment (none before completion), and the
+total. Rows are loaded without ``route_geometry``; the full route is read
+with ``GET /rides/{id}``.
 """
 
 import dataclasses
@@ -17,6 +18,8 @@ from sqlalchemy.orm import defer
 
 from taxi_service.database.session import read_transaction
 from taxi_service.modules.auth.exceptions import ForbiddenError
+from taxi_service.modules.payments.models import Payment
+from taxi_service.modules.payments.rules import PaymentMethod, PaymentStatus
 from taxi_service.modules.rides.models import Ride
 from taxi_service.modules.rides.states import RideStatus
 from taxi_service.modules.users.models import UserRole
@@ -37,8 +40,17 @@ class RideFilters:
 
 
 @dataclass(frozen=True, slots=True)
+class RideRow:
+    """A ride of a list with its payment's status and method (``None`` without a payment)."""
+
+    ride: Ride
+    payment_status: PaymentStatus | None
+    payment_method: PaymentMethod | None
+
+
+@dataclass(frozen=True, slots=True)
 class RidePage:
-    rides: Sequence[Ride]
+    rows: Sequence[RideRow]
     total: int
 
 
@@ -72,16 +84,21 @@ class RideQueries:
     async def list_rides(self, filters: RideFilters, *, limit: int, offset: int) -> RidePage:
         conditions = _conditions(filters)
         async with read_transaction(self._session):
-            rides = await self._session.scalars(_page(conditions, limit=limit, offset=offset))
+            result = await self._session.execute(_page(conditions, limit=limit, offset=offset))
+            rows = [RideRow(ride, status, method) for ride, status, method in result]
             total = await self._session.scalar(
                 select(func.count()).select_from(Ride).where(*conditions)
             )
-            return RidePage(rides=rides.all(), total=total or 0)
+            return RidePage(rows=rows, total=total or 0)
 
 
-def _page(conditions: list[ColumnElement[bool]], *, limit: int, offset: int) -> Select[Ride]:
+def _page(
+    conditions: list[ColumnElement[bool]], *, limit: int, offset: int
+) -> Select[Ride, PaymentStatus, PaymentMethod]:
+    """Rows of one page; the outer join gives ``None`` payment columns before completion."""
     return (
-        select(Ride)
+        select(Ride, Payment.status, Payment.method)
+        .outerjoin(Payment, Payment.ride_id == Ride.id)
         .options(defer(Ride.route_geometry, raiseload=True))
         .where(*conditions)
         .order_by(Ride.created_at.desc(), Ride.id.desc())
