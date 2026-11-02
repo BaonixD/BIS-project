@@ -441,6 +441,32 @@ async def test_admin_confirms_unreported_kaspi_after_reconciliation(
     assert (body["status"], body["changed"]) == ("confirmed", True)
 
 
+async def test_repeated_kaspi_confirmation_keeps_the_first_one(
+    client: httpx.AsyncClient, completed: Trip, session_factory: SessionFactory
+) -> None:
+    await expect_paid_ok(client, completed.ride_id, "method", completed.passenger, json=KASPI)
+    first = await expect_paid_ok(
+        client, completed.ride_id, "confirm", ADMIN, json={"reference": REFERENCE}
+    )
+
+    without_note = await pay(client, completed.ride_id, "confirm", ADMIN)
+    again = await expect_paid_ok(
+        client, completed.ride_id, "confirm", ADMIN, json={"reference": "another note"}
+    )
+
+    expect_error(without_note, 422, "confirmation_reference_required")
+    assert again["changed"] is False
+    assert (again["confirmed_at"], again["confirmation_reference"]) == (
+        first["confirmed_at"],
+        REFERENCE,
+    )
+    assert await actions_of(session_factory, completed.ride_id) == [
+        "open",
+        "change_method",
+        "confirm",
+    ]
+
+
 async def test_back_to_cash_drops_the_kaspi_statement(
     client: httpx.AsyncClient, completed: Trip, session_factory: SessionFactory
 ) -> None:
