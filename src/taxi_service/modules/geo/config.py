@@ -12,7 +12,7 @@ class RoutingSettings(BaseSettings):
     api_key: SecretStr | None = None
     base_url: HttpUrl = HttpUrl("https://api.openrouteservice.org")
     connect_timeout_s: float = Field(default=3.0, gt=0, le=30)
-    read_timeout_s: float = Field(default=10.0, gt=0, le=60)
+    read_timeout_s: float = Field(default=5.0, gt=0, le=60)
     max_retries: int = Field(default=2, ge=0, le=5)
     retry_backoff_s: float = Field(default=0.5, ge=0, le=10)
     max_retry_delay_s: float = Field(default=5.0, ge=0, le=30)
