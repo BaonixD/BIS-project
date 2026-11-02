@@ -21,3 +21,9 @@ dist/
 .claude/settings.local.json
 postgres-data/
 *.log
+
+# Local SQLite databases
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
