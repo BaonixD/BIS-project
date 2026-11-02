@@ -75,3 +75,23 @@ async def test_malformed_availability_is_rejected(
     response = await client.put(AVAILABILITY_URL, json=body, headers=driver.csrf_headers)
 
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize("headers", [{}, {"X-CSRF-Token": "not-the-session-token"}])
+async def test_availability_change_needs_the_csrf_token(
+    app: FastAPI,
+    client: httpx.AsyncClient,
+    session_factory: SessionFactory,
+    clock: ManualClock,
+    headers: dict[str, str],
+) -> None:
+    await create_admin(app, session_factory, clock)
+    driver = await registered_driver(client, "dana", profile=complete_profile())
+    assert (await approve(client, driver.id)).status_code == 200
+    await login_as(client, "dana")
+
+    response = await client.put(AVAILABILITY_URL, json={"online": True}, headers=headers)
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "csrf_failed"
+    assert (await client.get(DRIVERS_ME_URL)).json()["online"] is False
