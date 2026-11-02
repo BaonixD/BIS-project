@@ -150,6 +150,7 @@ async def test_route_is_returned_unchanged(
         {"origin": {"lon": 76.9572, "lat": 43.2389}, "destination": AL_FARABI},
         {"origin": [76.9572, 43.2389], "destination": AL_FARABI},
         {**ROUTE_BODY, "price": 100},
+        {"origin": {**ABAY_DOSTYK, "altitude": 800}, "destination": AL_FARABI},
         [ABAY_DOSTYK, AL_FARABI],
     ],
 )
@@ -163,6 +164,58 @@ async def test_invalid_request_is_a_validation_error(
     assert response.status_code == 422
     assert error_of(response)["code"] == "validation_error"
     assert routing_provider.call_count == 0
+
+
+async def test_identical_points_are_refused_before_the_provider(
+    client: httpx.AsyncClient, routing_provider: FakeRoutingProvider
+) -> None:
+    headers = await logged_in_headers(client)
+
+    response = await client.post(
+        ROUTE_URL, json={"origin": ABAY_DOSTYK, "destination": dict(ABAY_DOSTYK)}, headers=headers
+    )
+
+    assert response.status_code == 422
+    assert error_of(response)["code"] == "route_points_identical"
+    assert routing_provider.call_count == 0
+
+
+async def test_nearby_distinct_points_reach_the_provider(
+    client: httpx.AsyncClient, routing_provider: FakeRoutingProvider
+) -> None:
+    headers = await logged_in_headers(client)
+    nearby = {"longitude": 76.9572, "latitude": 43.23891}
+
+    response = await client.post(
+        ROUTE_URL, json={"origin": ABAY_DOSTYK, "destination": nearby}, headers=headers
+    )
+
+    assert response.status_code == 200
+    assert routing_provider.call_count == 1
+
+
+# OpenAPI
+
+
+async def test_openapi_documents_the_route_and_its_errors(client: httpx.AsyncClient) -> None:
+    schema = (await client.get("/openapi.json")).json()
+    operation = schema["paths"][ROUTE_URL]["post"]
+
+    assert {"SessionCookie": []} in operation["security"]
+    assert operation["requestBody"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/RouteRequest"
+    }
+    assert operation["responses"]["200"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/RouteResult"
+    }
+    error_ref = {"$ref": "#/components/schemas/ErrorResponse"}
+    for status in ("401", "403", "422", "503"):
+        response = operation["responses"][status]
+        assert response["content"]["application/json"]["schema"] == error_ref, status
+    description = operation["description"]
+    for code in ("route_points_identical", "route_not_found", "routing_unavailable"):
+        assert code in description
+    assert "routing_provider_error" in description
 
 
 # Provider errors
