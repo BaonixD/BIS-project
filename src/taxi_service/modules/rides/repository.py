@@ -31,6 +31,19 @@ class RideRepository:
     async def get_ride(self, ride_id: uuid.UUID) -> Ride | None:
         return await self._session.get(Ride, ride_id)
 
+    async def lock_ride(self, ride_id: uuid.UUID) -> Ride | None:
+        """The ride, fresh from the database and locked for the rest of the transaction.
+
+        Lock the ride before its offers (rides -> ride_offers, ADR 0006).
+        """
+        result = await self._session.execute(
+            select(Ride)
+            .where(Ride.id == ride_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        return result.scalar_one_or_none()
+
     async def has_active_ride(self, passenger_id: uuid.UUID) -> bool:
         found = await self._session.scalar(
             select(Ride.id).where(

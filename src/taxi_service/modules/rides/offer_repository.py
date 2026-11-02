@@ -107,24 +107,6 @@ class OfferRepository:
     ) -> int:
         return await self._decide([RideOffer.driver_id == driver_id], status, now)
 
-    async def move_ride(
-        self,
-        ride_id: uuid.UUID,
-        *,
-        from_status: RideStatus,
-        to_status: RideStatus,
-        now: datetime,
-        driver_id: uuid.UUID | None = None,
-    ) -> bool:
-        """Conditional status change of a ride; ``driver_id`` is set when given."""
-        values: dict[str, Any] = {"status": to_status, "updated_at": now}
-        if driver_id is not None:
-            values["driver_id"] = driver_id
-        statement = (
-            update(Ride).where(Ride.id == ride_id, Ride.status == from_status).values(**values)
-        )
-        return await self._rowcount(statement) == 1
-
     async def rides_needing_work(self, now: datetime) -> list[uuid.UUID]:
         """Rides with an overdue pending offer, searching rides without a pending offer,
         and rides that left ``searching`` but still have a pending offer."""

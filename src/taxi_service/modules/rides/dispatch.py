@@ -29,6 +29,7 @@ from taxi_service.modules.drivers.candidates import SearchScope, find_nearby_can
 from taxi_service.modules.rides.exceptions import (
     DriverBusyError,
     InvalidOfferTransitionError,
+    InvalidRideTransitionError,
     OfferExpiredError,
     OfferNotFoundError,
 )
@@ -48,6 +49,7 @@ from taxi_service.modules.rides.states import (
     next_offer_status,
     next_status,
 )
+from taxi_service.modules.rides.transitions import move_ride
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +92,7 @@ class DispatchService:
         return ride
 
     async def start_search(self, ride_id: uuid.UUID) -> Ride:
-        """First step right after the ride was committed; the ride as it is afterwards.
+        """First step after the ride was committed (created or released); the ride afterwards.
 
         A failing step is logged and the ride is read again as committed (still
         ``searching``); the background loop takes it up. Pass the id, not the
@@ -100,7 +102,7 @@ class DispatchService:
         try:
             processed = await self.process_ride(ride_id)
         except Exception:
-            logger.exception("First dispatch step failed for ride %s", ride_id)
+            logger.exception("Dispatch step after commit failed for ride %s", ride_id)
             processed = None
         if processed is None:
             async with read_transaction(self._session):
@@ -138,6 +140,7 @@ class DispatchService:
         """Assign the ride to the offer's driver while the offer is pending and in time.
 
         Accepting an offer this driver already accepted returns the ride again.
+        A cancelled ride is 409 ``invalid_ride_transition`` whatever the offer.
         ``now >= expires_at`` is 409 ``offer_expired`` even if the loop has not
         marked it yet; the offer is then marked expired and the next candidate
         asked. Other decided offers: 409 ``invalid_offer_transition``.
@@ -189,6 +192,10 @@ class DispatchService:
     async def _accept(self, offer_id: uuid.UUID, driver_id: uuid.UUID) -> Ride | OfferExpiredError:
         offer, ride = await self._addressed(offer_id, driver_id)
         now = self._clock.now()
+        if ride.status is RideStatus.CANCELLED:
+            raise InvalidRideTransitionError(
+                current_status=ride.status.value, command=RideCommand.ASSIGN.value
+            )
         if is_offer_command_already_applied(offer.status, OfferCommand.ACCEPT):
             if ride.driver_id == driver_id:
                 return ride
@@ -206,13 +213,18 @@ class DispatchService:
         decided = can_accept_offer(
             offer.status, now=now, expires_at=offer.expires_at
         ) and await self._offers.decide_offer(offer.id, target, now, unexpired=True)
-        if not decided or not await self._offers.move_ride(
-            ride.id, from_status=ride.status, to_status=assigned, now=now, driver_id=driver_id
+        if not decided or not await move_ride(
+            self._session,
+            ride,
+            command=RideCommand.ASSIGN,
+            to_status=assigned,
+            now=now,
+            actor_id=driver_id,
+            values={"driver_id": driver_id, "assigned_at": now},
         ):
             raise InvalidOfferTransitionError(
                 current_status=offer.status.value, command=OfferCommand.ACCEPT.value
             )
-        await self._session.refresh(ride)
         return ride
 
     async def _addressed(self, offer_id: uuid.UUID, driver_id: uuid.UUID) -> tuple[RideOffer, Ride]:
@@ -250,8 +262,14 @@ class DispatchService:
         if now < ride.search_deadline and await self._offer_to_nearest(ride, now):
             return
         no_driver = next_status(ride.status, RideCommand.MARK_NO_DRIVER, SYSTEM_ACTOR)
-        await self._offers.move_ride(ride.id, from_status=ride.status, to_status=no_driver, now=now)
-        await self._session.refresh(ride)
+        await move_ride(
+            self._session,
+            ride,
+            command=RideCommand.MARK_NO_DRIVER,
+            to_status=no_driver,
+            now=now,
+            actor_id=None,
+        )
 
     async def _offer_to_nearest(self, ride: Ride, now: datetime) -> bool:
         """Offer the ride to the nearest candidate; ``False`` only if there is none.

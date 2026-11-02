@@ -31,6 +31,15 @@ from taxi_service.modules.rides.states import RideStatus
 
 REPLAY_HEADER = "Idempotent-Replayed"
 SNAPSHOT_FIELDS = ("pickup", "dropoff", "route", "amount_kzt", "currency", "tariff_version")
+# Stage times and cancel reason (T07B); empty on a new ride.
+LIFECYCLE_FIELDS = (
+    "assigned_at",
+    "arrived_at",
+    "started_at",
+    "completed_at",
+    "cancelled_at",
+    "cancel_reason",
+)
 
 
 def error_code(response: httpx.Response) -> str:
@@ -75,7 +84,9 @@ async def test_passenger_creates_a_searching_ride_from_the_quote(
         *SNAPSHOT_FIELDS,
         "created_at",
         "updated_at",
+        *LIFECYCLE_FIELDS,
     }
+    assert {name: ride[name] for name in LIFECYCLE_FIELDS} == dict.fromkeys(LIFECYCLE_FIELDS)
     assert ride["status"] == "searching"
     assert ride["driver_id"] is None
     assert ride["passenger_id"] == str(passenger.id)
