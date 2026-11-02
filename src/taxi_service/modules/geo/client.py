@@ -124,7 +124,7 @@ class OpenRouteServiceClient:
         would reach the deadline is not taken, and the last error is raised.
         """
         if self._api_key is None:
-            raise RoutingUnavailableError
+            raise RoutingUnavailableError()
         body = {"coordinates": [origin.as_lon_lat(), destination.as_lon_lat()]}
         headers = {
             "Authorization": self._api_key.get_secret_value(),
