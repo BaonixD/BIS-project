@@ -17,7 +17,7 @@ Steps are idempotent; concurrent steps are serialized by the ride lock (SQLite:
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,6 +50,8 @@ from taxi_service.modules.rides.states import (
 )
 
 logger = logging.getLogger(__name__)
+
+SEARCH_START_STEP = timedelta(microseconds=1)
 
 # Candidates tried in one step when a nearer one was reserved by a concurrent search.
 CANDIDATE_BATCH = 3
@@ -278,6 +280,7 @@ class DispatchService:
                 created_at=now,
                 expires_at=now + self._policy.offer_ttl,
                 responded_at=None,
+                search_started_at=ride.search_started_at,
             )
             if await self._offers.try_add_offer(offer):
                 return True
@@ -305,8 +308,11 @@ def restart_search(ride: Ride, now: datetime, policy: DispatchPolicy) -> None:
     """Open a new search window on a ride that returns to ``searching`` (release, T07B).
 
     Set it inside the caller's transaction together with the status change,
-    then call ``DispatchService.process_ride`` after commit. Drivers who had
-    any offer for this ride, the releasing driver included, stay excluded.
+    then call ``DispatchService.process_ride`` after commit. Drivers asked in
+    the previous search may be asked again; any driver who accepted this ride
+    (the releasing one) stays excluded. The new window starts strictly after
+    the previous one, so offers of the two searches never share a start.
     """
-    ride.search_started_at = now
-    ride.search_deadline = now + policy.search_budget
+    started_at = max(now, ride.search_started_at + SEARCH_START_STEP)
+    ride.search_started_at = started_at
+    ride.search_deadline = started_at + policy.search_budget

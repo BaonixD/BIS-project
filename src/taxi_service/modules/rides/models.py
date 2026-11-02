@@ -41,7 +41,7 @@ SEARCHING_DEADLINE_INDEX: Final = "ix_rides_searching_search_deadline"
 PENDING_OFFER_RIDE_INDEX: Final = "uq_ride_offers_pending_ride_id"
 PENDING_OFFER_DRIVER_INDEX: Final = "uq_ride_offers_pending_driver_id"
 PENDING_OFFER_EXPIRY_INDEX: Final = "ix_ride_offers_pending_expires_at"
-SEARCH_OFFER_CONSTRAINT: Final = "uq_ride_offers_ride_id_driver_id"
+SEARCH_OFFER_CONSTRAINT: Final = "uq_ride_offers_ride_id_driver_id_search_started_at"
 
 # Statuses with an accepted driver; ``cancelled`` may keep the driver it had.
 ASSIGNED_RIDE_STATUSES: Final = frozenset(
@@ -216,7 +216,9 @@ class RideOffer(Base):
     database allows one pending offer per ride and one per driver (partial
     unique indexes on the status only, never on the current time: an overdue
     pending offer still blocks until it is marked expired) and at most one
-    offer per driver and ride, so a search never asks the same driver twice.
+    offer per driver in one search of a ride (``search_started_at`` copies
+    ``rides.search_started_at`` of the search that made it), so a search never
+    asks the same driver twice; a new search after release may (ADR 0006).
     """
 
     __tablename__ = "ride_offers"
@@ -231,7 +233,7 @@ class RideOffer(Base):
             f" OR (status <> '{OfferStatus.PENDING.value}' AND responded_at IS NOT NULL)",
             name="responded_matches_status",
         ),
-        UniqueConstraint("ride_id", "driver_id"),
+        UniqueConstraint("ride_id", "driver_id", "search_started_at"),
         Index(
             PENDING_OFFER_RIDE_INDEX,
             "ride_id",
@@ -261,6 +263,7 @@ class RideOffer(Base):
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
     expires_at: Mapped[datetime] = mapped_column(UtcDateTime())
     responded_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    search_started_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
 
 class IdempotencyRecord(Base):

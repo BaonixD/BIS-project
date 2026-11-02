@@ -5,7 +5,8 @@ Revises: 8deb4121d135
 Create Date: 2026-11-03 10:05:00.000000+00:00
 
 One pending offer per ride and per driver; the partial indexes depend on the
-status only, never on the current time (MVP_SPEC §6, ADR 0006).
+status only, never on the current time. A driver gets at most one offer per
+search of a ride (MVP_SPEC §6, ADR 0006).
 """
 
 from collections.abc import Sequence
@@ -31,6 +32,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("responded_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("search_started_at", sa.DateTime(timezone=True), nullable=False),
         sa.CheckConstraint(
             "status IN ('accepted', 'expired', 'pending', 'rejected', 'revoked')",
             name=op.f("ck_ride_offers_status"),
@@ -52,7 +54,13 @@ def upgrade() -> None:
             name=op.f("fk_ride_offers_driver_id_driver_profiles"),
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_ride_offers")),
-        sa.UniqueConstraint("ride_id", "driver_id", name=op.f("uq_ride_offers_ride_id_driver_id")),
+        # One offer per driver in one search of a ride (rides.search_started_at).
+        sa.UniqueConstraint(
+            "ride_id",
+            "driver_id",
+            "search_started_at",
+            name=op.f("uq_ride_offers_ride_id_driver_id_search_started_at"),
+        ),
     )
     op.create_index(
         "uq_ride_offers_pending_ride_id",

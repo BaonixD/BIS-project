@@ -8,9 +8,9 @@ drops points outside the circle and orders by distance, then driver id.
 
 Drivers who are busy (an accepted active ride: assigned, arrived,
 in_progress) or reserved (a pending offer for any ride) are excluded in SQL,
-inside the caller's transaction. With ``for_ride_id`` every driver who has
-already had an offer for that ride is excluded too: a search never asks the
-same driver twice (ADR 0006).
+inside the caller's transaction. With ``in_search`` a driver who already had
+an offer in that search of the ride, or who once accepted the ride (and
+released it), is excluded too (MVP_SPEC §6, ADR 0006).
 """
 
 import uuid
@@ -73,7 +73,7 @@ async def find_nearby_candidates(
     if exclude_driver_ids:
         query = query.where(DriverProfile.user_id.not_in(list(exclude_driver_ids)))
     if in_search is not None:
-        query = query.where(~_offered(in_search.ride_id))
+        query = query.where(~_considered(in_search))
     candidates = []
     for driver_id, longitude, latitude in await session.execute(query):
         if longitude is None or latitude is None:  # excluded by SQL; narrows the type
@@ -117,9 +117,15 @@ def _reserved() -> Exists:
     )
 
 
-def _offered(ride_id: uuid.UUID) -> Exists:
+def _considered(search: SearchScope) -> Exists:
+    """Asked in this search, or accepted the ride earlier (and released it since)."""
     return exists().where(
-        RideOffer.ride_id == ride_id, RideOffer.driver_id == DriverProfile.user_id
+        RideOffer.ride_id == search.ride_id,
+        RideOffer.driver_id == DriverProfile.user_id,
+        or_(
+            RideOffer.search_started_at == search.started_at,
+            RideOffer.status == OfferStatus.ACCEPTED,
+        ),
     )
 
 
