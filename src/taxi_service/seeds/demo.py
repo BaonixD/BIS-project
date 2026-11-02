@@ -174,25 +174,13 @@ async def apply_demo_seed(
     """
     if plan.missing and password is None:
         raise ValueError("a password is required to create the missing demo accounts")
-    seeder = _DemoSeeder(session_factory, clock, hasher, password or "")
-    report = SeedReport()
-    admin = plan.existing.get(DEMO_ADMIN)
-    if admin is None:
-        admin_id = await seeder.create_user(DEMO_ADMIN, UserRole.ADMIN)
-        report.entries.append(SeedEntry("created", UserRole.ADMIN, DEMO_ADMIN))
-    else:
-        admin_id = admin.id
-        report.entries.append(_skipped(UserRole.ADMIN, DEMO_ADMIN))
+    seeder = _DemoSeeder(session_factory, clock, hasher, password, plan, refresh_locations)
+    admin_id, admin_entry = await seeder.admin()
+    report = SeedReport([admin_entry])
     for passenger in DEMO_PASSENGERS:
-        if passenger.username in plan.existing:
-            report.entries.append(_skipped(UserRole.PASSENGER, passenger.username))
-            continue
-        await seeder.create_passenger(passenger)
-        report.entries.append(SeedEntry("created", UserRole.PASSENGER, passenger.username))
+        report.entries.append(await seeder.passenger(passenger))
     for driver in DEMO_DRIVERS:
-        report.entries.append(
-            await _seed_driver(seeder, plan, driver, admin_id, refresh_locations=refresh_locations)
-        )
+        report.entries.append(await seeder.driver(driver, admin_id))
     return report
 
 
@@ -221,57 +209,63 @@ class _DemoSeeder:
     session_factory: SessionFactory
     clock: Clock
     hasher: PasswordHasher
-    password: str
+    password: str | None
+    plan: DemoPlan
+    refresh_locations: bool
 
-    async def create_user(self, username: str, role: UserRole) -> uuid.UUID:
+    async def admin(self) -> tuple[uuid.UUID, SeedEntry]:
+        existing = self.plan.existing.get(DEMO_ADMIN)
+        if existing is not None:
+            return existing.id, _skipped(UserRole.ADMIN, DEMO_ADMIN)
+        admin_id = await self._create_user(DEMO_ADMIN, UserRole.ADMIN)
+        return admin_id, SeedEntry("created", UserRole.ADMIN, DEMO_ADMIN)
+
+    async def passenger(self, passenger: DemoPassenger) -> SeedEntry:
+        if passenger.username in self.plan.existing:
+            return _skipped(UserRole.PASSENGER, passenger.username)
+        user_id = await self._create_user(passenger.username, UserRole.PASSENGER)
+        async with self.session_factory() as session:
+            await UserService(session, self.clock, self.hasher).update_profile(
+                user_id, MyProfileUpdate(display_name=passenger.display_name)
+            )
+        return SeedEntry("created", UserRole.PASSENGER, passenger.username)
+
+    async def driver(self, driver: DemoDriver, admin_id: uuid.UUID) -> SeedEntry:
+        existing = self.plan.existing.get(driver.username)
+        if existing is None:
+            await self._create_driver(driver, admin_id)
+            return SeedEntry("created", UserRole.DRIVER, driver.username, _whereabouts(driver))
+        if not self.refresh_locations:
+            return _skipped(UserRole.DRIVER, driver.username)
+        try:
+            await self._place_online(existing.id, driver.location)
+        except (DriverNotApprovedError, DriverProfileIncompleteError):
+            detail = "location refreshed; left offline: not approved (profile changed)"
+            return SeedEntry("refreshed", UserRole.DRIVER, driver.username, detail)
+        return SeedEntry("refreshed", UserRole.DRIVER, driver.username, _whereabouts(driver))
+
+    async def _create_user(self, username: str, role: UserRole) -> uuid.UUID:
+        if self.password is None:
+            raise ValueError("a password is required to create demo accounts")
         async with self.session_factory() as session:
             service = UserService(session, self.clock, self.hasher)
             user = await service.create_user(username=username, password=self.password, role=role)
         return user.id
 
-    async def create_passenger(self, passenger: DemoPassenger) -> None:
-        user_id = await self.create_user(passenger.username, UserRole.PASSENGER)
-        async with self.session_factory() as session:
-            await UserService(session, self.clock, self.hasher).update_profile(
-                user_id, MyProfileUpdate(display_name=passenger.display_name)
-            )
-
-    async def create_driver(self, driver: DemoDriver, admin_id: uuid.UUID) -> None:
-        user_id = await self.create_user(driver.username, UserRole.DRIVER)
+    async def _create_driver(self, driver: DemoDriver, admin_id: uuid.UUID) -> None:
+        user_id = await self._create_user(driver.username, UserRole.DRIVER)
         async with self.session_factory() as session:
             await DriverService(session, self.clock).update_profile(user_id, _profile(driver))
         async with self.session_factory() as session:
             await DriverAdminService(session, self.clock).approve(user_id, admin_id=admin_id)
-        await self.place_online(user_id, driver.location)
+        await self._place_online(user_id, driver.location)
 
-    async def place_online(self, driver_id: uuid.UUID, location: Coordinates) -> None:
+    async def _place_online(self, driver_id: uuid.UUID, location: Coordinates) -> None:
         """Location stamped with the clock now, then online (approved drivers only)."""
         async with self.session_factory() as session:
             await DriverService(session, self.clock).update_location(driver_id, location)
         async with self.session_factory() as session:
             await DriverService(session, self.clock).set_availability(driver_id, online=True)
-
-
-async def _seed_driver(
-    seeder: _DemoSeeder,
-    plan: DemoPlan,
-    driver: DemoDriver,
-    admin_id: uuid.UUID,
-    *,
-    refresh_locations: bool,
-) -> SeedEntry:
-    existing = plan.existing.get(driver.username)
-    if existing is None:
-        await seeder.create_driver(driver, admin_id)
-        return SeedEntry("created", UserRole.DRIVER, driver.username, _whereabouts(driver))
-    if not refresh_locations:
-        return _skipped(UserRole.DRIVER, driver.username)
-    try:
-        await seeder.place_online(existing.id, driver.location)
-    except (DriverNotApprovedError, DriverProfileIncompleteError):
-        detail = "location refreshed; left offline: not approved (profile changed)"
-        return SeedEntry("refreshed", UserRole.DRIVER, driver.username, detail)
-    return SeedEntry("refreshed", UserRole.DRIVER, driver.username, _whereabouts(driver))
 
 
 def _check_conflicts(plan: DemoPlan, taken_plates: set[str]) -> None:
