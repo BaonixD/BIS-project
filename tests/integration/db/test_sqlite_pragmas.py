@@ -3,6 +3,7 @@ import asyncio
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from taxi_service.database.session import SessionFactory
 from taxi_service.database.sqlite import BUSY_TIMEOUT_MS
@@ -45,3 +46,13 @@ async def test_journal_mode_is_wal(session_factory: SessionFactory) -> None:
 
 async def test_busy_timeout_waits_for_locks(session_factory: SessionFactory) -> None:
     assert await pragma(session_factory, "busy_timeout") == BUSY_TIMEOUT_MS
+
+
+@pytest.mark.parametrize("level", ["AUTOCOMMIT", "SERIALIZABLE", "READ UNCOMMITTED"])
+async def test_isolation_level_option_is_rejected(engine: AsyncEngine, level: str) -> None:
+    # Transactions are started by our own BEGIN statements; a driver-level
+    # isolation level would silently be ignored or break that.
+    with pytest.raises(ValueError, match="isolation_level"):
+        async with engine.connect() as connection:
+            configured = await connection.execution_options(isolation_level=level)
+            await configured.execute(text("SELECT 1"))
