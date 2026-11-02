@@ -12,7 +12,7 @@
 | [T01](tasks/T01-database.md) | БД (SQLite), Alembic, изоляция тестов | T00 | `task/t01-database` | in_progress (base 560c1d2) |
 | [T02](tasks/T02-auth.md) | Регистрация, сессии и права | T01 | `task/t02-auth` | queued |
 | [T03](tasks/T03-drivers.md) | Профили, автомобиль и координаты | T02 | `task/t03-drivers` | queued |
-| [T04](tasks/T04-routing-pricing.md) | Дорожный маршрут и учебная цена | T02 | `task/t04-routing-pricing` | in_progress: часть A — тариф и адаптер (base 560c1d2) |
+| [T04](tasks/T04-routing-pricing.md) | Дорожный маршрут и учебная цена | T02 | `task/t04-routing-pricing` | часть A integrated (`36f25bb`, [отчёт](reports/T04.md)); часть B queued после T02 |
 | [T05](tasks/T05-ride-creation.md) | Quote и идемпотентное создание заказа | T03, T04 | `task/t05-ride-creation` | queued |
 | [T06](tasks/T06-dispatch.md) | Поиск и предложения водителям | T05 | `task/t06-dispatch` | queued |
 | [T07](tasks/T07-ride-lifecycle.md) | Жизненный цикл и отмена поездки | T06 | `task/t07-ride-lifecycle` | queued |
