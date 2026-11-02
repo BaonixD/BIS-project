@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from taxi_service.modules.admin.router import router as admin_reads_router
 from taxi_service.modules.auth.router import router as auth_router
 from taxi_service.modules.drivers.admin_router import router as admin_drivers_router
 from taxi_service.modules.drivers.router import router as drivers_router
@@ -20,3 +21,4 @@ v1_router.include_router(drivers_router)
 v1_router.include_router(admin_drivers_router)
 v1_router.include_router(rides_router)
 v1_router.include_router(ride_history_router)
+v1_router.include_router(admin_reads_router)

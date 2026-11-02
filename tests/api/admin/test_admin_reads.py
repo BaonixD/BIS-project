@@ -111,6 +111,7 @@ async def test_admin_sees_every_ride_newest_first(
     bob = await ride_factory.passenger("bob")
     rides = await past_rides(ride_factory, pat, 2)
     rides += await past_rides(ride_factory, bob, 1)
+    ride_factory.clock.advance(timedelta(minutes=1))
     rides.append((await ride_factory.searching_ride(pat)).id)
     await as_admin(client)
 
