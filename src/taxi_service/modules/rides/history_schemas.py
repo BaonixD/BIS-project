@@ -8,9 +8,10 @@ from pydantic import AwareDatetime, BaseModel
 from taxi_service.core.errors import AppError
 from taxi_service.modules.geo.schemas import Coordinates
 from taxi_service.modules.rides.models import Ride
-from taxi_service.modules.rides.queries import RideFilters
+from taxi_service.modules.rides.queries import RideFilters, RidePage
 from taxi_service.modules.rides.schemas import dropoff_of, pickup_of
 from taxi_service.modules.rides.states import RideStatus
+from taxi_service.schemas.pagination import Page, PageParams
 
 
 class RideSummary(BaseModel):
@@ -44,6 +45,15 @@ class RideSummary(BaseModel):
             currency="KZT",
             created_at=ride.created_at,
             updated_at=ride.updated_at,
+        )
+
+    @classmethod
+    def page(cls, result: RidePage, params: PageParams) -> Page["RideSummary"]:
+        return Page(
+            items=[cls.build(ride) for ride in result.rides],
+            limit=params.limit,
+            offset=params.offset,
+            total=result.total,
         )
 
 

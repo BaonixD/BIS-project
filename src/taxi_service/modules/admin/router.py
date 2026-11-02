@@ -10,7 +10,7 @@ from taxi_service.database.session import SessionDep
 from taxi_service.modules.admin.schemas import AdminUserResponse
 from taxi_service.modules.auth.dependencies import require_roles
 from taxi_service.modules.auth.service import AuthenticatedUser
-from taxi_service.modules.rides.history_router import RideQueriesDep, summary_page
+from taxi_service.modules.rides.history_router import RideQueriesDep
 from taxi_service.modules.rides.history_schemas import RideFiltersDep, RideSummary
 from taxi_service.modules.users.models import UserRole
 from taxi_service.modules.users.queries import UserQueries
@@ -49,7 +49,7 @@ async def list_all_rides(
     """
     scoped = dataclasses.replace(filters, passenger_id=passenger_id, driver_id=driver_id)
     result = await queries.list_rides(scoped, limit=page.limit, offset=page.offset)
-    return summary_page(result, page)
+    return RideSummary.page(result, page)
 
 
 @router.get("/users", responses=error_responses(401, 403))

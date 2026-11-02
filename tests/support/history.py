@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Any
 
+import httpx
 from sqlalchemy import event, update
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -26,6 +27,30 @@ from taxi_service.modules.rides.states import RideStatus
 ADMIN_RIDES_URL = "/api/v1/admin/rides"
 ADMIN_USERS_URL = "/api/v1/admin/users"
 STEP = timedelta(minutes=1)
+RIDE_SUMMARY_FIELDS = frozenset(
+    {
+        "id",
+        "status",
+        "passenger_id",
+        "driver_id",
+        "pickup",
+        "dropoff",
+        "distance_m",
+        "duration_s",
+        "amount_kzt",
+        "currency",
+        "created_at",
+        "updated_at",
+    }
+)
+
+
+async def get_page(client: httpx.AsyncClient, url: str, **params: Any) -> dict[str, Any]:
+    """GET a list that must answer 200; the JSON page."""
+    response = await client.get(url, params=params)
+    assert response.status_code == 200, response.text
+    body: dict[str, Any] = response.json()
+    return body
 
 
 async def set_ride(

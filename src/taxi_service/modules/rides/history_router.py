@@ -6,10 +6,10 @@ from taxi_service.database.session import SessionDep
 from taxi_service.modules.auth.dependencies import require_roles
 from taxi_service.modules.auth.service import AuthenticatedUser
 from taxi_service.modules.rides.history_schemas import RideFiltersDep, RideSummary
-from taxi_service.modules.rides.queries import RidePage, RideQueries
+from taxi_service.modules.rides.queries import RideQueries
 from taxi_service.modules.users.models import UserRole
 from taxi_service.schemas.errors import error_responses
-from taxi_service.schemas.pagination import Page, PageParams, PageParamsDep
+from taxi_service.schemas.pagination import Page, PageParamsDep
 
 router = APIRouter(prefix="/rides", tags=["rides"])
 
@@ -23,15 +23,6 @@ def get_ride_queries(session: SessionDep) -> RideQueries:
 
 
 RideQueriesDep = Annotated[RideQueries, Depends(get_ride_queries)]
-
-
-def summary_page(result: RidePage, page: PageParams) -> Page[RideSummary]:
-    return Page(
-        items=[RideSummary.build(ride) for ride in result.rides],
-        limit=page.limit,
-        offset=page.offset,
-        total=result.total,
-    )
 
 
 @router.get("", responses=error_responses(401, 403))
@@ -53,4 +44,4 @@ async def list_my_rides(
     result = await queries.history(
         user.id, user.role, filters, limit=page.limit, offset=page.offset
     )
-    return summary_page(result, page)
+    return RideSummary.page(result, page)

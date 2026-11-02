@@ -13,6 +13,8 @@ from support.drivers import DriverFactory, login_as
 from support.history import (
     ADMIN_RIDES_URL,
     ADMIN_USERS_URL,
+    RIDE_SUMMARY_FIELDS,
+    get_page,
     ids_of,
     newest_first,
     past_rides,
@@ -21,28 +23,7 @@ from support.rides import RideFactory
 from taxi_service.modules.rides.states import RideStatus
 
 ADMIN_URLS = [ADMIN_RIDES_URL, ADMIN_USERS_URL]
-RIDE_FIELDS = {
-    "id",
-    "status",
-    "passenger_id",
-    "driver_id",
-    "pickup",
-    "dropoff",
-    "distance_m",
-    "duration_s",
-    "amount_kzt",
-    "currency",
-    "created_at",
-    "updated_at",
-}
 USER_FIELDS = {"id", "username", "role", "created_at", "display_name"}
-
-
-async def listing(client: httpx.AsyncClient, url: str, **params: Any) -> dict[str, Any]:
-    response = await client.get(url, params=params)
-    assert response.status_code == 200, response.text
-    body: dict[str, Any] = response.json()
-    return body
 
 
 @pytest.fixture
@@ -93,8 +74,8 @@ async def test_there_is_no_way_to_change_users_or_rides(
             f"{ADMIN_RIDES_URL}/{ride.id}",
         )
     ]
-    users = await listing(client, ADMIN_USERS_URL, role="passenger")
-    rides = await listing(client, ADMIN_RIDES_URL)
+    users = await get_page(client, ADMIN_USERS_URL, role="passenger")
+    rides = await get_page(client, ADMIN_RIDES_URL)
 
     assert set(statuses) <= {404, 405}
     assert [item["role"] for item in users["items"]] == ["passenger"]
@@ -115,10 +96,10 @@ async def test_admin_sees_every_ride_newest_first(
     rides.append((await ride_factory.searching_ride(pat)).id)
     await as_admin(client)
 
-    body = await listing(client, ADMIN_RIDES_URL)
+    body = await get_page(client, ADMIN_RIDES_URL)
 
     assert (ids_of(body), body["total"]) == (newest_first(rides), 4)
-    assert set(body["items"][0]) == RIDE_FIELDS
+    assert set(body["items"][0]) == RIDE_SUMMARY_FIELDS
 
 
 async def test_admin_filters_rides_by_passenger_and_driver(
@@ -137,12 +118,12 @@ async def test_admin_filters_rides_by_passenger_and_driver(
     )
     await as_admin(client)
 
-    by_bob = await listing(client, ADMIN_RIDES_URL, passenger_id=str(bob))
-    by_dana = await listing(client, ADMIN_RIDES_URL, driver_id=str(dana))
-    pat_with_dana = await listing(
+    by_bob = await get_page(client, ADMIN_RIDES_URL, passenger_id=str(bob))
+    by_dana = await get_page(client, ADMIN_RIDES_URL, driver_id=str(dana))
+    pat_with_dana = await get_page(
         client, ADMIN_RIDES_URL, passenger_id=str(pat), driver_id=str(dana)
     )
-    pat_cancelled = await listing(
+    pat_cancelled = await get_page(
         client, ADMIN_RIDES_URL, passenger_id=str(pat), status="cancelled"
     )
 
@@ -158,7 +139,7 @@ async def test_admin_filters_rides_by_creation_time(
     rides = await past_rides(ride_factory, await ride_factory.passenger(), 4)
     await as_admin(client)
 
-    body = await listing(
+    body = await get_page(
         client,
         ADMIN_RIDES_URL,
         created_from=(DEFAULT_START + timedelta(minutes=2)).isoformat(),
@@ -174,7 +155,7 @@ async def test_unknown_participant_gives_an_empty_page(
     await ride_factory.searching_ride()
     await as_admin(client)
 
-    body = await listing(client, ADMIN_RIDES_URL, passenger_id=str(uuid.uuid4()))
+    body = await get_page(client, ADMIN_RIDES_URL, passenger_id=str(uuid.uuid4()))
 
     assert (body["items"], body["total"]) == ([], 0)
 
@@ -207,8 +188,8 @@ async def test_admin_ride_pages(
     rides = await past_rides(ride_factory, await ride_factory.passenger(), 22)
     await as_admin(client)
 
-    first = await listing(client, ADMIN_RIDES_URL)
-    past_end = await listing(client, ADMIN_RIDES_URL, offset=40)
+    first = await get_page(client, ADMIN_RIDES_URL)
+    past_end = await get_page(client, ADMIN_RIDES_URL, offset=40)
 
     assert (first["limit"], first["total"], ids_of(first)) == (20, 22, newest_first(rides)[:20])
     assert past_end == {"items": [], "limit": 20, "offset": 40, "total": 22}
@@ -230,7 +211,7 @@ async def test_admin_lists_users_newest_first(
     dana = await driver_factory.driver("dana")
     await as_admin(client)
 
-    body = await listing(client, ADMIN_USERS_URL)
+    body = await get_page(client, ADMIN_USERS_URL)
 
     assert body["total"] == 3
     assert [item["id"] for item in body["items"]] == [str(dana), str(pat), str(admin_id)]
@@ -245,7 +226,7 @@ async def test_users_with_the_same_creation_time_are_ordered_by_id(
     ids = [await ride_factory.passenger() for _ in range(4)]
     await as_admin(client)
 
-    body = await listing(client, ADMIN_USERS_URL)
+    body = await get_page(client, ADMIN_USERS_URL)
 
     expected = sorted([*ids, admin_id], key=lambda user_id: user_id.hex, reverse=True)
     assert [item["id"] for item in body["items"]] == [str(user_id) for user_id in expected]
@@ -264,7 +245,7 @@ async def test_user_shows_the_display_name_of_their_profile(
     await register_and_login(client, "nobody")
     await as_admin(client)
 
-    body = await listing(client, ADMIN_USERS_URL, role="passenger")
+    body = await get_page(client, ADMIN_USERS_URL, role="passenger")
 
     names = {item["username"]: item["display_name"] for item in body["items"]}
     assert names == {"alice": "Alice A.", "nobody": None}
@@ -280,8 +261,8 @@ async def test_admin_filters_users_by_role(
     dana = await driver_factory.driver("dana")
     await as_admin(client)
 
-    drivers = await listing(client, ADMIN_USERS_URL, role="driver")
-    admins = await listing(client, ADMIN_USERS_URL, role="admin")
+    drivers = await get_page(client, ADMIN_USERS_URL, role="driver")
+    admins = await get_page(client, ADMIN_USERS_URL, role="admin")
 
     assert ([item["id"] for item in drivers["items"]], drivers["total"]) == ([str(dana)], 1)
     assert [item["username"] for item in admins["items"]] == ["admin"]
@@ -306,8 +287,8 @@ async def test_admin_user_pages(
         await ride_factory.passenger()
     await as_admin(client)
 
-    page = await listing(client, ADMIN_USERS_URL, limit=2, offset=4)
-    past_end = await listing(client, ADMIN_USERS_URL, limit=2, offset=10)
+    page = await get_page(client, ADMIN_USERS_URL, limit=2, offset=4)
+    past_end = await get_page(client, ADMIN_USERS_URL, limit=2, offset=10)
 
     assert (len(page["items"]), page["total"]) == (1, 5)
     assert past_end == {"items": [], "limit": 2, "offset": 10, "total": 5}

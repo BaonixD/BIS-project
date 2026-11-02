@@ -2,14 +2,13 @@
 
 import uuid
 from datetime import timedelta, timezone
-from typing import Any
 
 import httpx
 import pytest
 
 from support.clock import DEFAULT_START
 from support.drivers import DriverFactory, login_as
-from support.history import ids_of, newest_first, past_rides
+from support.history import get_page, ids_of, newest_first, past_rides
 from support.rides import RIDES_URL, RideFactory
 from taxi_service.modules.rides.states import RideStatus
 
@@ -19,13 +18,6 @@ ALMATY = timezone(timedelta(hours=5))
 def at(minutes: int) -> str:
     """ISO time ``minutes`` after the test clock's start, in UTC."""
     return (DEFAULT_START + timedelta(minutes=minutes)).isoformat()
-
-
-async def history(client: httpx.AsyncClient, **params: Any) -> dict[str, Any]:
-    response = await client.get(RIDES_URL, params=params)
-    assert response.status_code == 200, response.text
-    body: dict[str, Any] = response.json()
-    return body
 
 
 @pytest.fixture
@@ -53,7 +45,7 @@ async def test_filter_by_one_status(
     await past_rides(ride_factory, pat, 1, status=RideStatus.NO_DRIVER)
     await login_as(client, "pat")
 
-    body = await history(client, status="cancelled")
+    body = await get_page(client, RIDES_URL, status="cancelled")
 
     assert (ids_of(body), body["total"]) == (newest_first(cancelled), 2)
 
@@ -66,7 +58,7 @@ async def test_filter_by_several_statuses(
     wanted.append((await ride_factory.searching_ride(pat)).id)
     await login_as(client, "pat")
 
-    body = await history(client, status=["searching", "no_driver"])
+    body = await get_page(client, RIDES_URL, status=["searching", "no_driver"])
 
     assert (ids_of(body), body["total"]) == (newest_first(wanted), 2)
 
@@ -79,7 +71,7 @@ async def test_status_filter_never_reaches_another_passenger(
     await past_rides(ride_factory, bob, 3, status=RideStatus.NO_DRIVER)
     await login_as(client, "pat")
 
-    body = await history(client, status="no_driver", limit=100)
+    body = await get_page(client, RIDES_URL, status="no_driver", limit=100)
 
     assert (body["items"], body["total"]) == ([], 0)
 
@@ -95,7 +87,7 @@ async def test_driver_filters_their_rides_by_status(
     await past_rides(ride_factory, pat, 1, status=RideStatus.CANCELLED, driver_id=dana)
     await login_as(client, "dana")
 
-    body = await history(client, status="completed")
+    body = await get_page(client, RIDES_URL, status="completed")
 
     assert ids_of(body) == newest_first(completed)
 
@@ -115,7 +107,7 @@ async def test_unknown_status_is_rejected(client: httpx.AsyncClient, pat: uuid.U
 async def test_created_from_is_inclusive(
     client: httpx.AsyncClient, minutes_1_2_3: list[uuid.UUID]
 ) -> None:
-    body = await history(client, created_from=at(2))
+    body = await get_page(client, RIDES_URL, created_from=at(2))
 
     assert (ids_of(body), body["total"]) == (newest_first(minutes_1_2_3[1:]), 2)
 
@@ -123,7 +115,7 @@ async def test_created_from_is_inclusive(
 async def test_created_to_is_exclusive(
     client: httpx.AsyncClient, minutes_1_2_3: list[uuid.UUID]
 ) -> None:
-    body = await history(client, created_to=at(2))
+    body = await get_page(client, RIDES_URL, created_to=at(2))
 
     assert (ids_of(body), body["total"]) == (newest_first(minutes_1_2_3[:1]), 1)
 
@@ -131,7 +123,7 @@ async def test_created_to_is_exclusive(
 async def test_both_bounds_select_a_window(
     client: httpx.AsyncClient, minutes_1_2_3: list[uuid.UUID]
 ) -> None:
-    body = await history(client, created_from=at(2), created_to=at(3))
+    body = await get_page(client, RIDES_URL, created_from=at(2), created_to=at(3))
 
     assert ids_of(body) == [str(minutes_1_2_3[1])]
 
@@ -141,7 +133,7 @@ async def test_bounds_with_an_offset_are_compared_in_utc(
 ) -> None:
     from_almaty = (DEFAULT_START + timedelta(minutes=3)).astimezone(ALMATY).isoformat()
 
-    body = await history(client, created_from=from_almaty)
+    body = await get_page(client, RIDES_URL, created_from=from_almaty)
 
     assert from_almaty.endswith("+05:00")
     assert ids_of(body) == [str(minutes_1_2_3[2])]
@@ -150,7 +142,7 @@ async def test_bounds_with_an_offset_are_compared_in_utc(
 async def test_equal_bounds_give_an_empty_page(
     client: httpx.AsyncClient, minutes_1_2_3: list[uuid.UUID]
 ) -> None:
-    body = await history(client, created_from=at(2), created_to=at(2))
+    body = await get_page(client, RIDES_URL, created_from=at(2), created_to=at(2))
 
     assert (body["items"], body["total"]) == ([], 0)
 
@@ -162,7 +154,9 @@ async def test_bounds_combine_with_status_and_pages(
     await past_rides(ride_factory, pat, 1, status=RideStatus.NO_DRIVER)
     await login_as(client, "pat")
 
-    body = await history(client, status="cancelled", created_from=at(2), limit=2, offset=1)
+    body = await get_page(
+        client, RIDES_URL, status="cancelled", created_from=at(2), limit=2, offset=1
+    )
 
     assert (ids_of(body), body["total"]) == (newest_first(rides)[1:3], 4)
 
