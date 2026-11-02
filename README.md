@@ -215,3 +215,30 @@ CI и Git hooks не настраиваются; проверки запуска
 Алматы, KZT. Вход по username/password. Поездка предлагается ближайшему доступному водителю; 30 секунд на ответ, затем следующий. Реальный дорожный маршрут, учебный расчёт цены, наличные и Kaspi по ссылке с ручным подтверждением. Google-вход — последующий этап.
 
 Реальный запрос маршрута потребует API-ключа, Kaspi — ссылки владельца. Секреты и локальные `.env` в Git не добавляются.
+
+## Водители и профили
+
+Все маршруты — под `/api/v1`, с сессией; изменяющие запросы требуют `X-CSRF-Token` (см. «Аутентификация»). Идентификатора в путях `/me` нет: пользователь читает и меняет только себя. Лишние поля тела (`role`, `id`, `username`, `approval_status`, `online` и т. п.) и `null` вместо значения дают `422 validation_error`; пропущенное поле не меняется.
+
+| Маршрут | Роль | Что делает |
+| --- | --- | --- |
+| `GET/PATCH /users/me` | любая | аккаунт и контакты: `display_name` (1–64 символа), `phone` |
+| `GET/PATCH /drivers/me` | driver | `full_name`, `phone`, `license_number`, `vehicle` (`make`, `model`, `color`, `plate_number`, `year`) |
+| `PUT /drivers/me/availability` | driver | `{"online": true\|false}` |
+| `PUT /drivers/me/location` | driver | `{"longitude": ..., "latitude": ...}` |
+| `GET /admin/drivers` | admin | список: `limit` (1–100, 20), `offset`, `approval_status=pending\|approved` |
+| `POST /admin/drivers/{id}/approve` | admin | допуск водителя (`id` — id пользователя) |
+
+Правила:
+
+- Телефон хранится как `+` и цифры (`+7 701 123-45-67` → `+77011234567`); номер прав и госномер — заглавными без пробелов и `-` (`123 abc-02` → `123ABC02`). Госномер уникален среди всех водителей (`409 plate_number_taken`). Год выпуска — от 1980 до следующего года по часам сервера.
+- У водителя одна машина; `vehicle` в PATCH заменяет все её поля. Ответ содержит `missing_fields` — чего не хватает для допуска.
+- Новый водитель — `pending`. Admin допускает только полный профиль с машиной (`409 driver_profile_incomplete`, `details.missing_fields`); повторный допуск возвращает первый (`approved_at`, `approved_by` не меняются).
+- Изменение `full_name`, `license_number` или машины у допущенного водителя возвращает его в `pending` и offline до нового допуска; телефон меняется без этого, повтор тех же значений ничего не сбрасывает.
+- `online: true` — только допущенному водителю (`409 driver_not_approved`); offline разрешён всегда. Это ограничение есть и в БД (CHECK).
+- Координата одна текущая: `longitude` −180…180, `latitude` −90…90 включительно, числа JSON (не строки, не массив). Время `location_updated_at` ставит сервер; координаты пишет и не допущенный водитель.
+- Список admin упорядочен по регистрации: `created_at DESC, id DESC`; водитель, ещё не заполнявший профиль, тоже в списке как `pending`.
+
+Поиск кандидатов для назначения (T06): `taxi_service.modules.drivers.candidates.find_nearby_candidates(session, pickup, now=..., radius_m=5000, max_location_age_s=60, exclude_driver_ids=(), limit=10)` → `[Candidate(driver_id, distance_m)]`. Кандидат — допущенный, online, с машиной, координата не старше 60 с, расстояние haversine до pickup не больше 5 км (обе границы включительно). SQL отбирает строки в bounding box круга по индексу `(longitude, latitude)`, точное расстояние и порядок (расстояние, затем `driver_id`) считаются в Python. Функция работает в транзакции вызывающего сервиса.
+
+В тестах: `support.drivers` — помощники через API (`registered_driver`, `approve`, `approved_driver`, `create_admin`, `complete_profile`), фикстура `driver_factory` — водители через сервисы без HTTP (`await driver_factory.driver("d1", location=Coordinates(...))`, `move`, `go_offline`; время координат — `clock`).
