@@ -6,8 +6,10 @@ this module never connects to the database or creates schema.
 """
 
 from taxi_service.database.base import Base
+from taxi_service.modules.auth import models as auth_models
+from taxi_service.modules.users import models as users_models
 
-# Model modules are added as the tasks introduce them, for example:
-# import taxi_service.modules.users.models
+# Imported for their side effect: each model module registers its tables.
+MODEL_MODULES = (auth_models, users_models)
 
 target_metadata = Base.metadata

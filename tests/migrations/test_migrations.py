@@ -14,6 +14,8 @@ from sqlalchemy import text
 from taxi_service.database.migrations import alembic_config, current_revisions, expected_heads
 from taxi_service.database.session import create_database_engine
 
+BASELINE_REVISION = "dea9719c6061"  # T01: empty starting point of the history
+
 
 @pytest.fixture
 def config(tmp_path: Path) -> Config:
@@ -73,3 +75,27 @@ def test_downgrade_to_base_and_upgrade_again(config: Config) -> None:
     revisions, _ = database_state(config)
     assert revisions
     assert revisions == expected_heads()
+
+
+def test_upgrade_from_t01_baseline_creates_auth_tables(config: Config) -> None:
+    command.upgrade(config, BASELINE_REVISION)
+    assert database_state(config) == (frozenset({BASELINE_REVISION}), ["alembic_version"])
+
+    command.upgrade(config, "head")
+
+    _, tables = database_state(config)
+    assert {"users", "auth_sessions"} <= set(tables)
+    command.check(config)
+
+
+def test_downgrade_one_step_and_upgrade_again(config: Config) -> None:
+    command.upgrade(config, "head")
+
+    command.downgrade(config, "-1")
+    revisions, tables = database_state(config)
+    assert revisions != expected_heads()
+    assert "auth_sessions" not in tables
+    assert "users" in tables
+
+    command.upgrade(config, "head")
+    assert database_state(config)[0] == expected_heads()

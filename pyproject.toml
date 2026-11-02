@@ -7,6 +7,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "aiosqlite>=0.22.1",
     "alembic>=1.20.1",
+    "argon2-cffi>=25.1.0",
     "fastapi>=0.162.0",
     "httpx>=0.28.1",
     "pydantic>=2.14.2",
@@ -47,6 +48,8 @@ plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Shared test helpers: tests/support is importable as ``support``.
+pythonpath = ["tests"]
 addopts = ["--strict-markers", "--strict-config", "--import-mode=importlib"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

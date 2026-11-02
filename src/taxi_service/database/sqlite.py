@@ -1,10 +1,11 @@
 """SQLite connection setup shared by the application, tests and Alembic."""
 
 from functools import partial
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import event
-from sqlalchemy.engine import Connection, Engine
+from sqlalchemy.engine import URL, Connection, Engine
 from sqlalchemy.pool import ConnectionPoolEntry, PoolResetState
 
 BUSY_TIMEOUT_MS = 5000
@@ -53,6 +54,19 @@ def check_foreign_keys(connection: Connection) -> None:
     if violations:
         tables = sorted({str(row[0]) for row in violations})
         raise RuntimeError(f"Broken foreign key references in tables: {', '.join(tables)}")
+
+
+def sqlite_file_missing(url: URL) -> bool:
+    """Whether ``url`` names a SQLite file that does not exist.
+
+    Connecting to it would silently create an empty database, so callers that
+    expect a migrated one check this first. Other databases and ``:memory:``
+    are never "missing".
+    """
+    database = url.database
+    if url.get_backend_name() != "sqlite" or database in (None, "", ":memory:"):
+        return False
+    return not Path(database).exists()
 
 
 def _on_connect(
