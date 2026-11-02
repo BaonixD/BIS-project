@@ -33,10 +33,10 @@ def configure_sqlite_engine(engine: Engine, *, enforce_foreign_keys: bool = True
     The ``isolation_level`` execution option (AUTOCOMMIT included) is not
     supported with this recipe and is rejected when a transaction begins.
 
-    Consequence for callers: every transaction, even a read-only one, holds the
-    database write lock until it ends. Keep transactions short, never await
-    external services inside one, and never open a second session while the
-    current task still has a transaction open: it would wait for itself.
+    Consequence for callers: every write transaction holds the database write
+    lock until it ends. Keep transactions short, never await external services
+    inside one, and never open a second write transaction while the current
+    task still has one open: it would wait for itself.
 
     ``enforce_foreign_keys=False`` is only for migrations: rebuilding a table
     (copy, DROP, RENAME) with enforcement on cascades the DROP to related rows.

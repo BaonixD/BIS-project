@@ -12,6 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from taxi_service.database.base import UtcDateTime
 
+# Repository root (src/taxi_service/database -> root): works only when running from
+# the source tree (editable install), not from a built wheel.
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 ALEMBIC_INI = PROJECT_ROOT / "alembic.ini"
 
