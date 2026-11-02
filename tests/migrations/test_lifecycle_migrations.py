@@ -33,18 +33,39 @@ RIDES_INDEXES = (
     "SELECT name, sql FROM sqlite_master WHERE tbl_name = 'rides' AND type = 'index' ORDER BY name"
 )
 RIDES_TABLE = "SELECT sql FROM sqlite_master WHERE name = 'rides' AND type = 'table'"
-RIDES_CHECKS = (
+# Every named constraint of rides at T06 head, CHECKs, UNIQUE quote and keys included.
+T06_RIDES_CONSTRAINTS = {
+    "pk_rides",
+    "uq_rides_quote_id",
+    "fk_rides_passenger_id_users",
+    "fk_rides_driver_id_driver_profiles",
+    "fk_rides_quote_id_ride_quotes",
+    "ck_rides_longitude_range",
+    "ck_rides_latitude_range",
+    "ck_rides_route_metrics",
+    "ck_rides_amount_positive",
+    "ck_rides_currency_kzt",
     "ck_rides_status",
     "ck_rides_driver_matches_status",
     "ck_rides_search_deadline_after_start",
-    "ck_rides_amount_positive",
-)
+}
 
 
 def rides_table_sql(config: Config) -> str:
     [(sql,)] = execute(config, RIDES_TABLE)
     assert isinstance(sql, str)
     return sql
+
+
+def rides_constraints(config: Config) -> dict[str, str]:
+    """Name -> definition of every named constraint in the rides CREATE TABLE."""
+    constraints = {}
+    for line in rides_table_sql(config).splitlines():
+        part = line.strip().rstrip(",")
+        if part.startswith("CONSTRAINT "):
+            _, name, definition = part.split(" ", 2)
+            constraints[name] = " ".join(definition.split())
+    return constraints
 
 
 @pytest.fixture
@@ -105,6 +126,8 @@ def test_existing_rides_get_empty_lifecycle_columns(config: Config) -> None:
 def test_downgrade_to_t06_keeps_rides_and_their_constraints(config: Config) -> None:
     command.upgrade(config, T06_HEAD)
     t06_indexes = execute(config, RIDES_INDEXES)
+    t06_constraints = rides_constraints(config)
+    assert set(t06_constraints) == T06_RIDES_CONSTRAINTS
     insert_t06_ride(config)
     command.upgrade(config, "head")
 
@@ -113,8 +136,8 @@ def test_downgrade_to_t06_keeps_rides_and_their_constraints(config: Config) -> N
     assert execute(config, "SELECT id, status FROM rides") == [(RIDE, "cancelled")]
     assert execute(config, "SELECT name FROM sqlite_master WHERE name = 'ride_events'") == []
     assert execute(config, RIDES_INDEXES) == t06_indexes
+    assert rides_constraints(config) == t06_constraints
     table_sql = rides_table_sql(config)
-    assert all(name in table_sql for name in RIDES_CHECKS)
     assert not any(re.search(rf"\b{column}\b", table_sql) for column in NEW_RIDE_COLUMNS)
     command.upgrade(config, "head")
     command.check(config)

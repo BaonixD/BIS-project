@@ -14,12 +14,17 @@ import pytest
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from support.dispatch import Dispatcher, accept_url
+from support.dispatch import OFFERS_URL, Dispatcher, accept_url
 from support.drivers import DriverFactory, login_as
 from support.lifecycle import command_url, commands_of, ride_events, trip_in
 from taxi_service.database.session import SessionFactory
+from taxi_service.modules.geo.schemas import Coordinates
 from taxi_service.modules.rides.models import Ride
 from taxi_service.modules.rides.states import OfferStatus
+
+OTHER_SPOT = Coordinates(longitude=76.9590, latitude=43.2389)
+POLLS = 50
+POLL_INTERVAL_S = 0.01
 
 
 async def test_accept_against_cancel(
@@ -131,9 +136,19 @@ async def test_release_against_cancel(
             json={"reason": "flat tyre"},
             headers=driver.csrf_headers,
         ),
-        other_client.post(command_url(trip.ride_id, "cancel"), headers=passenger.csrf_headers),
+        other_client.post(
+            command_url(trip.ride_id, "cancel"),
+            json={"reason": "private note"},
+            headers=passenger.csrf_headers,
+        ),
     )
 
+    if released.status_code == 200:
+        # The releaser sees only what the release (and its own search step) left.
+        body = released.json()
+        assert body["status"] in {"searching", "no_driver"}
+        assert (body["driver_id"], body["cancel_reason"]) == (None, None)
+        assert "private note" not in released.text
     ride = await dispatcher.ride(trip.ride_id)
     events = await ride_events(session_factory, trip.ride_id)
     history = [event.command for event in events]
@@ -147,3 +162,51 @@ async def test_release_against_cancel(
     assert history == outcomes[codes]
     assert ride.status.value == events[-1].to_status
     assert await dispatcher.pending(trip.ride_id) is None
+
+
+async def test_release_against_accept_by_the_next_driver(
+    client: httpx.AsyncClient,
+    other_client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    session_factory: SessionFactory,
+) -> None:
+    trip = await trip_in("assigned", client, driver_factory, dispatcher)
+    other = await driver_factory.driver("other_driver", location=OTHER_SPOT)
+    driver = await login_as(client, trip.driver)
+    other_driver = await login_as(other_client, "other_driver")
+
+    async def accept_once_offered() -> httpx.Response | None:
+        for _ in range(POLLS):
+            offers = (await other_client.get(OFFERS_URL)).json()["items"]
+            if offers:
+                return await other_client.post(
+                    accept_url(offers[0]["id"]), headers=other_driver.csrf_headers
+                )
+            await asyncio.sleep(POLL_INTERVAL_S)
+        return None
+
+    released, accepted = await asyncio.gather(
+        client.post(
+            command_url(trip.ride_id, "release"),
+            json={"reason": "flat tyre"},
+            headers=driver.csrf_headers,
+        ),
+        accept_once_offered(),
+    )
+
+    assert released.status_code == 200, released.text
+    body = released.json()
+    assert (body["status"], body["driver_id"], body["assigned_at"]) == ("searching", None, None)
+    assert str(other) not in released.text
+    ride = await dispatcher.ride(trip.ride_id)
+    history = await commands_of(session_factory, trip.ride_id)
+    if accepted is not None and accepted.status_code == 200:
+        assert (ride.status.value, ride.driver_id) == ("assigned", other)
+        assert history == ["assign", "release", "assign"]
+    else:
+        assert (ride.status.value, ride.driver_id) == ("searching", None)
+        assert history == ["assign", "release"]
+        pending = await dispatcher.pending(trip.ride_id)
+        assert pending is not None
+        assert pending.driver_id == other

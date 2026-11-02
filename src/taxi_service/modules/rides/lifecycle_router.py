@@ -103,8 +103,10 @@ async def release(
 
     The ride returns to `searching` without a driver and a new 180-second
     search begins at once; this driver is not asked for this ride again. The
-    response shows the ride after the first search step (`searching` or
-    `no_driver`); the ride is no longer visible to this driver afterwards.
+    response is the ride as the release left it (`searching`, no driver), or
+    `no_driver` when the new search found nobody at once; later changes
+    (a cancel, the next driver) are not shown, and the ride is no longer
+    visible to this driver afterwards.
 
     Errors: `422 validation_error` (no reason, or not 1-200 plain characters);
     `404 ride_not_found` (unknown or not your ride, also after your release);

@@ -78,9 +78,9 @@ class RideLifecycleService:
     ) -> Ride:
         """Apply ``command`` and return the ride; 404/403/409 as ``states.resolve_command``.
 
-        After a release the first search step runs in its own transaction; if
-        it fails the ride is returned ``searching`` and the dispatch loop
-        continues the search.
+        After a release the first search step runs in its own transaction
+        (``_search_after_release``); the releasing driver gets only the
+        release's own result, never what others changed afterwards.
         """
         async with self._session.begin():
             ride = await self._rides.lock_ride(ride_id)
@@ -90,9 +90,26 @@ class RideLifecycleService:
             if outcome.changed:
                 await self._apply(ride, command, outcome.status, user_id, reason)
         if command is RideCommand.RELEASE:
-            dispatch = DispatchService(self._session, self._clock, self._policy)
-            return await dispatch.start_search(ride.id)
+            return await self._search_after_release(ride)
         return ride
+
+    async def _search_after_release(self, released: Ride) -> Ride:
+        """Run the first step of the new search; the answer for the releasing driver.
+
+        The driver is no longer a participant (MVP_SPEC §3), so a cancel by the
+        passenger or the next driver's accept that lands meanwhile stays
+        hidden: the answer is the committed release (``searching``, no
+        driver), or ``no_driver`` when this very search found nobody. A
+        failing step is logged by ``start_search``; the loop continues it.
+        """
+        # Later reads must not overwrite the committed snapshot in the identity map.
+        self._session.expunge(released)
+        dispatch = DispatchService(self._session, self._clock, self._policy)
+        after = await dispatch.start_search(released.id)
+        same_search = after.search_started_at == released.search_started_at
+        if after.status is RideStatus.NO_DRIVER and same_search:
+            return after
+        return released
 
     async def _apply(
         self,
