@@ -8,7 +8,7 @@
 
 | ID | Задача | Зависимости | Плановая ветка | Статус |
 | --- | --- | --- | --- | --- |
-| [T00](tasks/T00-foundation.md) | Основа, запуск и проверки | — | `task/t00-foundation` | ready |
+| [T00](tasks/T00-foundation.md) | Основа, запуск и проверки | — | `task/t00-foundation` | in_progress (base 4435b71) |
 | [T01](tasks/T01-database.md) | БД (SQLite), Alembic, изоляция тестов | T00 | `task/t01-database` | queued |
 | [T02](tasks/T02-auth.md) | Регистрация, сессии и права | T01 | `task/t02-auth` | queued |
 | [T03](tasks/T03-drivers.md) | Профили, автомобиль и координаты | T02 | `task/t03-drivers` | queued |
