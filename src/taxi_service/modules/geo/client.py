@@ -7,12 +7,18 @@ import httpx
 from pydantic import BaseModel, Field, SecretStr
 
 from taxi_service.modules.geo.config import RoutingSettings
-from taxi_service.modules.geo.exceptions import RoutingProviderError, RoutingUnavailableError
+from taxi_service.modules.geo.exceptions import (
+    RouteNotFoundError,
+    RoutingProviderError,
+    RoutingUnavailableError,
+)
 from taxi_service.modules.geo.schemas import Coordinates, RouteGeometry, RouteResult
 
 Sleep = Callable[[float], Awaitable[None]]
 
 DIRECTIONS_PATH = "/v2/directions/driving-car/geojson"
+# ORS routing error codes: 2009 route not found, 2010 point not found.
+UNREACHABLE_POINT_CODES = frozenset({2009, 2010})
 
 
 class RoutingProvider(Protocol):
@@ -90,6 +96,8 @@ class OpenRouteServiceClient:
                 "Accept": "application/geo+json, application/json",
             },
         )
+        if response.status_code != httpx.codes.OK:
+            raise _refusal(response)
         return self._parse_route(response)
 
     def _parse_route(self, response: httpx.Response) -> RouteResult:
@@ -107,6 +115,22 @@ class OpenRouteServiceClient:
             route_geometry=feature.geometry,
             provider=self.PROVIDER,
         )
+
+
+def _refusal(response: httpx.Response) -> RouteNotFoundError | RoutingProviderError:
+    if _ors_error_code(response) in UNREACHABLE_POINT_CODES:
+        return RouteNotFoundError()
+    return RoutingProviderError("rejected", provider_status=response.status_code)
+
+
+def _ors_error_code(response: httpx.Response) -> int | None:
+    try:
+        payload = response.json()
+    except ValueError:
+        return None
+    error = payload.get("error") if isinstance(payload, dict) else None
+    code = error.get("code") if isinstance(error, dict) else None
+    return code if type(code) is int else None
 
 
 def _round_metric(value: float) -> int:
