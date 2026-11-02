@@ -4,8 +4,14 @@ from pathlib import Path
 import httpx
 import pytest
 from fastapi import FastAPI
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from taxi_service.core.config import Settings
+from taxi_service.database.session import (
+    SessionFactory,
+    create_database_engine,
+    create_session_factory,
+)
 from taxi_service.main import create_app
 
 
@@ -18,6 +24,19 @@ def _no_ambient_database_url(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture
 def database_url(tmp_path: Path) -> str:
     return f"sqlite+aiosqlite:///{tmp_path / 'test.db'}"
+
+
+@pytest.fixture
+async def engine(database_url: str) -> AsyncIterator[AsyncEngine]:
+    engine = create_database_engine(database_url)
+    yield engine
+    await engine.dispose()
+
+
+@pytest.fixture
+def session_factory(engine: AsyncEngine) -> SessionFactory:
+    """Every session it opens has its own connection and really commits."""
+    return create_session_factory(engine)
 
 
 @pytest.fixture
