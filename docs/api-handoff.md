@@ -1,0 +1,291 @@
+# API для React-клиента
+
+Всё, что нужно фронтенду Mini Taxi Service, без чтения кода бэкенда. Фактическая схема — OpenAPI запущенного сервера (`/openapi.json`, Swagger UI — `/docs`); этот документ сверен с ней по списку маршрутов. Устройство сервера — [architecture.md](architecture.md), запуск — [README](../README.md).
+
+## Содержание
+
+- [Подключение](#подключение)
+- [Вход: cookie и CSRF](#вход-cookie-и-csrf)
+- [Общие правила](#общие-правила)
+- [Все маршруты](#все-маршруты)
+- [Поток пассажира](#поток-пассажира)
+- [Поток водителя](#поток-водителя)
+- [Администратор](#администратор)
+- [Опрос (polling)](#опрос-polling)
+- [Оплата](#оплата)
+- [Карта и маршрут](#карта-и-маршрут)
+- [Коды ошибок](#коды-ошибок)
+
+## Подключение
+
+- Базовый URL API: `http://localhost:8000/api/v1` (локальный запуск по README). Health-маршруты — без префикса: `/health/live`, `/health/ready`.
+- Swagger UI: `http://localhost:8000/docs`, схема: `http://localhost:8000/openapi.json`. Из схемы можно сгенерировать типы (например, `openapi-typescript`).
+- Origin фронтенда должен быть в `CORS_ALLOWED_ORIGINS` в `.env` сервера (через запятую, без `*`; в `.env.example` уже `http://localhost:5173` — dev-сервер Vite). CORS работает с credentials; разрешены методы `GET, POST, PUT, PATCH, DELETE`, заголовки `Content-Type`, `X-CSRF-Token`, `X-Request-ID`, `Idempotency-Key`; клиенту доступны ответные заголовки `X-Request-ID` и `Idempotent-Replayed`.
+- Cookie сессии `SameSite=Lax`: браузер отправит её в `fetch` только между адресами одного сайта. Открывайте фронтенд и API на одном хосте — оба `localhost` (порты могут различаться), не смешивайте `localhost` и `127.0.0.1`. Для локального `http://` сервер запускается с `SESSION_COOKIE_SECURE=false` (так в `.env.example`), иначе браузер не вернёт cookie.
+- Альтернатива — прокси dev-сервера (`/api` → `http://localhost:8000`): тогда запросы same-origin и CORS не нужен.
+
+## Вход: cookie и CSRF
+
+Сессия — HttpOnly cookie `taxi_session` (7 дней), JavaScript её не видит. Каждый изменяющий запрос (`POST`, `PUT`, `PATCH`, `DELETE`) с сессией требует заголовок `X-CSRF-Token` с `csrf_token` этой сессии, иначе `403 csrf_failed`. `GET` токена не требует.
+
+1. `POST /auth/register` `{username, password, role}` — `role`: `passenger` или `driver` (admin не регистрируется через API). Username 3–32 символа `[A-Za-z0-9_]`, уникален без учёта регистра; пароль 10–128 символов. Ответ `201` — пользователь, без входа.
+2. `POST /auth/login` `{username, password}` → `200 {user, csrf_token, expires_at}` и cookie. Сохраните `csrf_token` в памяти приложения.
+3. При загрузке страницы: `GET /auth/session` → `200 {user, csrf_token, expires_at}` (восстановить пользователя и токен) или `401 not_authenticated` (показать вход).
+4. `POST /auth/logout` с `X-CSRF-Token` → `204`, cookie удаляется, старый токен больше не работает.
+
+- Login и register проверяют заголовок `Origin`: браузерный запрос с origin не из `CORS_ALLOWED_ORIGINS` получает `403 origin_not_allowed`. Браузер ставит `Origin` сам — ничего добавлять не нужно.
+- Неверный пароль и неизвестный username дают одинаковый `401 invalid_credentials`. Больше 5 попыток на username за 15 минут — `429 too_many_attempts` с `details.retry_after_seconds`.
+- Новый вход в том же браузере отзывает прежнюю сессию; после него используйте новый `csrf_token`.
+- Все `fetch` — с `credentials: "include"`.
+
+```ts
+const API = "http://localhost:8000/api/v1";
+let csrfToken: string | null = null;
+
+export class ApiError extends Error {
+  constructor(public status: number, public code: string, message: string,
+              public details: Record<string, unknown>, public requestId: string) {
+    super(message);
+  }
+}
+
+export async function api<T>(path: string, init: { method?: string; body?: unknown;
+                             headers?: Record<string, string> } = {}): Promise<T> {
+  const method = init.method ?? "GET";
+  const headers: Record<string, string> = { ...init.headers };
+  if (init.body !== undefined) headers["Content-Type"] = "application/json";
+  if (method !== "GET" && csrfToken) headers["X-CSRF-Token"] = csrfToken;
+  const response = await fetch(API + path, {
+    method,
+    headers,
+    credentials: "include",
+    body: init.body === undefined ? undefined : JSON.stringify(init.body),
+  });
+  if (response.status === 204) return undefined as T;
+  const data = await response.json();
+  if (!response.ok) {
+    const { code, message, details } = data.error;
+    throw new ApiError(response.status, code, message, details, data.request_id);
+  }
+  return data as T;
+}
+
+export async function login(username: string, password: string) {
+  const session = await api<{ csrf_token: string }>("/auth/login",
+    { method: "POST", body: { username, password } });
+  csrfToken = session.csrf_token;
+  return session;
+}
+
+export async function restoreSession() {
+  try {
+    const session = await api<{ csrf_token: string }>("/auth/session");
+    csrfToken = session.csrf_token;
+    return session;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) return null;
+    throw error;
+  }
+}
+```
+
+На `401 not_authenticated` в любом запросе — сессия истекла или отозвана: показать вход. На `403 csrf_failed` — перечитать `GET /auth/session` и повторить запрос один раз.
+
+## Общие правила
+
+- JSON, UUID для идентификаторов, время — UTC ISO 8601 с `Z` (`"2026-11-03T09:00:00.123456Z"`); показывать в часовом поясе пользователя (Алматы).
+- Координаты — объект `{"longitude": 76.9457, "latitude": 43.2383}` (WGS 84): сначала долгота, числа JSON, `longitude` −180…180, `latitude` −90…90.
+- Расстояние — целые метры (`distance_m`), длительность — секунды (`duration_s`), сумма — целые тенге (`amount_kzt`) и `currency: "KZT"`.
+- Тела запросов закрыты: лишние поля (сумма, статус, водитель и т. п.) дают `422 validation_error`. В `PATCH` пропущенное поле не меняется, `null` запрещён.
+- Статусы меняются только именованными командами (`/arrive`, `/cancel`, `/payment/confirm`…), не через `PATCH`.
+- Каждый ответ содержит `X-Request-ID`; прикладывайте его к сообщениям об ошибке.
+
+### Формат ошибки
+
+```json
+{"error": {"code": "invalid_ride_transition", "message": "...", "details": {"current_status": "completed", "command": "cancel"}},
+ "request_id": "4ee5beba442744609642772e82dc4074"}
+```
+
+Ориентируйтесь на `error.code` (стабилен), а не на `message` (английский текст для разработчика). У `422 validation_error` в `details.errors` — список `{loc, msg, type}` без присланных значений; `loc` указывает поле (`["body", "pickup", "latitude"]`).
+
+### Пагинация
+
+Списки возвращают `{"items": [...], "limit": 20, "offset": 0, "total": 57}`. Параметры `limit` (1–100, по умолчанию 20) и `offset` (≥ 0). Порядок — новые сначала (`created_at DESC, id DESC`). `offset` за концом — пустой `items` с верным `total`.
+
+Фильтры истории (`GET /rides`, `GET /admin/rides`): `status` (повторяемый: `?status=completed&status=cancelled`), `created_from` (включительно) и `created_to` (исключительно) — ISO 8601 обязательно со смещением (`2026-11-03T09:00:00Z`; `+` в URL кодируется как `%2B`); без смещения — `422 validation_error`, `created_from > created_to` — `422 invalid_date_range`.
+
+### Idempotency-Key для `POST /rides`
+
+- Заголовок обязателен: `Idempotency-Key: <UUID>` (1–128 видимых ASCII). Без него — `422 idempotency_key_required`, неверный формат — `422 idempotency_key_invalid`. В OpenAPI заголовок помечен необязательным только ради своего кода ошибки.
+- Генерируйте новый ключ на каждую попытку заказа (нажатие «Заказать») и **переиспользуйте тот же ключ** при сетевом повторе этого же заказа. Повтор с тем же ключом и телом возвращает ту же поездку (`201`, заголовок `Idempotent-Replayed: true`) с её текущим состоянием; тот же ключ с другим `quote_id` — `409 idempotency_key_reused`.
+- Ошибка (например, `409 quote_expired`) ключ не занимает: повтор с ним выполнится заново.
+
+## Все маршруты
+
+Пути после `http://localhost:8000`. Роль «вошедший» — любая роль с сессией. Все изменяющие маршруты под `/api/v1` требуют `X-CSRF-Token`, кроме `register` и `login`.
+
+| Метод | Путь | Кто | Тело → ответ |
+| --- | --- | --- | --- |
+| GET | `/health/live` | все | → `{status: "ok"}` |
+| GET | `/health/ready` | все | → `{status: "ready"}` или `503 database_unavailable` / `database_not_migrated` |
+| POST | `/api/v1/auth/register` | без сессии | `{username, password, role}` → `201 UserResponse` |
+| POST | `/api/v1/auth/login` | без сессии | `{username, password}` → `SessionResponse` + cookie |
+| GET | `/api/v1/auth/session` | вошедший | → `SessionResponse {user, csrf_token, expires_at}` |
+| POST | `/api/v1/auth/logout` | вошедший | → `204` |
+| GET | `/api/v1/users/me` | вошедший | → `{id, username, role, created_at, display_name, phone}` |
+| PATCH | `/api/v1/users/me` | вошедший | `{display_name?, phone?}` → то же |
+| GET | `/api/v1/drivers/me` | driver | → `DriverResponse` |
+| PATCH | `/api/v1/drivers/me` | driver | `{full_name?, phone?, license_number?, vehicle?: {make, model, color, plate_number, year}}` → `DriverResponse` |
+| PUT | `/api/v1/drivers/me/availability` | driver | `{online: bool}` → `DriverResponse` |
+| PUT | `/api/v1/drivers/me/location` | driver | `{longitude, latitude}` → `DriverResponse` |
+| GET | `/api/v1/drivers/me/offers` | driver | `?limit&offset` → `Page<OfferResponse>` (не больше одного открытого) |
+| POST | `/api/v1/ride-offers/{offer_id}/accept` | адресат предложения | → `RideResponse` (`assigned`) |
+| POST | `/api/v1/ride-offers/{offer_id}/reject` | адресат предложения | → `OfferResponse` (`rejected`) |
+| POST | `/api/v1/geo/route` | вошедший | `{origin, destination}` → `RouteResult` (без цены) |
+| POST | `/api/v1/rides/quotes` | passenger | `{pickup, dropoff}` → `201 QuoteResponse` |
+| POST | `/api/v1/rides` | passenger | `{quote_id}` + `Idempotency-Key` → `201 RideResponse` |
+| GET | `/api/v1/rides` | passenger, driver | `?status&created_from&created_to&limit&offset` → `Page<RideSummary>` |
+| GET | `/api/v1/rides/{ride_id}` | пассажир поездки, назначенный водитель, admin | → `RideDetailsResponse` (`RideResponse` + `driver`) |
+| POST | `/api/v1/rides/{ride_id}/arrive` | назначенный водитель | → `RideResponse` |
+| POST | `/api/v1/rides/{ride_id}/start` | назначенный водитель | → `RideResponse` |
+| POST | `/api/v1/rides/{ride_id}/complete` | назначенный водитель | → `RideResponse` |
+| POST | `/api/v1/rides/{ride_id}/cancel` | пассажир поездки | без тела или `{reason}` → `RideResponse` |
+| POST | `/api/v1/rides/{ride_id}/release` | назначенный водитель | `{reason}` (обязательно) → `RideResponse` |
+| GET | `/api/v1/rides/{ride_id}/payment` | пассажир, назначенный водитель, admin | → `PaymentResponse` |
+| PUT | `/api/v1/rides/{ride_id}/payment/method` | пассажир | `{method: "cash" \| "kaspi_link"}` → `PaymentCommandResponse` |
+| POST | `/api/v1/rides/{ride_id}/payment/report` | пассажир | без тела → `PaymentCommandResponse` |
+| POST | `/api/v1/rides/{ride_id}/payment/confirm` | cash: назначенный водитель или admin; kaspi_link: admin | без тела или `{reference}` → `PaymentCommandResponse` |
+| GET | `/api/v1/admin/drivers` | admin | `?approval_status=pending\|approved&limit&offset` → `Page<AdminDriverResponse>` |
+| POST | `/api/v1/admin/drivers/{driver_id}/approve` | admin | → `AdminDriverResponse` |
+| GET | `/api/v1/admin/rides` | admin | фильтры истории + `passenger_id`, `driver_id` → `Page<RideSummary>` |
+| GET | `/api/v1/admin/users` | admin | `?role&limit&offset` → `Page<AdminUserResponse>` |
+
+Основные схемы ответа (поля — как в OpenAPI):
+
+- `RideResponse`: `id`, `status`, `passenger_id`, `driver_id`, `quote_id`, `pickup`, `dropoff`, `route` (`RouteResult`), `amount_kzt`, `currency`, `tariff_version`, `created_at`, `updated_at`, `assigned_at`, `arrived_at`, `started_at`, `completed_at`, `cancelled_at`, `cancel_reason`.
+- `RideDetailsResponse` = `RideResponse` + `driver`: для пассажира и назначенного водителя при `assigned`/`arrived`/`in_progress` — `{full_name, phone, vehicle: {make, model, color, plate_number}, location, location_updated_at}`; иначе `null`.
+- `RouteResult`: `distance_m`, `duration_s`, `route_geometry` (GeoJSON `LineString`), `provider`.
+- `QuoteResponse`: `quote_id`, `pickup`, `dropoff`, `route`, `amount_kzt`, `currency`, `tariff_version`, `created_at`, `expires_at`.
+- `OfferResponse`: `id`, `ride_id`, `status`, `pickup`, `dropoff`, `distance_m`, `duration_s`, `amount_kzt`, `currency`, `created_at`, `expires_at`.
+- `RideSummary` (элемент истории): `id`, `status`, `passenger_id`, `driver_id`, `pickup`, `dropoff`, `distance_m`, `duration_s`, `amount_kzt`, `currency`, `created_at`, `updated_at`, `payment_status`, `payment_method` (оба `null` до завершения). Геометрии нет — за ней `GET /rides/{ride_id}`.
+- `DriverResponse`: `id`, `full_name`, `phone`, `license_number`, `vehicle`, `approval_status`, `approved_at`, `online`, `location`, `location_updated_at`, `missing_fields`. `AdminDriverResponse` дополнительно: `username`, `created_at`, `approved_by`.
+- `PaymentResponse`: `ride_id`, `amount_kzt`, `currency`, `method`, `status`, `verification` (всегда `"manual"`), `kaspi_available`, `payment_url`, `amount_entered_by_buyer`, `notice`, `reported_at`, `confirmed_at`, `confirmed_by`, `confirmation_reference`. `PaymentCommandResponse` — то же + `changed`.
+
+Статусы: поездка — `searching`, `assigned`, `arrived`, `in_progress`, `completed`, `cancelled`, `no_driver`; предложение — `pending`, `accepted`, `rejected`, `expired`, `revoked`; оплата — `unpaid`, `reported`, `confirmed`; метод — `cash`, `kaspi_link`. Диаграммы — в [architecture.md](architecture.md#состояния).
+
+## Поток пассажира
+
+1. **Регистрация и вход**: `POST /auth/register` (`role: "passenger"`), `POST /auth/login`, сохранить `csrf_token`. По желанию `PATCH /users/me {display_name, phone}`.
+2. **Активная поездка после перезагрузки**: `GET /rides?status=searching&status=assigned&status=arrived&status=in_progress&limit=1` — если есть элемент, сразу открыть экран поездки.
+3. **Выбор точек** на карте (адресного поиска на сервере нет) и **цена**: `POST /rides/quotes {pickup, dropoff}` → показать `amount_kzt`, маршрут (`route.route_geometry`), `route.distance_m`, `route.duration_s`. Quote действует 5 минут (`expires_at`); после — запросить новый. Ошибки: `503 routing_unavailable` (на сервере нет ключа маршрутов), `503 routing_provider_error`, `422 route_not_found`, `422 route_points_identical`.
+4. **Заказ**: `POST /rides {quote_id}` с новым `Idempotency-Key` → `201`. Ответ уже после первого шага поиска: `searching` (предложение отправлено ближайшему водителю) или сразу `no_driver` (рядом нет свободных водителей). Ошибки: `409 active_ride_exists`, `409 quote_expired`, `409 quote_already_used`, `404 quote_not_found`.
+5. **Ожидание**: опрашивать `GET /rides/{ride_id}`. `searching` может длиться до ~3,5 минут (водители получают предложение по очереди); `no_driver` — поиск закончился, предложить заказать снова (новый quote).
+6. **Водитель назначен** (`assigned`): показать `driver` — имя, телефон, машину, позицию и `location_updated_at` (если позиция давно не обновлялась — показать «обновлено N мин назад»; поездка от этого не отменяется). Далее `arrived` (водитель на месте) → `in_progress` → `completed`.
+7. **Отмена**: `POST /rides/{ride_id}/cancel` (тело необязательно, `{"reason": "..."}` 1–200 символов) в `searching`/`assigned`/`arrived`. В `in_progress` отмены нет (`409 invalid_ride_transition`). Повтор — `200` с тем же состоянием.
+8. **Release водителем**: поездка возвращается из `assigned`/`arrived` в `searching`, `driver` пропадает — показать «ищем другого водителя», продолжать опрос.
+9. **Оплата** после `completed`: раздел [Оплата](#оплата).
+10. **История**: `GET /rides?limit=20&offset=0`, фильтр `status`; детали — `GET /rides/{ride_id}`.
+
+## Поток водителя
+
+1. **Регистрация и вход** с `role: "driver"`.
+2. **Профиль**: `GET /drivers/me` → `missing_fields` показывает, чего не хватает. `PATCH /drivers/me {full_name, phone, license_number, vehicle: {make, model, color, plate_number, year}}`. Телефон нормализуется в `+цифры`, номер прав и госномер — заглавными без пробелов и `-`; госномер уникален (`409 plate_number_taken`); год — от 1980 до следующего года. `vehicle` заменяет машину целиком.
+3. **Ожидание допуска**: `approval_status: "pending"` до решения admin; опрашивать `GET /drivers/me` редко (раз в 10–30 с) или по кнопке. Изменение ФИО, прав или машины у допущенного водителя возвращает его в `pending` и offline; телефон меняется без этого.
+4. **На линии**: `PUT /drivers/me/availability {"online": true}` (только допущенному: иначе `409 driver_not_approved` / `driver_profile_incomplete`). Пока online — отправлять `PUT /drivers/me/location {longitude, latitude}` примерно раз в 10 с: водитель без координаты свежее 60 с предложений не получает.
+5. **Предложения**: опрашивать `GET /drivers/me/offers`; в `items` не больше одного предложения с `expires_at` (30 с) — показать отсчёт по серверному `expires_at`. `POST /ride-offers/{offer_id}/accept` → `RideResponse` (`assigned`), сохранить `id` поездки. `POST /ride-offers/{offer_id}/reject` → предложение уходит следующему водителю. Ошибки: `409 offer_expired` (не успел — убрать карточку), `409 driver_busy`, `409 invalid_offer_transition`, `409 invalid_ride_transition` (пассажир уже отменил), `404 offer_not_found`. Повтор accept — тот же ответ.
+6. **Поездка**: `POST /rides/{ride_id}/arrive` → `/start` → `/complete`. Состояние и данные пассажира берутся из `GET /rides/{ride_id}`; опрашивать его, чтобы увидеть отмену пассажиром (`cancelled`). Во время поездки нельзя уйти offline и менять профиль (`409 driver_on_active_ride`).
+7. **Освободить заказ** до начала: `POST /rides/{ride_id}/release {"reason": "..."}` (причина обязательна). После этого поездка водителю недоступна (`404`).
+8. **Наличные**: после `completed` — `POST /rides/{ride_id}/payment/confirm` (тело необязательно, `{"reference": "..."}`). Kaspi водитель не подтверждает (`403 payment_action_forbidden`).
+9. **Активная поездка после перезагрузки**: `GET /rides?status=assigned&status=arrived&status=in_progress&limit=1`. История — `GET /rides`.
+10. **Конец смены**: `PUT /drivers/me/availability {"online": false}` — открытое предложение отзывается.
+
+## Администратор
+
+Admin создаётся только локальной командой (`scripts/create_admin.py`, README), публичной регистрации нет.
+
+- Допуск водителей: `GET /admin/drivers?approval_status=pending` → `POST /admin/drivers/{driver_id}/approve` (`driver_id` — id пользователя). Неполный профиль — `409 driver_profile_incomplete` с `details.missing_fields`; повторный допуск возвращает первый.
+- Чтение: `GET /admin/rides` (фильтры истории, `passenger_id`, `driver_id`), `GET /admin/users?role=driver`, любая поездка `GET /rides/{ride_id}` (без карточки водителя) и её оплата.
+- Сверка Kaspi: `POST /rides/{ride_id}/payment/confirm {"reference": "POS receipt 0042"}` — заметка обязательна. Командами поездки admin не управляет (`403 ride_command_forbidden`); `GET /rides` для admin — `403 forbidden`.
+
+## Опрос (polling)
+
+WebSocket и SSE нет. Сервер обрабатывает истечения раз в секунду, поэтому опрос чаще 1–2 с не нужен; не опрашивайте скрытую вкладку (`document.visibilityState`).
+
+| Что | Кто | Как часто | Когда прекращать |
+| --- | --- | --- | --- |
+| `GET /rides/{ride_id}` | пассажир | 2–3 с при `searching`, 3–5 с при `assigned`/`arrived`/`in_progress` | `completed`, `cancelled`, `no_driver` |
+| `GET /rides/{ride_id}` | водитель | 3–5 с во время поездки (видеть отмену) | `completed`, `cancelled`, `404` после release |
+| `GET /drivers/me/offers` | водитель | 2 с, пока online и нет активной поездки | offline или принятая поездка |
+| `PUT /drivers/me/location` | водитель | ~10 с, пока online (порог свежести 60 с) | offline |
+| `GET /rides/{ride_id}/payment` | пассажир | 5 с после «Я оплатил», пока `reported` | `confirmed` |
+| `GET /drivers/me` | водитель | 10–30 с, пока `pending` | `approved` |
+
+Отсчёт времени предложения и quote считайте от серверных `expires_at`, не от локального времени нажатия.
+
+## Оплата
+
+Запись оплаты появляется при `completed`: `cash`, `unpaid`, сумма = `amount_kzt` поездки. До завершения `GET /rides/{ride_id}/payment` и команды отвечают `409 ride_not_completed`.
+
+- **Наличные** (по умолчанию): показать `notice` и сумму; водитель (или admin) подтверждает → `confirmed`.
+- **Kaspi**: если `kaspi_available: true`, пассажир может выбрать `PUT /rides/{ride_id}/payment/method {"method": "kaspi_link"}` (до подтверждения; без ссылки на сервере — `503 kaspi_unavailable`). Тогда `payment_url` — ссылка точки продаж Kaspi (`https://pay.kaspi.kz/pay/...`).
+  - **QR строит фронтенд** из `payment_url` (любая библиотека QR); на телефоне можно просто открыть ссылку. Сумма в ссылку не подставляется: `amount_entered_by_buyer: true` — покупатель вводит `amount_kzt` в Kaspi сам, это нужно явно показать.
+  - Кнопка **«Я оплатил»** → `POST /rides/{ride_id}/payment/report` → `reported`. Это **не подтверждение**: показывайте «ожидает проверки», а не «оплачено». Подтверждает только admin после сверки в Kaspi POS (`confirmed`). Открытие ссылки, сканирование QR и возврат из Kaspi статус не меняют.
+  - Вернуться к наличным — `PUT .../method {"method": "cash"}`: статус снова `unpaid`.
+- `payment_url` приходит только для `kaspi_link` до `confirmed`; после подтверждения ссылка скрыта.
+- `confirmed_by` и `confirmation_reference` заполнены только в ответах для admin; пассажир и водитель получают их как `null` (статус и `confirmed_at` видны всем участникам).
+- Ответ команд содержит `changed`: `false` — команда уже была применена (повтор безопасен).
+- В истории (`GET /rides`) у завершённой поездки есть `payment_status` и `payment_method`.
+- Ошибки: `403 payment_action_forbidden` (роль без права), `409 invalid_payment_transition` (например, `report` для наличных, смена метода после подтверждения), `422 confirmation_reference_required` / `invalid_confirmation_reference` (admin, Kaspi).
+
+## Карта и маршрут
+
+- `route.route_geometry` в quote и поездке — GeoJSON `{"type": "LineString", "coordinates": [[lon, lat], ...]}`. MapLibre/OpenLayers принимают его как есть; **Leaflet ждёт `[lat, lon]`** — используйте `L.geoJSON(...)` или переставьте пары.
+- Точки посадки и высадки — `pickup`, `dropoff` (`{longitude, latitude}`); позиция водителя — `driver.location` из `GET /rides/{ride_id}`.
+- `POST /geo/route` строит маршрут без цены (например, для предпросмотра); для заказа используйте `POST /rides/quotes` — там маршрут и цена.
+- Маршруты строит openrouteservice на данных OpenStreetMap: интерфейс с маршрутом должен показывать атрибуцию, например «© openrouteservice.org by HeiGIT | Map data © OpenStreetMap contributors» (точный текст — по условиям HeiGIT). Подложку карты (тайлы) фронтенд выбирает сам и выводит её атрибуцию; публичные тайлы OSM имеют свою политику использования.
+- Ключ маршрутизации есть только на сервере; на клиенте он не нужен и не используется.
+- Пока у сервера нет `ROUTING_API_KEY`, quote отвечает `503 routing_unavailable` — это ожидаемое состояние локального стенда (реальная маршрутизация `external_pending`).
+
+## Коды ошибок
+
+| HTTP | Код | Где | Что показать / сделать |
+| --- | --- | --- | --- |
+| 401 | `not_authenticated` | любой маршрут с сессией | экран входа |
+| 401 | `invalid_credentials` | login | «неверный логин или пароль» |
+| 403 | `csrf_failed` | изменяющие запросы | перечитать `GET /auth/session`, повторить |
+| 403 | `origin_not_allowed` | login, register | конфигурация: origin не в `CORS_ALLOWED_ORIGINS` |
+| 403 | `forbidden` | маршруты с ролью | роль не подходит |
+| 409 | `username_taken` | register | занято (без учёта регистра) |
+| 429 | `too_many_attempts` | login | подождать `details.retry_after_seconds` |
+| 404 | `driver_not_found` | approve | нет такого водителя |
+| 409 | `driver_profile_incomplete` | availability, approve | `details.missing_fields` |
+| 409 | `driver_not_approved` | availability | ждать допуска |
+| 409 | `driver_on_active_ride` | availability offline, PATCH `/drivers/me` | завершить поездку |
+| 409 | `plate_number_taken` | PATCH `/drivers/me` | госномер уже у другого водителя |
+| 422 | `route_points_identical` | quote, `/geo/route` | точки совпадают |
+| 422 | `route_not_found` | quote, `/geo/route` | между точками нет дорожного маршрута |
+| 503 | `routing_unavailable` | quote, `/geo/route` | на сервере не задан ключ маршрутов |
+| 503 | `routing_provider_error` | quote, `/geo/route` | сбой провайдера, `details.reason`: `timeout`, `connection_error`, `rate_limited`, `provider_unavailable`, `rejected`, `invalid_response`; можно повторить позже |
+| 404 | `quote_not_found` | `POST /rides` | новый quote |
+| 409 | `quote_expired`, `quote_already_used` | `POST /rides` | новый quote |
+| 409 | `active_ride_exists` | `POST /rides` | открыть текущую поездку |
+| 422 | `idempotency_key_required`, `idempotency_key_invalid` | `POST /rides` | ошибка клиента |
+| 409 | `idempotency_key_reused` | `POST /rides` | новый ключ для нового заказа |
+| 404 | `ride_not_found` | поездка и оплата | нет доступа или не существует |
+| 403 | `ride_command_forbidden` | команды поездки | роль участника не та (`details.command`) |
+| 409 | `invalid_ride_transition` | команды поездки, accept | `details.current_status`, `details.command`; перечитать поездку |
+| 404 | `offer_not_found` | accept, reject | убрать карточку |
+| 409 | `offer_expired` | accept, reject | срок вышел, убрать карточку |
+| 409 | `invalid_offer_transition` | accept, reject | предложение уже не открыто |
+| 409 | `driver_busy` | accept | у водителя уже есть поездка |
+| 422 | `invalid_date_range` | история | `created_from` позже `created_to` |
+| 409 | `ride_not_completed` | оплата | поездка ещё не завершена |
+| 404 | `payment_not_found` | оплата | при нормальной работе не возникает |
+| 403 | `payment_action_forbidden` | оплата | `details.action` |
+| 409 | `invalid_payment_transition` | оплата | `details.action`, `method`, `status` |
+| 503 | `kaspi_unavailable` | смена метода | Kaspi не настроен, только наличные |
+| 422 | `confirmation_reference_required`, `invalid_confirmation_reference` | confirm (admin) | заметка сверки обязательна / до 200 символов без управляющих |
+| 422 | `validation_error` | любой маршрут | `details.errors[].loc` — поле |
+| 404 / 405 | `not_found`, `method_not_allowed` | неизвестный путь или метод | ошибка клиента |
+| 500 | `internal_error` | любой маршрут | сообщить с `request_id` |
