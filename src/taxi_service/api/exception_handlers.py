@@ -40,20 +40,24 @@ async def handle_app_error(request: Request, exc: Exception) -> JSONResponse:
 
 async def handle_http_exception(request: Request, exc: Exception) -> JSONResponse:
     error = cast(StarletteHTTPException, exc)
-    status = HTTPStatus(error.status_code)
-    message = error.detail if isinstance(error.detail, str) and error.detail else status.phrase
+    code, phrase = _describe_status(error.status_code)
+    message = error.detail if isinstance(error.detail, str) and error.detail else phrase
     return error_response(
         request,
         status_code=error.status_code,
-        code=_error_code(status),
+        code=code,
         message=message,
         headers=error.headers,
     )
 
 
-def _error_code(status: HTTPStatus) -> str:
-    """Snake-case status phrase: 404 -> ``not_found``, 405 -> ``method_not_allowed``."""
-    return status.phrase.lower().replace(" ", "_").replace("-", "_")
+def _describe_status(status_code: int) -> tuple[str, str]:
+    """Snake-case status phrase: 404 -> ``not_found``; unknown codes -> ``http_error``."""
+    try:
+        phrase = HTTPStatus(status_code).phrase
+    except ValueError:
+        return "http_error", "HTTP error."
+    return phrase.lower().replace(" ", "_").replace("-", "_"), phrase
 
 
 async def handle_validation_error(request: Request, exc: Exception) -> JSONResponse:
