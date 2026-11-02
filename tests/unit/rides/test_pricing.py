@@ -67,3 +67,23 @@ def test_fractional_amounts_round_to_nearest_tenge(
 )
 def test_exact_halves_round_up(amount: Decimal, expected: int) -> None:
     assert round_kzt(amount) == expected
+
+
+@pytest.mark.parametrize(
+    ("distance_m", "duration_s"),
+    [(-1, 0), (0, -1), (-10_000, 1_500)],
+)
+def test_negative_metrics_are_rejected(distance_m: int, duration_s: int) -> None:
+    with pytest.raises(ValueError, match="non-negative"):
+        calculate_fare(distance_m=distance_m, duration_s=duration_s)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [True, False, 1.5, 10_000.0, Decimal(10_000), "10000", None],
+)
+def test_non_integer_metrics_are_rejected(value: object) -> None:
+    with pytest.raises(ValueError, match="integer"):
+        calculate_fare(distance_m=value, duration_s=1_500)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="integer"):
+        calculate_fare(distance_m=10_000, duration_s=value)  # type: ignore[arg-type]
