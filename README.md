@@ -328,3 +328,26 @@ curl -s -b jar.txt -X POST "$API/rides" -H "X-CSRF-Token: $CSRF" -H "Idempotency
 - Назначения водителя пока нет (T06): новая поездка остаётся в `searching`, `driver_id: null`.
 
 В тестах: `support.rides` — `request_quote`, `order_ride`, `ride_headers`, `ride_url`; фикстура `ride_factory` — пассажиры и поездки через сервисы без HTTP (`await ride_factory.searching_ride(pickup=Coordinates(...))`).
+
+## История и администрирование
+
+Только чтение, под `/api/v1`, с сессией. Списки — `{"items", "limit", "offset", "total"}`: `limit` 1–100 (по умолчанию 20), `offset` ≥ 0, порядок `created_at DESC, id DESC` (при одинаковом времени — по id); `offset` за концом даёт пустой `items` с верным `total`.
+
+| Маршрут | Роль | Что возвращает |
+| --- | --- | --- |
+| `GET /rides` | passenger, driver | пассажир — свои поездки, включая активную; водитель — поездки, где он сейчас `driver_id` (отпущенная поездка из его истории уходит); admin — `403 forbidden` |
+| `GET /admin/rides` | admin | все поездки; дополнительно фильтры `passenger_id`, `driver_id` (неизвестный id — пустая страница) |
+| `GET /admin/users` | admin | `id`, `username`, `role`, `created_at`, `display_name` профиля (`null` без профиля); фильтр `role` |
+
+Фильтры поездок сочетаются через И: `status` — один или несколько (`?status=completed&status=cancelled`); `created_from` — включительно, `created_to` — исключительно, то есть `[from, to)`. Время — ISO 8601 обязательно со смещением (`2026-11-03T09:00:00Z` или `+05:00`; в URL `+` кодируется как `%2B`), без смещения — `422 validation_error`; `created_from` позже `created_to` — `422 invalid_date_range`.
+
+Элемент поездки (`RideSummary`): `id`, `status`, `passenger_id`, `driver_id`, `pickup`, `dropoff`, `distance_m`, `duration_s`, `amount_kzt`, `currency`, `created_at`, `updated_at`. Геометрии маршрута в списке нет — её отдаёт `GET /rides/{id}`. Пароли, хэши, токены сессии и CSRF, телефоны в ответы не попадают; изменить роль или статус через эти маршруты нельзя (`POST/PUT/PATCH/DELETE` — `404/405`).
+
+Страница стоит одинаковое число SQL-запросов при любом размере: проверка сессии, строки страницы и `count` (`tests/api/test_list_statement_count.py`).
+
+```bash
+curl -s -b jar.txt "$API/rides?status=completed&limit=10"
+curl -s -b jar.txt "$API/admin/users?role=driver"   # под admin
+```
+
+В тестах: `support.history` — `past_rides` (завершённые поездки со сдвигом `ManualClock`), `set_ride` (водитель и статус прямым UPDATE, пока нет dispatch), `get_page`, `count_statements`.
