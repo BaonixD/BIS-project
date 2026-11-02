@@ -1,5 +1,6 @@
 """Pure payment rules: statuses, methods and allowed transitions (MVP_SPEC section 7)."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Final
@@ -49,31 +50,38 @@ def initial_payment_state() -> PaymentState:
     return PaymentState(PaymentMethod.CASH, PaymentStatus.UNPAID)
 
 
+_CASH = PaymentMethod.CASH
+_KASPI = PaymentMethod.KASPI_LINK
+
+# (action, method, from status) -> to status. Repeating an action on its target is a no-op.
+_TRANSITIONS: Final[Mapping[tuple[PaymentAction, PaymentMethod, PaymentStatus], PaymentStatus]] = {
+    (PaymentAction.REPORT, _KASPI, PaymentStatus.UNPAID): PaymentStatus.REPORTED,
+    (PaymentAction.CONFIRM, _CASH, PaymentStatus.UNPAID): PaymentStatus.CONFIRMED,
+    (PaymentAction.CONFIRM, _KASPI, PaymentStatus.UNPAID): PaymentStatus.CONFIRMED,
+    (PaymentAction.CONFIRM, _KASPI, PaymentStatus.REPORTED): PaymentStatus.CONFIRMED,
+}
+_TARGETS: Final = frozenset(
+    (action, method, target) for (action, method, _), target in _TRANSITIONS.items()
+)
+
+
 def apply_report(state: PaymentState) -> PaymentDecision:
     """Passenger statement for a Kaspi payment; it never confirms the payment."""
-    if state == PaymentState(PaymentMethod.KASPI_LINK, PaymentStatus.REPORTED):
-        return PaymentDecision(state, changed=False)
-    if state != PaymentState(PaymentMethod.KASPI_LINK, PaymentStatus.UNPAID):
-        raise _invalid(PaymentAction.REPORT, state)
-    return PaymentDecision(PaymentState(state.method, PaymentStatus.REPORTED), changed=True)
-
-
-_CONFIRMABLE: Final = frozenset(
-    {
-        PaymentState(PaymentMethod.CASH, PaymentStatus.UNPAID),
-        PaymentState(PaymentMethod.KASPI_LINK, PaymentStatus.UNPAID),
-        PaymentState(PaymentMethod.KASPI_LINK, PaymentStatus.REPORTED),
-    }
-)
+    return _apply(PaymentAction.REPORT, state)
 
 
 def apply_confirm(state: PaymentState) -> PaymentDecision:
     """Manual confirmation; repeating it on a confirmed payment changes nothing."""
-    if state.status is PaymentStatus.CONFIRMED:
+    return _apply(PaymentAction.CONFIRM, state)
+
+
+def _apply(action: PaymentAction, state: PaymentState) -> PaymentDecision:
+    target = _TRANSITIONS.get((action, state.method, state.status))
+    if target is not None:
+        return PaymentDecision(PaymentState(state.method, target), changed=True)
+    if (action, state.method, state.status) in _TARGETS:
         return PaymentDecision(state, changed=False)
-    if state not in _CONFIRMABLE:
-        raise _invalid(PaymentAction.CONFIRM, state)
-    return PaymentDecision(PaymentState(state.method, PaymentStatus.CONFIRMED), changed=True)
+    raise _invalid(action, state)
 
 
 def apply_method_change(
