@@ -16,7 +16,13 @@ class Settings(BaseSettings):
     carry credentials once a server database is used.
     """
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        # Validation errors must not echo values such as a URL with a password.
+        hide_input_in_errors=True,
+    )
 
     log_level: LogLevel = "INFO"
     database_url: str = Field(repr=False)
