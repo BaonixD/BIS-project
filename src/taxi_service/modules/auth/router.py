@@ -14,6 +14,7 @@ from taxi_service.modules.auth.schemas import LoginRequest, RegisterRequest, Ses
 from taxi_service.modules.auth.service import SESSION_TTL
 from taxi_service.modules.users.models import UserRole
 from taxi_service.modules.users.schemas import UserResponse
+from taxi_service.schemas.errors import error_responses
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -22,6 +23,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
     "/register",
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_allowed_origin)],
+    responses=error_responses(403, 409),
 )
 async def register(body: RegisterRequest, users: UserServiceDep) -> UserResponse:
     """Create a passenger or driver account. It does not log in: call ``/auth/login``."""
@@ -33,7 +35,11 @@ async def register(body: RegisterRequest, users: UserServiceDep) -> UserResponse
     return UserResponse.model_validate(user)
 
 
-@router.post("/login", dependencies=[Depends(require_allowed_origin)])
+@router.post(
+    "/login",
+    dependencies=[Depends(require_allowed_origin)],
+    responses=error_responses(401, 403, 429),
+)
 async def login(
     body: LoginRequest,
     response: Response,
@@ -54,13 +60,13 @@ async def login(
     return SessionResponse.from_user(issued.user)
 
 
-@router.get("/session")
+@router.get("/session", responses=error_responses(401))
 async def read_session(user: CurrentUser) -> SessionResponse:
     """Current user and the session's CSRF token (for the X-CSRF-Token header)."""
     return SessionResponse.from_user(user)
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, responses=error_responses(401, 403))
 async def logout(user: CurrentUser, auth: AuthServiceDep, settings: SettingsDep) -> Response:
     """Revoke the current session and clear its cookie. Needs the X-CSRF-Token header."""
     await auth.logout(user.session_id)
