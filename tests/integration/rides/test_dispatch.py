@@ -8,10 +8,12 @@ never create a second offer or assignment.
 
 import asyncio
 import math
+import uuid
 from datetime import timedelta
 from typing import Any
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from support.clock import ManualClock
 from support.dispatch import Dispatcher
@@ -684,3 +686,21 @@ async def test_accept_by_a_driver_who_got_another_ride_meanwhile_is_a_conflict(
     stored = await dispatcher.ride(ride.id)
     assert (stored.status, stored.driver_id) == (RideStatus.SEARCHING, None)
     assert await statuses(dispatcher, ride.id) == [(driver.hex, OfferStatus.PENDING)]
+
+
+async def test_an_integrity_error_other_than_a_lost_race_is_not_hidden(
+    ride_factory: RideFactory, dispatcher: Dispatcher, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only the pending/search unique indexes mean "taken"; a broken reference surfaces."""
+    ride = await ride_factory.searching_ride(pickup=PICKUP)
+
+    async def unknown_driver(*args: Any, **kwargs: Any) -> list[Candidate]:
+        return [Candidate(driver_id=uuid.uuid4(), distance_m=100.0)]
+
+    monkeypatch.setattr(dispatch_module, "find_nearby_candidates", unknown_driver)
+
+    with pytest.raises(IntegrityError, match="FOREIGN KEY"):
+        await dispatcher.process(ride.id)
+
+    assert await dispatcher.offers(ride.id) == []
+    assert (await dispatcher.ride(ride.id)).status is RideStatus.SEARCHING

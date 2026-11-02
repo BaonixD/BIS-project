@@ -16,8 +16,17 @@ from support.auth import CSRF_HEADER, LoggedInUser, register_and_login
 from support.clock import ManualClock
 from support.dispatch import OFFERS_URL, Dispatcher, accept_url, reject_url
 from support.drivers import DriverFactory, login_as
-from support.rides import ABAY_DOSTYK, AL_FARABI, RIDES_URL, order_ride, request_quote, ride_url
+from support.rides import (
+    ABAY_DOSTYK,
+    AL_FARABI,
+    RIDES_URL,
+    order_ride,
+    request_quote,
+    ride_headers,
+    ride_url,
+)
 from taxi_service.modules.geo.schemas import Coordinates
+from taxi_service.modules.rides.dispatch import DispatchService
 from taxi_service.modules.rides.states import OfferStatus
 
 NEAR_PICKUP = Coordinates(longitude=76.9580, latitude=43.2389)
@@ -107,6 +116,34 @@ async def test_replaying_the_creation_does_not_search_again(
     assert (first.status_code, replay.status_code) == (201, 201)
     assert replay.json()["status"] == "no_driver"
     assert await dispatcher.offers(uuid.UUID(first.json()["id"])) == []
+
+
+async def test_a_failing_first_search_step_still_returns_the_searching_ride(
+    client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The ride is committed before the step; the loop takes it up later."""
+    await driver_factory.driver("near", location=NEAR_PICKUP)
+
+    async def broken_step(self: DispatchService, *args: object) -> None:
+        raise RuntimeError("search step failed")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(DispatchService, "_step", broken_step)
+        passenger = await register_and_login(client, "pat")
+        quote = await request_quote(client, passenger)
+        response = await client.post(
+            RIDES_URL, json={"quote_id": quote["quote_id"]}, headers=ride_headers(passenger)
+        )
+
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert (body["status"], body["driver_id"]) == ("searching", None)
+    assert await dispatcher.offers(uuid.UUID(body["id"])) == []
+    assert await dispatcher.process_due() == 1
+    assert len(await dispatcher.offers(uuid.UUID(body["id"]))) == 1
 
 
 # The driver's offers
