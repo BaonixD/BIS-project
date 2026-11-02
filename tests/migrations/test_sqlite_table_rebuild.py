@@ -76,7 +76,9 @@ def scratch_versions(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def config(tmp_path: Path, scratch_versions: Path) -> Config:
-    config = alembic_config(f"sqlite+aiosqlite:///{tmp_path / 'rebuild-test.db'}")
+    config = alembic_config(
+        f"sqlite+aiosqlite:///{tmp_path / 'rebuild-test.db'}", configure_logging=False
+    )
     script_location = config.get_main_option("script_location")
     assert script_location is not None
     project_versions = Path(script_location) / "versions"

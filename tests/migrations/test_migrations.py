@@ -17,7 +17,9 @@ from taxi_service.database.session import create_database_engine
 
 @pytest.fixture
 def config(tmp_path: Path) -> Config:
-    return alembic_config(f"sqlite+aiosqlite:///{tmp_path / 'migrations-test.db'}")
+    return alembic_config(
+        f"sqlite+aiosqlite:///{tmp_path / 'migrations-test.db'}", configure_logging=False
+    )
 
 
 def database_state(config: Config) -> tuple[frozenset[str], list[str]]:
