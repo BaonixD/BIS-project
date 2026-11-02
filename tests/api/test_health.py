@@ -1,3 +1,5 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -10,12 +12,19 @@ from taxi_service.database.session import SessionFactory
 from taxi_service.main import create_app
 
 
-async def get_ready(database_url: str) -> httpx.Response:
+@asynccontextmanager
+async def serve(database_url: str) -> AsyncIterator[tuple[FastAPI, httpx.AsyncClient]]:
+    """App on ``database_url`` with its lifespan running, and a client for it."""
     app = create_app(Settings(_env_file=None, database_url=database_url))
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
-            return await client.get("/health/ready")
+            yield app, client
+
+
+async def get_ready(database_url: str) -> httpx.Response:
+    async with serve(database_url) as (_, client):
+        return await client.get("/health/ready")
 
 
 def assert_not_ready(response: httpx.Response, code: str) -> dict[str, Any]:
@@ -76,8 +85,7 @@ async def test_readiness_does_not_create_schema(empty_database_url: str) -> None
 
 
 async def tables_in(database_url: str) -> list[str]:
-    app = create_app(Settings(_env_file=None, database_url=database_url))
-    async with app.router.lifespan_context(app), app.state.session_factory() as session:
+    async with serve(database_url) as (app, _), app.state.session_factory() as session:
         result = await session.scalars(text("SELECT name FROM sqlite_master WHERE type = 'table'"))
         return list(result)
 
@@ -94,11 +102,8 @@ async def test_app_uses_the_test_database(
 
 
 async def test_lifespan_disposes_engine_on_shutdown(database_url: str) -> None:
-    app = create_app(Settings(_env_file=None, database_url=database_url))
-    async with app.router.lifespan_context(app):
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
-            await client.get("/health/ready")
+    async with serve(database_url) as (app, client):
+        await client.get("/health/ready")
         engine = app.state.engine
         assert engine.pool.checkedin() == 1
 
