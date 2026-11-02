@@ -8,7 +8,9 @@ from taxi_service.database.session import SessionDep
 from taxi_service.modules.auth.dependencies import CurrentUser, require_roles
 from taxi_service.modules.auth.service import AuthenticatedUser
 from taxi_service.modules.geo.dependencies import RoutingProviderDep
+from taxi_service.modules.rides.dispatch_dependencies import DispatchServiceDep
 from taxi_service.modules.rides.idempotency import REPLAYED_HEADER, IdempotencyKeyDep
+from taxi_service.modules.rides.policy import DispatchPolicyDep
 from taxi_service.modules.rides.schemas import (
     QuoteRequest,
     QuoteResponse,
@@ -24,8 +26,10 @@ router = APIRouter(prefix="/rides", tags=["rides"])
 PassengerUser = Annotated[AuthenticatedUser, Depends(require_roles(UserRole.PASSENGER))]
 
 
-def get_ride_service(session: SessionDep, clock: ClockDep) -> RideService:
-    return RideService(session, clock)
+def get_ride_service(
+    session: SessionDep, clock: ClockDep, policy: DispatchPolicyDep
+) -> RideService:
+    return RideService(session, clock, policy)
 
 
 RideServiceDep = Annotated[RideService, Depends(get_ride_service)]
@@ -56,6 +60,7 @@ async def create_ride(
     user: PassengerUser,
     key: IdempotencyKeyDep,
     rides: RideServiceDep,
+    dispatch: DispatchServiceDep,
     response: Response,
 ) -> RideResponse:
     """Order a ride from the passenger's own quote (passenger only).
@@ -71,11 +76,17 @@ async def create_ride(
     passenger's quote); `409 quote_expired` (five minutes passed);
     `409 quote_already_used`; `409 active_ride_exists`;
     `409 idempotency_key_reused` (same key, different body).
+
+    The driver search starts right after the ride is stored: the nearest
+    driver gets a 30-second offer, or the ride is already `no_driver` when
+    nobody is available. A replay returns the current state and does not
+    search again.
     """
     creation = await rides.create_ride(user.id, body, key)
     if creation.replayed:
         response.headers[REPLAYED_HEADER] = "true"
-    return RideResponse.build(creation.ride)
+        return RideResponse.build(creation.ride)
+    return RideResponse.build(await dispatch.start_search(creation.ride))
 
 
 @router.get("/{ride_id}", responses=error_responses(401, 404))

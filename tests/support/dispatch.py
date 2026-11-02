@@ -60,7 +60,8 @@ class Dispatcher:
 
     async def reject(self, offer_id: uuid.UUID, driver_id: uuid.UUID) -> RideOffer:
         async with self.session_factory() as session:
-            return await self._service(session).reject_offer(offer_id, driver_id)
+            offer, _ = await self._service(session).reject_offer(offer_id, driver_id)
+        return offer
 
     async def ride(self, ride_id: uuid.UUID) -> Ride:
         async with self.session_factory() as session, read_transaction(session):

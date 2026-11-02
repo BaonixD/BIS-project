@@ -87,6 +87,19 @@ class DispatchService:
                 await self._step(ride, self._clock.now())
         return ride
 
+    async def start_search(self, ride: Ride) -> Ride:
+        """First step right after the ride was committed; the ride as it is afterwards.
+
+        A failing step is logged and the ride is returned as stored: it is still
+        ``searching`` and the background loop takes it up.
+        """
+        try:
+            processed = await self.process_ride(ride.id)
+        except Exception:
+            logger.exception("First dispatch step failed for ride %s", ride.id)
+            return ride
+        return processed or ride
+
     async def process_due(self) -> int:
         """Loop pass: a read-only check for rides needing a step, then one step per ride.
 
@@ -123,17 +136,19 @@ class DispatchService:
             raise outcome
         return outcome
 
-    async def reject_offer(self, offer_id: uuid.UUID, driver_id: uuid.UUID) -> RideOffer:
+    async def reject_offer(
+        self, offer_id: uuid.UUID, driver_id: uuid.UUID
+    ) -> tuple[RideOffer, Ride]:
         """Decline a pending offer; the next candidate is asked in the same transaction.
 
-        Rejecting again returns the rejected offer; after the deadline it is 409
-        ``offer_expired``.
+        Returns the rejected offer and its ride. Rejecting again returns the same;
+        after the deadline it is 409 ``offer_expired``.
         """
         async with self._session.begin():
             offer, ride = await self._addressed(offer_id, driver_id)
             now = self._clock.now()
             if is_offer_command_already_applied(offer.status, OfferCommand.REJECT):
-                return offer
+                return offer, ride
             expired = await self._expired(offer, ride, now)
             if expired is None:
                 target = next_offer_status(offer.status, OfferCommand.REJECT)
@@ -142,7 +157,7 @@ class DispatchService:
                 await self._session.refresh(offer)
         if expired is not None:
             raise expired
-        return offer
+        return offer, ride
 
     async def pending_offers(self, driver_id: uuid.UUID, *, limit: int, offset: int) -> OfferPage:
         """The driver's pending offers that can still be accepted, newest first."""

@@ -87,7 +87,6 @@ async def test_after_no_driver_the_passenger_can_order_again(
 ) -> None:
     passenger, first = await passenger_with_ride(client)
     await driver_factory.driver("driver", location=NEAR_PICKUP)
-    await login_as(client, "pat")
 
     second = await order_ride(client, passenger)
 

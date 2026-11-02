@@ -4,6 +4,7 @@ import uuid
 from typing import Any
 
 import httpx
+import pytest
 from fastapi import FastAPI
 from sqlalchemy import update
 
@@ -43,6 +44,7 @@ async def test_passenger_reads_their_ride(client: httpx.AsyncClient) -> None:
     assert response.json() == created
 
 
+@pytest.mark.usefixtures("available_driver")
 async def test_new_ride_has_no_driver_yet(client: httpx.AsyncClient) -> None:
     passenger = await register_and_login(client, "pat")
     created = await order_ride(client, passenger)

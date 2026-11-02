@@ -2,7 +2,9 @@
 
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Final
+from typing import Annotated, Final
+
+from fastapi import Depends, Request
 
 from taxi_service.core.config import Settings
 from taxi_service.modules.drivers.candidates import (
@@ -36,3 +38,12 @@ class DispatchPolicy:
 
 
 DEFAULT_DISPATCH_POLICY: Final = DispatchPolicy()
+
+
+def get_dispatch_policy(request: Request) -> DispatchPolicy:
+    """FastAPI dependency: the policy built from the settings in ``create_app``."""
+    policy: DispatchPolicy = request.app.state.dispatch_policy
+    return policy
+
+
+DispatchPolicyDep = Annotated[DispatchPolicy, Depends(get_dispatch_policy)]

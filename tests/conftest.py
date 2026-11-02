@@ -5,6 +5,7 @@ copy under ``tmp_path``. Sessions commit for real, so concurrency tests can use
 several independent sessions from ``session_factory``.
 """
 
+import uuid
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
@@ -17,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from support.clock import ManualClock
 from support.dispatch import Dispatcher
 from support.drivers import DriverFactory
-from support.rides import RideFactory
+from support.rides import PICKUP, RideFactory
 from support.routing import FakeRoutingProvider, isolate_routing_environment
 from taxi_service.core.config import Settings
 from taxi_service.database.migrations import alembic_config
@@ -162,3 +163,13 @@ def ride_factory(
 def dispatcher(session_factory: SessionFactory, clock: ManualClock) -> Dispatcher:
     """Dispatch service calls on their own sessions, with the test clock and default policy."""
     return Dispatcher(session_factory, clock)
+
+
+@pytest.fixture
+async def available_driver(driver_factory: DriverFactory) -> uuid.UUID:
+    """An approved, online driver next to the default pickup (``support.rides.ABAY_DOSTYK``).
+
+    With it a ride ordered through the API stays ``searching`` with a pending
+    offer; without any driver dispatch ends the search at once (``no_driver``).
+    """
+    return await driver_factory.driver("available_driver", location=PICKUP)
