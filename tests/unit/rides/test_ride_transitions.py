@@ -2,6 +2,7 @@ import itertools
 
 import pytest
 
+from taxi_service.modules.rides import states
 from taxi_service.modules.rides.exceptions import InvalidRideTransitionError
 from taxi_service.modules.rides.states import (
     SYSTEM_ACTOR,
@@ -91,6 +92,23 @@ def test_ride_in_progress_cannot_be_released() -> None:
 @pytest.mark.parametrize("current", [S.ASSIGNED, S.ARRIVED])
 def test_release_restarts_the_search(current: RideStatus) -> None:
     assert next_status(current, C.RELEASE, ASSIGNED_DRIVER) is S.SEARCHING
+
+
+def test_module_docstring_table_matches_the_rules() -> None:
+    assert states.__doc__ is not None
+    rows = [line.split() for line in states.__doc__.splitlines()]
+    header = next(row for row in rows if row[:1] == ["current"])
+    start = rows.index(header)
+    table = {row[0]: row[1:] for row in rows[start + 2 : start + 2 + len(RideStatus)]}
+
+    documented = {
+        (S(status), C(command)): cell
+        for status, cells in table.items()
+        for command, cell in zip(header[1:], cells, strict=True)
+    }
+    expected = {pair: target.value for pair, target in ALLOWED.items()}
+    expected |= dict.fromkeys(FORBIDDEN, "409")
+    assert documented == expected
 
 
 def test_happy_path_reaches_completed() -> None:
