@@ -7,7 +7,7 @@
 - Плановая ветка: `task/t10-acceptance`.
 - База: актуальный проверенный `integration/backend-mvp` после зависимостей.
 - Исполнитель: Opus 5.5 / `bis-implementer`; ревью: `bis-reviewer` либо явно обозначенная самопроверка.
-- При старте заполнить: base SHA, реальная ветка/worktree, владелец, test DB/порты/Compose project.
+- При старте заполнить: base SHA, реальная ветка/worktree, владелец, test DB-файл/порты.
 - При передаче заполнить: result SHA, команды и [отчёт](../reports/README.md).
 - Общие правила: [CLAUDE.md](../../CLAUDE.md), [спецификация](../MVP_SPEC.md), [оркестрация](../../ORCHESTRATION.md).
 
@@ -53,7 +53,7 @@ scripts/seed.py, seeds/, tests/e2e/, нужные migration/restart tests, READM
 
 ## Проверки
 
-Полные lint/types/pytest; docker compose config и чистый запуск; upgrade/check/heads на одноразовой БД; seed дважды; E2E; opt-in routing smoke при наличии ключа.
+Полные lint/types/pytest; чистый запуск через `uv run`; upgrade/check/heads на одноразовой БД; seed дважды; E2E; opt-in routing smoke при наличии ключа.
 
 Указанные каталоги тестов — целевое расположение; при обоснованном уточнении записать реальные команды в отчёте. Команда, которая не запускалась, не отмечается как пройденная.
 

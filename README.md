@@ -2,7 +2,7 @@
 
 Учебный проект по Basics of Information Systems. На текущем этапе подготовлены спецификация и пакет реализации бэкенда для Claude Code; код приложения ещё не написан.
 
-Стек: Python, FastAPI, PostgreSQL, PostGIS. Локальный модульный монолит, без CI и микросервисов. React-интерфейс — следующий этап.
+Стек: Python, FastAPI, SQLAlchemy; на текущем этапе SQLite без Docker ([ADR 0001](docs/decisions/0001-sqlite-without-docker.md)). Локальный модульный монолит, без CI и микросервисов. React-интерфейс — следующий этап.
 
 ## Начать реализацию
 
