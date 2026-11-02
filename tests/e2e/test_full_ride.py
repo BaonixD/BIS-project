@@ -146,11 +146,12 @@ async def test_cash_ride_from_registration_to_history(
         expect_error(await admin.get(RIDES_URL), 403, "forbidden")
 
     ride_uuid = uuid.UUID(ride_id)
-    assert [(o.driver_id, o.status) for o in await dispatcher.offers(ride_uuid)] == [
-        (near.id, OfferStatus.REJECTED),
-        (middle.id, OfferStatus.EXPIRED),
-        (far.id, OfferStatus.ACCEPTED),
-    ]
+    # Offers made while the clock stands still share created_at: compare by driver.
+    assert {o.driver_id: o.status for o in await dispatcher.offers(ride_uuid)} == {
+        near.id: OfferStatus.REJECTED,
+        middle.id: OfferStatus.EXPIRED,
+        far.id: OfferStatus.ACCEPTED,
+    }
     assert await ride_events(session_factory, ride_uuid) == [
         Event("searching", "assigned", "assign", far.id, None),
         Event("assigned", "arrived", "arrive", far.id, None),
