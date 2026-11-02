@@ -1,13 +1,19 @@
+import asyncio
+import contextlib
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
 import httpx
+import pytest
 from fastapi import FastAPI
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncConnection
 
 from taxi_service.core.config import Settings
+from taxi_service.database import readiness
+from taxi_service.database.migrations import expected_heads
 from taxi_service.database.session import SessionFactory, read_transaction
 from taxi_service.main import create_app
 
@@ -76,6 +82,56 @@ async def test_not_ready_when_database_is_unreachable(tmp_path: Path) -> None:
     assert_not_ready(response, "database_unavailable")
     assert "no-such-directory" not in response.text
     assert "sqlite" not in response.text.lower()
+
+
+async def test_not_ready_when_database_file_is_missing(tmp_path: Path) -> None:
+    missing = tmp_path / "missing-test.db"
+
+    response = await get_ready(f"sqlite+aiosqlite:///{missing}")
+
+    assert_not_ready(response, "database_unavailable")
+    assert not await asyncio.to_thread(missing.exists)
+
+
+async def test_not_ready_when_database_check_times_out(
+    database_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def hanging_revisions(connection: AsyncConnection) -> frozenset[str]:
+        await asyncio.sleep(1)
+        return expected_heads()
+
+    monkeypatch.setattr(readiness, "READINESS_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(readiness, "current_revisions", hanging_revisions)
+
+    response = await get_ready(database_url)
+
+    assert_not_ready(response, "database_unavailable")
+
+
+async def test_readiness_is_not_blocked_by_open_write_transaction(
+    session_factory: SessionFactory, database_url: str
+) -> None:
+    events: list[str] = []
+    writer_holds_lock = asyncio.Event()
+    checked = asyncio.Event()
+
+    async def writer() -> None:
+        async with session_factory.begin() as session:
+            await session.execute(text("CREATE TABLE busy (id INTEGER PRIMARY KEY)"))
+            writer_holds_lock.set()
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(checked.wait(), 1.0)
+            events.append("writer released")
+
+    async def probe() -> None:
+        await writer_holds_lock.wait()
+        response = await get_ready(database_url)
+        events.append(f"ready {response.status_code}")
+        checked.set()
+
+    await asyncio.gather(writer(), probe())
+
+    assert events == ["ready 200", "writer released"]
 
 
 async def test_readiness_does_not_create_schema(empty_database_url: str) -> None:

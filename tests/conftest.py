@@ -53,8 +53,10 @@ def migrated_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 @pytest.fixture
 def empty_database_url(tmp_path: Path, temp_root: Path) -> Iterator[str]:
-    """URL of a database file that does not exist yet (never migrated)."""
-    url = sqlite_url(tmp_path / "empty-test.db")
+    """URL of an existing but empty database file (never migrated)."""
+    path = tmp_path / "empty-test.db"
+    path.touch()  # a zero-byte file is a valid, empty SQLite database
+    url = sqlite_url(path)
     yield url
     remove_sqlite_database(url, temp_root=temp_root)
 

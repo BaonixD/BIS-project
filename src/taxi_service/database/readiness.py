@@ -9,6 +9,8 @@ from taxi_service.database.migrations import current_revisions
 
 logger = logging.getLogger(__name__)
 
+READINESS_TIMEOUT_SECONDS = 2.0
+
 
 class DatabaseReadiness(StrEnum):
     READY = "ready"
