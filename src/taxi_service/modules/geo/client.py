@@ -1,14 +1,18 @@
 import asyncio
 from collections.abc import Awaitable, Callable
-from typing import Protocol
+from decimal import ROUND_HALF_UP, Decimal
+from typing import Annotated, Protocol
 
 import httpx
-from pydantic import SecretStr
+from pydantic import BaseModel, Field, SecretStr
 
 from taxi_service.modules.geo.config import RoutingSettings
-from taxi_service.modules.geo.schemas import Coordinates, RouteResult
+from taxi_service.modules.geo.exceptions import RoutingUnavailableError
+from taxi_service.modules.geo.schemas import Coordinates, RouteGeometry, RouteResult
 
 Sleep = Callable[[float], Awaitable[None]]
+
+DIRECTIONS_PATH = "/v2/directions/driving-car/geojson"
 
 
 class RoutingProvider(Protocol):
@@ -18,10 +22,38 @@ class RoutingProvider(Protocol):
 def create_routing_http_client(
     settings: RoutingSettings, *, transport: httpx.AsyncBaseTransport | None = None
 ) -> httpx.AsyncClient:
-    return httpx.AsyncClient(transport=transport)
+    """HTTP client for the routing provider; the caller owns and closes it."""
+    return httpx.AsyncClient(
+        base_url=str(settings.base_url),
+        timeout=httpx.Timeout(settings.read_timeout_s, connect=settings.connect_timeout_s),
+        transport=transport,
+    )
+
+
+Metric = Annotated[float, Field(strict=True, ge=0, allow_inf_nan=False)]
+
+
+class _OrsSummary(BaseModel):
+    distance: Metric
+    duration: Metric
+
+
+class _OrsProperties(BaseModel):
+    summary: _OrsSummary
+
+
+class _OrsFeature(BaseModel):
+    geometry: RouteGeometry
+    properties: _OrsProperties
+
+
+class _OrsFeatureCollection(BaseModel):
+    features: list[_OrsFeature] = Field(min_length=1)
 
 
 class OpenRouteServiceClient:
+    """openrouteservice Directions adapter for the ``driving-car`` profile."""
+
     PROVIDER = "openrouteservice"
 
     def __init__(
@@ -48,4 +80,24 @@ class OpenRouteServiceClient:
         return cls(http_client, api_key=settings.api_key, sleep=sleep)
 
     async def get_route(self, origin: Coordinates, destination: Coordinates) -> RouteResult:
-        raise NotImplementedError
+        if self._api_key is None:
+            raise RoutingUnavailableError
+        response = await self._http.post(
+            DIRECTIONS_PATH,
+            json={"coordinates": [origin.as_lon_lat(), destination.as_lon_lat()]},
+            headers={
+                "Authorization": self._api_key.get_secret_value(),
+                "Accept": "application/geo+json, application/json",
+            },
+        )
+        feature = _OrsFeatureCollection.model_validate(response.json()).features[0]
+        return RouteResult(
+            distance_m=_round_metric(feature.properties.summary.distance),
+            duration_s=_round_metric(feature.properties.summary.duration),
+            route_geometry=feature.geometry,
+            provider=self.PROVIDER,
+        )
+
+
+def _round_metric(value: float) -> int:
+    return int(Decimal(str(value)).quantize(Decimal(1), rounding=ROUND_HALF_UP))

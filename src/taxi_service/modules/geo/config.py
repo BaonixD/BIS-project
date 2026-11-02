@@ -1,4 +1,4 @@
-from pydantic import Field, HttpUrl, SecretStr
+from pydantic import Field, HttpUrl, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,3 +16,10 @@ class RoutingSettings(BaseSettings):
     max_retries: int = Field(default=2, ge=0, le=5)
     retry_backoff_s: float = Field(default=0.5, ge=0, le=10)
     max_retry_delay_s: float = Field(default=5.0, ge=0, le=30)
+
+    @field_validator("api_key", mode="before")
+    @classmethod
+    def blank_key_means_unset(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
