@@ -84,6 +84,9 @@ class RouteSnapshot:
     tariff_version: Mapped[str] = mapped_column(String(TARIFF_VERSION_MAX_LENGTH))
 
 
+ROUTE_SNAPSHOT_COLUMNS: Final = tuple(RouteSnapshot.__annotations__)
+
+
 class RideQuote(RouteSnapshot, Base):
     """Server-side price offer for a route of one passenger; valid until ``expires_at``.
 
@@ -153,6 +156,21 @@ class Ride(RouteSnapshot, Base):
     )
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+    @classmethod
+    def from_quote(cls, quote: RideQuote, now: datetime) -> "Ride":
+        """New ``searching`` ride without a driver; route and fare copied from the quote."""
+        snapshot = {name: getattr(quote, name) for name in ROUTE_SNAPSHOT_COLUMNS}
+        return cls(
+            id=uuid.uuid4(),
+            passenger_id=quote.passenger_id,
+            driver_id=None,
+            quote_id=quote.id,
+            status=RideStatus.SEARCHING,
+            **snapshot,
+            created_at=now,
+            updated_at=now,
+        )
 
 
 class IdempotencyRecord(Base):

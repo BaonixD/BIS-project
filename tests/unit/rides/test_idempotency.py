@@ -30,7 +30,7 @@ def test_malformed_key_is_rejected(key: str) -> None:
         parse_idempotency_key(key)
 
     assert (raised.value.status_code, raised.value.code) == (422, "idempotency_key_invalid")
-    assert key not in str(raised.value.details)
+    assert raised.value.details == {}
 
 
 def test_fingerprint_is_the_sha256_of_canonical_json() -> None:
