@@ -5,6 +5,7 @@ from enum import StrEnum
 from typing import Final
 
 from taxi_service.modules.rides.exceptions import (
+    InvalidOfferTransitionError,
     InvalidRideTransitionError,
     RideCommandForbiddenError,
     RideNotFoundError,
@@ -113,7 +114,14 @@ def next_status(current: RideStatus, command: RideCommand, actor: Actor) -> Ride
     return target
 
 
-IDEMPOTENT_RIDE_COMMANDS: Final[frozenset[RideCommand]] = frozenset()
+_APPLIED_STATUS: Final[Mapping[RideCommand, RideStatus]] = {
+    RideCommand.ARRIVE: RideStatus.ARRIVED,
+    RideCommand.START: RideStatus.IN_PROGRESS,
+    RideCommand.COMPLETE: RideStatus.COMPLETED,
+    RideCommand.CANCEL: RideStatus.CANCELLED,
+    RideCommand.MARK_NO_DRIVER: RideStatus.NO_DRIVER,
+}
+IDEMPOTENT_RIDE_COMMANDS: Final = frozenset(_APPLIED_STATUS)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -123,11 +131,14 @@ class CommandOutcome:
 
 
 def is_already_applied(current: RideStatus, command: RideCommand) -> bool:
-    return False
+    return _APPLIED_STATUS.get(command) is current
 
 
 def resolve_command(current: RideStatus, command: RideCommand, actor: Actor) -> CommandOutcome:
-    return CommandOutcome(status=current, changed=False)
+    authorize_command(command, actor)
+    if is_already_applied(current, command):
+        return CommandOutcome(status=current, changed=False)
+    return CommandOutcome(status=next_status(current, command, actor), changed=True)
 
 
 class OfferCommand(StrEnum):
@@ -137,17 +148,30 @@ class OfferCommand(StrEnum):
     REVOKE = "revoke"
 
 
+_OFFER_DECISION: Final[Mapping[OfferCommand, OfferStatus]] = {
+    OfferCommand.ACCEPT: OfferStatus.ACCEPTED,
+    OfferCommand.REJECT: OfferStatus.REJECTED,
+    OfferCommand.EXPIRE: OfferStatus.EXPIRED,
+    OfferCommand.REVOKE: OfferStatus.REVOKED,
+}
+
+
 def next_offer_status(current: OfferStatus, command: OfferCommand) -> OfferStatus:
-    return current
+    if current is not OfferStatus.PENDING:
+        raise InvalidOfferTransitionError(current_status=current.value, command=command.value)
+    return _OFFER_DECISION[command]
 
 
 def is_offer_expired(*, now: datetime, expires_at: datetime) -> bool:
-    return False
+    if now.tzinfo is None or expires_at.tzinfo is None:
+        raise ValueError("Offer deadline check needs timezone-aware datetimes")
+    return now >= expires_at
 
 
 def can_accept_offer(status: OfferStatus, *, now: datetime, expires_at: datetime) -> bool:
-    return True
+    expired = is_offer_expired(now=now, expires_at=expires_at)
+    return status is OfferStatus.PENDING and not expired
 
 
 def is_offer_command_already_applied(current: OfferStatus, command: OfferCommand) -> bool:
-    return False
+    return _OFFER_DECISION[command] is current
