@@ -5,6 +5,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 from taxi_service.database.session import SessionFactory
+from taxi_service.database.sqlite import BUSY_TIMEOUT_MS
 
 
 async def pragma(session_factory: SessionFactory, name: str) -> object:
@@ -43,4 +44,4 @@ async def test_journal_mode_is_wal(session_factory: SessionFactory) -> None:
 
 
 async def test_busy_timeout_waits_for_locks(session_factory: SessionFactory) -> None:
-    assert await pragma(session_factory, "busy_timeout") == 5000
+    assert await pragma(session_factory, "busy_timeout") == BUSY_TIMEOUT_MS
