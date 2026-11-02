@@ -8,9 +8,10 @@ this module never connects to the database or creates schema.
 from taxi_service.database.base import Base
 from taxi_service.modules.auth import models as auth_models
 from taxi_service.modules.drivers import models as drivers_models
+from taxi_service.modules.rides import models as rides_models
 from taxi_service.modules.users import models as users_models
 
 # Imported for their side effect: each model module registers its tables.
-MODEL_MODULES = (auth_models, drivers_models, users_models)
+MODEL_MODULES = (auth_models, drivers_models, rides_models, users_models)
 
 target_metadata = Base.metadata
