@@ -7,7 +7,11 @@ from fastapi.security import APIKeyCookie, APIKeyHeader
 
 from taxi_service.core.clock import ClockDep
 from taxi_service.database.session import SessionDep
-from taxi_service.modules.auth.exceptions import CsrfFailedError, NotAuthenticatedError
+from taxi_service.modules.auth.exceptions import (
+    CsrfFailedError,
+    ForbiddenError,
+    NotAuthenticatedError,
+)
 from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.auth.service import AuthenticatedUser, AuthService
 from taxi_service.modules.users.models import UserRole
@@ -84,7 +88,19 @@ CurrentUser = Annotated[AuthenticatedUser, Depends(get_current_user)]
 
 
 def require_roles(*roles: UserRole) -> Callable[..., Awaitable[AuthenticatedUser]]:
+    """Dependency: ``CurrentUser`` whose role is one of ``roles``, else 403 ``forbidden``.
+
+    Usage: ``Annotated[AuthenticatedUser, Depends(require_roles(UserRole.ADMIN))]``.
+    It checks the role only; access to a particular ride or profile is the
+    service's job.
+    """
+    if not roles:
+        raise ValueError("require_roles needs at least one role")
+    allowed = frozenset(roles)
+
     async def current_user_with_role(user: CurrentUser) -> AuthenticatedUser:
+        if user.role not in allowed:
+            raise ForbiddenError
         return user
 
     return current_user_with_role
