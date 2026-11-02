@@ -65,6 +65,32 @@ Alembic берёт URL из `DATABASE_URL` (окружение или `.env`); �
 
 Новая модель: класс от `taxi_service.database.base.Base` (время — `UtcDateTime`), импорт её модуля в `src/taxi_service/database/metadata.py`, затем `uv run alembic revision --autogenerate -m "..."`, ручная проверка ревизии, `upgrade head` и `check` на одноразовой БД. История ревизий линейная, с одной head; первая ревизия `baseline` пустая.
 
+### Резервная копия и восстановление локальной БД
+
+Делайте копию перед потенциально разрушительными изменениями (новые миграции, ручные правки). Каталог `backups/` создаётся вручную; файлы `*.db` в Git не попадают.
+
+Копия при остановленном приложении — просто файл. После корректной остановки содержимое WAL уже перенесено в основной файл; если `taxi.db-wal` непустой, скопируйте его вместе с `taxi.db`:
+
+```bash
+mkdir -p backups
+cp taxi.db "backups/taxi-$(date +%Y%m%d-%H%M%S).db"
+```
+
+Согласованная копия без остановки приложения — встроенной командой SQLite (`sqlite3` есть в macOS):
+
+```bash
+sqlite3 taxi.db ".backup 'backups/taxi-$(date +%Y%m%d-%H%M%S).db'"
+```
+
+Восстановление — только при остановленном приложении:
+
+```bash
+rm -f taxi.db-wal taxi.db-shm             # служебные файлы WAL текущей БД
+cp backups/taxi-YYYYMMDD-HHMMSS.db taxi.db
+sqlite3 taxi.db "PRAGMA integrity_check"  # ожидается: ok
+uv run alembic upgrade head               # если копия старше текущих миграций
+```
+
 ### Запуск API
 
 ```bash
