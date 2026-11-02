@@ -1,11 +1,14 @@
 import uuid
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel
+from fastapi import Depends, Query
+from pydantic import AwareDatetime, BaseModel
 
+from taxi_service.core.errors import AppError
 from taxi_service.modules.geo.schemas import Coordinates
 from taxi_service.modules.rides.models import Ride
+from taxi_service.modules.rides.queries import RideFilters
 from taxi_service.modules.rides.schemas import dropoff_of, pickup_of
 from taxi_service.modules.rides.states import RideStatus
 
@@ -42,3 +45,37 @@ class RideSummary(BaseModel):
             created_at=ride.created_at,
             updated_at=ride.updated_at,
         )
+
+
+class InvalidDateRangeError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=422,
+            code="invalid_date_range",
+            message="created_from must not be later than created_to.",
+        )
+
+
+def ride_filters(
+    status: Annotated[
+        list[RideStatus] | None,
+        Query(description="Only rides in these statuses; repeat the parameter for several."),
+    ] = None,
+    created_from: Annotated[
+        AwareDatetime | None,
+        Query(description="Created at or after this time (inclusive); ISO 8601 with offset."),
+    ] = None,
+    created_to: Annotated[
+        AwareDatetime | None,
+        Query(description="Created before this time (exclusive); ISO 8601 with offset."),
+    ] = None,
+) -> RideFilters:
+    """Query filters of ride lists; 422 ``invalid_date_range`` when the bounds are reversed."""
+    if created_from is not None and created_to is not None and created_from > created_to:
+        raise InvalidDateRangeError
+    return RideFilters(
+        statuses=frozenset(status or ()), created_from=created_from, created_to=created_to
+    )
+
+
+RideFiltersDep = Annotated[RideFilters, Depends(ride_filters)]

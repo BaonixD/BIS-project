@@ -5,8 +5,8 @@ from fastapi import APIRouter, Depends
 from taxi_service.database.session import SessionDep
 from taxi_service.modules.auth.dependencies import require_roles
 from taxi_service.modules.auth.service import AuthenticatedUser
-from taxi_service.modules.rides.history_schemas import RideSummary
-from taxi_service.modules.rides.queries import RideFilters, RidePage, RideQueries
+from taxi_service.modules.rides.history_schemas import RideFiltersDep, RideSummary
+from taxi_service.modules.rides.queries import RidePage, RideQueries
 from taxi_service.modules.users.models import UserRole
 from taxi_service.schemas.errors import error_responses
 from taxi_service.schemas.pagination import Page, PageParams, PageParamsDep
@@ -36,7 +36,7 @@ def summary_page(result: RidePage, page: PageParams) -> Page[RideSummary]:
 
 @router.get("", responses=error_responses(401, 403))
 async def list_my_rides(
-    user: Participant, queries: RideQueriesDep, page: PageParamsDep
+    user: Participant, queries: RideQueriesDep, page: PageParamsDep, filters: RideFiltersDep
 ) -> Page[RideSummary]:
     """Ride history, newest first (`created_at DESC, id DESC`).
 
@@ -44,8 +44,13 @@ async def list_my_rides(
     rides assigned to them now (a ride they released is no longer theirs).
     Admins get `403 forbidden` and use `GET /admin/rides`. Items omit the
     route geometry: read it with `GET /rides/{ride_id}`.
+
+    Filters combine with AND: `status` (repeatable), `created_from`
+    (inclusive) and `created_to` (exclusive), times with a UTC offset.
+    Errors: `422 validation_error` (unknown status, time without offset,
+    limit outside 1-100); `422 invalid_date_range`.
     """
     result = await queries.history(
-        user.id, user.role, RideFilters(), limit=page.limit, offset=page.offset
+        user.id, user.role, filters, limit=page.limit, offset=page.offset
     )
     return summary_page(result, page)
