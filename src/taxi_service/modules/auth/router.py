@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Depends, Response, status
 
 from taxi_service.core.config import Settings, SettingsDep
 from taxi_service.modules.auth.dependencies import (
@@ -6,6 +6,7 @@ from taxi_service.modules.auth.dependencies import (
     AuthServiceDep,
     CurrentUser,
     UserServiceDep,
+    require_allowed_origin,
 )
 from taxi_service.modules.auth.schemas import LoginRequest, RegisterRequest, SessionResponse
 from taxi_service.modules.auth.service import SESSION_TTL
@@ -15,7 +16,11 @@ from taxi_service.modules.users.schemas import UserResponse
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_allowed_origin)],
+)
 async def register(body: RegisterRequest, users: UserServiceDep) -> UserResponse:
     """Create a passenger or driver account. It does not log in: call ``/auth/login``."""
     user = await users.create_user(
@@ -26,7 +31,7 @@ async def register(body: RegisterRequest, users: UserServiceDep) -> UserResponse
     return UserResponse.model_validate(user)
 
 
-@router.post("/login")
+@router.post("/login", dependencies=[Depends(require_allowed_origin)])
 async def login(
     body: LoginRequest, response: Response, auth: AuthServiceDep, settings: SettingsDep
 ) -> SessionResponse:

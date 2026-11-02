@@ -6,11 +6,14 @@ from fastapi import Depends, Request
 from fastapi.security import APIKeyCookie, APIKeyHeader
 
 from taxi_service.core.clock import ClockDep
+from taxi_service.core.config import SettingsDep
+from taxi_service.core.origins import normalize_origin
 from taxi_service.database.session import SessionDep
 from taxi_service.modules.auth.exceptions import (
     CsrfFailedError,
     ForbiddenError,
     NotAuthenticatedError,
+    OriginNotAllowedError,
 )
 from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.auth.service import AuthenticatedUser, AuthService
@@ -104,6 +107,34 @@ def require_roles(*roles: UserRole) -> Callable[..., Awaitable[AuthenticatedUser
         return user
 
     return current_user_with_role
+
+
+def require_allowed_origin(request: Request, settings: SettingsDep) -> None:
+    """Refuse a browser ``Origin`` that is neither allowlisted nor the API's own.
+
+    For login and register, which have no session and so no CSRF token yet.
+    A request without ``Origin`` is not from a cross-site browser form or
+    script (browsers send it with every cross-origin POST) and is allowed.
+    """
+    origin = request.headers.get("origin")
+    if origin is None:
+        return
+    try:
+        normalized = normalize_origin(origin)
+    except ValueError:
+        raise OriginNotAllowedError from None
+    if normalized not in settings.cors_allowed_origins and normalized != _own_origin(request):
+        raise OriginNotAllowedError
+
+
+def _own_origin(request: Request) -> str | None:
+    host = request.headers.get("host")
+    if not host:
+        return None
+    try:
+        return normalize_origin(f"{request.url.scheme}://{host}")
+    except ValueError:
+        return None
 
 
 def _same_token(received: str | None, expected: str) -> bool:
