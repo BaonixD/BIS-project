@@ -1,3 +1,5 @@
+import uuid
+
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -5,8 +7,9 @@ from taxi_service.core.clock import Clock
 from taxi_service.database.session import read_transaction
 from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.users.exceptions import UsernameTakenError
-from taxi_service.modules.users.models import User, UserRole
+from taxi_service.modules.users.models import User, UserProfile, UserRole
 from taxi_service.modules.users.repository import UserRepository, normalize_username
+from taxi_service.modules.users.schemas import MyProfileUpdate
 
 
 class UserService:
@@ -38,6 +41,22 @@ class UserService:
                 raise UsernameTakenError from error
             raise
         return user
+
+    async def get_profile(self, user_id: uuid.UUID) -> UserProfile | None:
+        async with read_transaction(self._session):
+            return await self._users.get_profile(user_id)
+
+    async def update_profile(self, user_id: uuid.UUID, update: MyProfileUpdate) -> UserProfile:
+        """Apply the sent ``display_name``/``phone`` to the user's own profile."""
+        async with self._session.begin():
+            profile = await self._users.get_profile(user_id)
+            if profile is None:
+                profile = UserProfile(user_id=user_id, updated_at=self._clock.now())
+                await self._users.add_profile(profile)
+            for name, value in update.changes().items():
+                setattr(profile, name, value)
+            profile.updated_at = self._clock.now()
+        return profile
 
     async def _username_exists(self, username: str) -> bool:
         async with read_transaction(self._session):
