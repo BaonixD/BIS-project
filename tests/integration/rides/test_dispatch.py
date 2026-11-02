@@ -17,12 +17,14 @@ from support.clock import ManualClock
 from support.dispatch import Dispatcher
 from support.drivers import DriverFactory
 from support.rides import RideFactory
+from support.rows import insert_ride
 from taxi_service.database.session import SessionFactory
 from taxi_service.modules.drivers.candidates import Candidate, find_nearby_candidates
 from taxi_service.modules.drivers.geodesy import EARTH_RADIUS_M
 from taxi_service.modules.geo.schemas import Coordinates
 from taxi_service.modules.rides import dispatch as dispatch_module
 from taxi_service.modules.rides.exceptions import (
+    DriverBusyError,
     InvalidOfferTransitionError,
     OfferExpiredError,
     OfferNotFoundError,
@@ -636,3 +638,49 @@ async def test_losing_approval_revokes_the_pending_offer(
         )
 
     assert await statuses(dispatcher, ride.id) == [(driver.hex, OfferStatus.REVOKED)]
+
+
+# Answers that come too late or conflict
+
+
+async def test_reject_after_the_deadline_is_refused_and_moves_on(
+    driver_factory: DriverFactory,
+    ride_factory: RideFactory,
+    dispatcher: Dispatcher,
+    clock: ManualClock,
+) -> None:
+    driver = await driver_factory.driver("driver", location=east(100))
+    next_one = await driver_factory.driver("next", location=east(900))
+    ride = await ride_factory.searching_ride(pickup=PICKUP)
+    await dispatcher.process(ride.id)
+    [offer] = await dispatcher.offers(ride.id)
+    clock.advance(TTL)
+
+    with pytest.raises(OfferExpiredError):
+        await dispatcher.reject(offer.id, driver)
+
+    assert await statuses(dispatcher, ride.id) == [
+        (driver.hex, OfferStatus.EXPIRED),
+        (next_one.hex, OfferStatus.PENDING),
+    ]
+
+
+async def test_accept_by_a_driver_who_got_another_ride_meanwhile_is_a_conflict(
+    driver_factory: DriverFactory,
+    ride_factory: RideFactory,
+    dispatcher: Dispatcher,
+    session_factory: SessionFactory,
+) -> None:
+    """Only the one-active-ride index stops it (state written behind dispatch's back)."""
+    driver = await driver_factory.driver("driver", location=east(100))
+    ride = await ride_factory.searching_ride(pickup=PICKUP)
+    await dispatcher.process(ride.id)
+    [offer] = await dispatcher.offers(ride.id)
+    await insert_ride(session_factory, status="assigned", driver_id=driver.hex)
+
+    with pytest.raises(DriverBusyError):
+        await dispatcher.accept(offer.id, driver)
+
+    stored = await dispatcher.ride(ride.id)
+    assert (stored.status, stored.driver_id) == (RideStatus.SEARCHING, None)
+    assert await statuses(dispatcher, ride.id) == [(driver.hex, OfferStatus.PENDING)]

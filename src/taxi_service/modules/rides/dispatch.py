@@ -180,14 +180,16 @@ class DispatchService:
         expired = await self._expired(offer, ride, now)
         if expired is not None:
             return expired
-        target = next_offer_status(offer.status, OfferCommand.ACCEPT)
-        assert can_accept_offer(offer.status, now=now, expires_at=offer.expires_at)
+        target = next_offer_status(offer.status, OfferCommand.ACCEPT)  # 409 unless pending
         assigned = next_status(ride.status, RideCommand.ASSIGN, SYSTEM_ACTOR)
-        decided = await self._offers.decide_offer(offer.id, target, now, unexpired=True)
-        moved = await self._offers.move_ride(
+        # The conditional UPDATEs repeat the checks in SQL; with the ride row
+        # locked they cannot miss, but a miss must never assign the ride.
+        decided = can_accept_offer(
+            offer.status, now=now, expires_at=offer.expires_at
+        ) and await self._offers.decide_offer(offer.id, target, now, unexpired=True)
+        if not decided or not await self._offers.move_ride(
             ride.id, from_status=ride.status, to_status=assigned, now=now, driver_id=driver_id
-        )
-        if not (decided and moved):  # unreachable while the ride row is locked
+        ):
             raise InvalidOfferTransitionError(
                 current_status=offer.status.value, command=OfferCommand.ACCEPT.value
             )

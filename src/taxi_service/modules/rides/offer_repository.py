@@ -24,18 +24,22 @@ class OfferRepository:
         self._session = session
 
     async def lock_ride(self, ride_id: uuid.UUID) -> Ride | None:
-        return await self._session.scalar(
+        """The ride, fresh from the database and locked for the rest of the transaction."""
+        result = await self._session.execute(
             select(Ride)
             .where(Ride.id == ride_id)
             .with_for_update()
             .execution_options(populate_existing=True)
         )
+        return result.scalar_one_or_none()
 
     async def get_offer(self, offer_id: uuid.UUID, *, lock: bool = False) -> RideOffer | None:
+        """The offer, fresh from the database; ``lock`` only after its ride is locked."""
         query = select(RideOffer).where(RideOffer.id == offer_id)
         if lock:
             query = query.with_for_update()
-        return await self._session.scalar(query.execution_options(populate_existing=True))
+        result = await self._session.execute(query.execution_options(populate_existing=True))
+        return result.scalar_one_or_none()
 
     async def pending_offer(self, ride_id: uuid.UUID) -> RideOffer | None:
         return await self._session.scalar(
