@@ -1,5 +1,7 @@
+import pytest
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import InvalidRequestError
 
 from taxi_service.database.session import SessionFactory
 
@@ -25,3 +27,13 @@ async def test_committed_data_is_visible_to_another_session(
 
     async with session_factory() as reader:
         assert await reader.scalar(text("SELECT count(*) FROM probe")) == 1
+
+
+async def test_statement_outside_explicit_transaction_is_refused(
+    session_factory: SessionFactory,
+) -> None:
+    # No autobegin: nothing can hold the SQLite lock until the session closes.
+    async with session_factory() as session:
+        with pytest.raises(InvalidRequestError, match="[Aa]utobegin"):
+            await session.execute(text("SELECT 1"))
+        assert not session.in_transaction()
