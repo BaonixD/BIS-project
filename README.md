@@ -215,3 +215,56 @@ CI и Git hooks не настраиваются; проверки запуска
 Алматы, KZT. Вход по username/password. Поездка предлагается ближайшему доступному водителю; 30 секунд на ответ, затем следующий. Реальный дорожный маршрут, учебный расчёт цены, наличные и Kaspi по ссылке с ручным подтверждением. Google-вход — последующий этап.
 
 Реальный запрос маршрута потребует API-ключа, Kaspi — ссылки владельца. Секреты и локальные `.env` в Git не добавляются.
+
+## Маршруты
+
+Дорожный маршрут строит openrouteservice Directions (`driving-car`), решение и контракт ошибок — [ADR 0002](docs/decisions/0002-routing-provider.md). Статус реальной проверки: **external_pending** — ключа пока нет, настоящий маршрут по Алматы не запрашивался.
+
+### Ключ openrouteservice
+
+1. Зарегистрироваться на [openrouteservice.org](https://openrouteservice.org/) (аккаунт HeiGIT) и в личном кабинете создать бесплатный ключ плана Standard. Платный план не подключается.
+2. Записать ключ только в локальный `.env`: `ROUTING_API_KEY=...`. В `.env.example`, Git, логи и ответы API ключ не попадает. Ключ персональный, на клиенте (React, мобильное приложение) не используется.
+3. Остальные `ROUTING_*` (базовый URL, таймауты, повторы, общий срок одного запроса — 10 с по умолчанию) необязательны; значения по умолчанию перечислены в `.env.example`.
+
+Без ключа приложение запускается как обычно, а маршрут отвечает `503 routing_unavailable` без обращения к провайдеру; подставной маршрут не выдаётся.
+
+### `POST /api/v1/geo/route`
+
+Любая роль с сессией; как и любой изменяющий запрос, нужен заголовок `X-CSRF-Token`. Тело — две точки `{longitude, latitude}` (WGS 84), лишние поля запрещены:
+
+```bash
+curl -s -b jar.txt -X POST "$API/geo/route" -H "X-CSRF-Token: $CSRF" \
+  -H 'Content-Type: application/json' \
+  -d '{"origin":{"longitude":76.9572,"latitude":43.2389},"destination":{"longitude":76.9286,"latitude":43.2187}}'
+```
+
+Ответ `200` — нормализованный `RouteResult`; `route_geometry` — GeoJSON `LineString`, каждая позиция `[longitude, latitude]`. Цены в ответе нет: её считает quote поездки (T05).
+
+```json
+{"distance_m": 4121, "duration_s": 610,
+ "route_geometry": {"type": "LineString", "coordinates": [[76.9572, 43.2389], [76.9286, 43.2187]]},
+ "provider": "openrouteservice"}
+```
+
+| Код | Когда |
+| --- | --- |
+| `401 not_authenticated`, `403 csrf_failed` | нет сессии или CSRF-токена |
+| `422 validation_error` | координаты вне диапазона, не числа, лишние поля |
+| `422 route_points_identical` | origin и destination совпадают; провайдер не вызывается |
+| `422 route_not_found` | провайдер не нашёл дорожного маршрута между точками |
+| `503 routing_unavailable` | `ROUTING_API_KEY` не задан |
+| `503 routing_provider_error` | сбой провайдера; `details.reason`: `timeout`, `connection_error`, `rate_limited`, `provider_unavailable`, `rejected`, `invalid_response` |
+
+Запрос к провайдеру выполняется вне транзакции БД. В тестах провайдер подменяется через `create_app(settings, routing_provider=...)`; контролируемый `FakeRoutingProvider` — в `tests/support/routing.py`. Pytest к сети не обращается.
+
+### Проверка реального маршрута
+
+```bash
+uv run python scripts/routing_smoke.py
+```
+
+Один реальный запрос по Алматы (Абая/Достык → Аль-Фараби) с ключом из окружения или `.env`. Коды выхода: `0` — маршрут получен, `1` — ошибка провайдера или неправдоподобная геометрия, `2` — `external_pending` (ключа нет, запрос не выполнялся). Pytest этот скрипт не запускает.
+
+### Условия и атрибуция
+
+Действуют [условия HeiGIT](https://account.heigit.org/info/tos) и лимиты бесплатного плана (по FAQ ORS — порядка 2000 запросов Directions в сутки и 40 в минуту; превышение — `429`/`403`, здесь это `routing_provider_error`). Маршруты строятся на данных OpenStreetMap (ODbL): интерфейс, показывающий маршрут, должен выводить атрибуцию, например «© openrouteservice.org by HeiGIT | Map data © OpenStreetMap contributors». Точный текст сверить с условиями при получении ключа.

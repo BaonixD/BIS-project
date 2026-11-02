@@ -11,13 +11,22 @@ NonNegativeInt = Annotated[int, Field(strict=True, ge=0)]
 class Coordinates(BaseModel):
     """WGS 84 point (SRID 4326); serialized as ``{longitude, latitude}``."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     longitude: Longitude = Field(examples=[76.9572])
     latitude: Latitude = Field(examples=[43.2389])
 
     def as_lon_lat(self) -> Position:
         return (self.longitude, self.latitude)
+
+
+class RouteRequest(BaseModel):
+    """Two points of a road route, in driving order."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    origin: Coordinates
+    destination: Coordinates
 
 
 class RouteGeometry(BaseModel):
