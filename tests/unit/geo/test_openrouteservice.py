@@ -8,7 +8,7 @@ import pytest
 
 from taxi_service.modules.geo.client import OpenRouteServiceClient, create_routing_http_client
 from taxi_service.modules.geo.config import RoutingSettings
-from taxi_service.modules.geo.exceptions import RoutingUnavailableError
+from taxi_service.modules.geo.exceptions import RoutingProviderError, RoutingUnavailableError
 from taxi_service.modules.geo.schemas import Coordinates, RouteGeometry, RouteResult
 
 TEST_KEY = "eyJ-test-routing-key-7f3a"
@@ -148,6 +148,42 @@ async def test_missing_key_fails_without_any_request(api_key: str | None) -> Non
     assert provider.sleeps == []
     assert caught.value.status_code == 503
     assert caught.value.code == "routing_unavailable"
+
+
+INVALID_RESPONSES = {
+    "not_json": httpx.Response(200, text="<html>gateway</html>"),
+    "json_not_object": httpx.Response(200, json=[1, 2]),
+    "nan_literal": httpx.Response(200, text=json.dumps(ors_payload()).replace("4120.4", "NaN")),
+    "no_features": ok({"type": "FeatureCollection", "features": []}),
+    "no_summary": ok(
+        {"features": [{"geometry": {"type": "LineString", "coordinates": LINE}, "properties": {}}]}
+    ),
+    "negative_distance": ok(ors_payload(distance=-5.0)),
+    "negative_duration": ok(ors_payload(duration=-1)),
+    "string_distance": ok(ors_payload(distance="4120")),
+    "bool_duration": ok(ors_payload(duration=True)),
+    "point_geometry": ok(ors_payload(geometry={"type": "Point", "coordinates": [76.9, 43.2]})),
+    "single_position": ok(
+        ors_payload(geometry={"type": "LineString", "coordinates": [[76.9, 43.2]]})
+    ),
+    "lat_lon_swapped": ok(
+        ors_payload(geometry={"type": "LineString", "coordinates": [[43.2, 176.9], [43.2, 76.9]]})
+    ),
+}
+
+
+@pytest.mark.parametrize("reply", INVALID_RESPONSES.values(), ids=INVALID_RESPONSES.keys())
+async def test_unusable_success_response_is_a_provider_error(reply: httpx.Response) -> None:
+    provider = FakeProvider(reply)
+
+    async with ors_client(provider) as client:
+        with pytest.raises(RoutingProviderError) as caught:
+            await client.get_route(ORIGIN, DESTINATION)
+
+    assert caught.value.status_code == 503
+    assert caught.value.code == "routing_provider_error"
+    assert caught.value.details == {"reason": "invalid_response", "provider_status": 200}
+    assert len(provider.requests) == 1
 
 
 async def test_client_repr_does_not_expose_key() -> None:
