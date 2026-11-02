@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, Response, status
+from typing import Annotated
+
+from fastapi import APIRouter, Cookie, Depends, Response, status
 
 from taxi_service.core.config import Settings, SettingsDep
 from taxi_service.modules.auth.dependencies import (
@@ -33,10 +35,21 @@ async def register(body: RegisterRequest, users: UserServiceDep) -> UserResponse
 
 @router.post("/login", dependencies=[Depends(require_allowed_origin)])
 async def login(
-    body: LoginRequest, response: Response, auth: AuthServiceDep, settings: SettingsDep
+    body: LoginRequest,
+    response: Response,
+    auth: AuthServiceDep,
+    settings: SettingsDep,
+    current_token: Annotated[
+        str | None, Cookie(alias=SESSION_COOKIE_NAME, include_in_schema=False)
+    ] = None,
 ) -> SessionResponse:
-    """Open a 7-day session: sets the HttpOnly session cookie and returns the CSRF token."""
-    issued = await auth.login(body.username, body.password.get_secret_value())
+    """Open a 7-day session: sets the HttpOnly session cookie and returns the CSRF token.
+
+    A session cookie the client already sends is revoked and replaced.
+    """
+    issued = await auth.login(
+        body.username, body.password.get_secret_value(), replaces_token=current_token
+    )
     _set_session_cookie(response, issued.token, settings)
     return SessionResponse.from_user(issued.user)
 

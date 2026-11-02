@@ -33,6 +33,13 @@ class AuthSessionRepository:
         ).one_or_none()
         return None if row is None else (row[0], row[1])
 
+    async def revoke_by_token_hash(self, token_hash: str, now: datetime) -> None:
+        await self._session.execute(
+            update(AuthSession)
+            .where(AuthSession.token_hash == token_hash, AuthSession.revoked_at.is_(None))
+            .values(revoked_at=now)
+        )
+
     async def revoke(self, session_id: uuid.UUID, now: datetime) -> bool:
         """Mark the session revoked; ``False`` if it already was."""
         result = await self._session.execute(

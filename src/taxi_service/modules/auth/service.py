@@ -75,8 +75,14 @@ class AuthService:
         self._users = UserRepository(session)
         self._sessions = AuthSessionRepository(session)
 
-    async def login(self, username: str, password: str) -> IssuedSession:
+    async def login(
+        self, username: str, password: str, *, replaces_token: str | None = None
+    ) -> IssuedSession:
         """Check the credentials and open a session valid for ``SESSION_TTL``.
+
+        ``replaces_token`` is the session cookie the client already had; that
+        session is revoked in the same transaction, so a browser never keeps
+        two working sessions (or the previous user's one) after a login.
 
         The Argon2 check runs outside any transaction, so the SQLite write lock
         is held only for the INSERT. An unknown username costs the same check
@@ -103,6 +109,8 @@ class AuthService:
             expires_at=now + SESSION_TTL,
         )
         async with self._session.begin():
+            if replaces_token:
+                await self._sessions.revoke_by_token_hash(hash_token(replaces_token), now)
             await self._sessions.add(auth_session)
         logger.info("Login succeeded")
         return IssuedSession(token=token, user=AuthenticatedUser.from_rows(user, auth_session))
