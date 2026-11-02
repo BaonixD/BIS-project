@@ -15,7 +15,7 @@
 | [T04](tasks/T04-routing-pricing.md) | Дорожный маршрут и учебная цена | T02 | `task/t04-routing-pricing` | часть A integrated (`36f25bb`, [отчёт](reports/T04.md)); часть B integrated (`a484235`); реальный маршрут external_pending |
 | [T05](tasks/T05-ride-creation.md) | Quote и идемпотентное создание заказа | T03, T04 | `task/t05-ride-creation` | integrated (`9582b47`, [отчёт](reports/T05.md)) |
 | [T06](tasks/T06-dispatch.md) | Поиск и предложения водителям | T05 | `task/t06-dispatch` | integrated (`cf151ae`, [отчёт](reports/T06.md)) |
-| [T07](tasks/T07-ride-lifecycle.md) | Жизненный цикл и отмена поездки | T06 | `task/t07-ride-lifecycle` | части A и B integrated (`f8686ab`, `7a53516`, [отчёт](reports/T07.md)); исправления ревью in_progress |
+| [T07](tasks/T07-ride-lifecycle.md) | Жизненный цикл и отмена поездки | T06 | `task/t07-ride-lifecycle` | части A и B integrated (`f8686ab`, `7a53516` + `fix/t07b-review` `041c136`, [отчёт](reports/T07.md)) |
 | [T08](tasks/T08-payments.md) | Наличные и Kaspi-ссылка | T07 | `task/t08-payments` | часть A integrated (`8a56b31`, [отчёт](reports/T08.md)); часть B in_progress |
 | [T09](tasks/T09-history-admin.md) | История и административное чтение | T07 | `task/t09-history-admin` | integrated (`4381f72`, [отчёт](reports/T09.md)); payment-поля после T08 часть B |
 | [T10](tasks/T10-acceptance.md) | Seed, E2E, документация и передача | T08, T09 | `task/t10-acceptance` | часть A (seed) integrated (`3a40ba8`, [отчёт](reports/T10.md)); часть B queued после T08, T09 |
