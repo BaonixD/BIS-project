@@ -11,7 +11,6 @@ from taxi_service.modules.auth.dependencies import CSRF_HEADER_NAME
 from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.auth.rate_limit import LoginAttemptLimiter
 
-
 API_DESCRIPTION = """\
 Backend MVP of a taxi service in Almaty (KZT).
 
