@@ -37,8 +37,10 @@ from support.rides import order_ride, ride_url
 from taxi_service.database.session import SessionFactory, read_transaction
 from taxi_service.modules.geo.schemas import Coordinates
 from taxi_service.modules.rides.dispatch import DispatchService
+from taxi_service.modules.rides.lifecycle import RideLifecycleService
 from taxi_service.modules.rides.models import Ride, RideEvent
 from taxi_service.modules.rides.states import OfferStatus, RideCommand, RideStatus
+from taxi_service.modules.users.models import UserRole
 
 STEP = timedelta(seconds=5)
 OTHER_SPOT = Coordinates(longitude=76.9590, latitude=43.2389)
@@ -526,6 +528,77 @@ async def test_released_driver_is_not_asked_again_even_when_nobody_else_is_there
         Event("assigned", "searching", "release", trip.driver_id, "flat tyre"),
         Event("searching", "no_driver", "mark_no_driver", None, None),
     ]
+
+
+def released_snapshot(body: dict[str, Any]) -> tuple[Any, ...]:
+    return (
+        body["status"],
+        body["driver_id"],
+        body["assigned_at"],
+        body["cancelled_at"],
+        body["cancel_reason"],
+    )
+
+
+async def test_release_answer_does_not_show_a_later_cancel(
+    client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    session_factory: SessionFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The passenger cancels between the release commit and its search step."""
+    trip = await trip_in("assigned", client, driver_factory, dispatcher)
+    original = DispatchService.process_ride
+
+    async def passenger_cancels_first(self: DispatchService, ride_id: uuid.UUID) -> Ride | None:
+        async with session_factory() as session:
+            await RideLifecycleService(session, dispatcher.clock).execute(
+                ride_id,
+                RideCommand.CANCEL,
+                user_id=trip.passenger_id,
+                role=UserRole.PASSENGER,
+                reason="private note",
+            )
+        return await original(self, ride_id)
+
+    monkeypatch.setattr(DispatchService, "process_ride", passenger_cancels_first)
+    response = await send(client, trip.ride_id, "release", trip.driver)
+
+    assert response.status_code == 200, response.text
+    assert released_snapshot(response.json()) == ("searching", None, None, None, None)
+    assert "private note" not in response.text
+    assert (await dispatcher.ride(trip.ride_id)).status.value == "cancelled"
+
+
+async def test_release_answer_does_not_show_the_next_driver(
+    client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Another driver gets the offer and accepts before the releaser's answer is built."""
+    trip = await trip_in("assigned", client, driver_factory, dispatcher)
+    other = await driver_factory.driver("other_driver", location=OTHER_SPOT)
+    original = DispatchService.process_ride
+
+    async def other_driver_accepts_meanwhile(
+        self: DispatchService, ride_id: uuid.UUID
+    ) -> Ride | None:
+        await original(self, ride_id)
+        offer = await dispatcher.pending(ride_id)
+        assert offer is not None
+        await dispatcher.accept(offer.id, other)
+        return await original(self, ride_id)
+
+    monkeypatch.setattr(DispatchService, "process_ride", other_driver_accepts_meanwhile)
+    response = await send(client, trip.ride_id, "release", trip.driver)
+
+    assert response.status_code == 200, response.text
+    assert released_snapshot(response.json()) == ("searching", None, None, None, None)
+    assert str(other) not in response.text
+    ride = await dispatcher.ride(trip.ride_id)
+    assert (ride.status.value, ride.driver_id) == ("assigned", other)
 
 
 async def test_release_answers_even_if_the_search_step_fails(
