@@ -7,15 +7,18 @@ from pydantic import AwareDatetime, BaseModel
 
 from taxi_service.core.errors import AppError
 from taxi_service.modules.geo.schemas import Coordinates
-from taxi_service.modules.rides.models import Ride
-from taxi_service.modules.rides.queries import RideFilters, RidePage
+from taxi_service.modules.payments.rules import PaymentMethod, PaymentStatus
+from taxi_service.modules.rides.queries import RideFilters, RidePage, RideRow
 from taxi_service.modules.rides.schemas import dropoff_of, pickup_of
 from taxi_service.modules.rides.states import RideStatus
 from taxi_service.schemas.pagination import Page, PageParams
 
 
 class RideSummary(BaseModel):
-    """A ride in a list: points, metrics and price, without the route geometry."""
+    """A ride in a list: points, metrics, price and payment, without the route geometry.
+
+    ``payment_status`` and ``payment_method`` are null until the ride is completed.
+    """
 
     id: uuid.UUID
     status: RideStatus
@@ -29,9 +32,12 @@ class RideSummary(BaseModel):
     currency: Literal["KZT"]
     created_at: datetime
     updated_at: datetime
+    payment_status: PaymentStatus | None
+    payment_method: PaymentMethod | None
 
     @classmethod
-    def build(cls, ride: Ride) -> "RideSummary":
+    def build(cls, row: RideRow) -> "RideSummary":
+        ride = row.ride
         return cls(
             id=ride.id,
             status=ride.status,
@@ -45,12 +51,14 @@ class RideSummary(BaseModel):
             currency="KZT",
             created_at=ride.created_at,
             updated_at=ride.updated_at,
+            payment_status=row.payment_status,
+            payment_method=row.payment_method,
         )
 
     @classmethod
     def page(cls, result: RidePage, params: PageParams) -> Page["RideSummary"]:
         return Page(
-            items=[cls.build(ride) for ride in result.rides],
+            items=[cls.build(row) for row in result.rows],
             limit=params.limit,
             offset=params.offset,
             total=result.total,
