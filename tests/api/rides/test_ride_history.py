@@ -219,6 +219,7 @@ async def test_rides_created_at_the_same_time_are_ordered_by_id(
     client: httpx.AsyncClient, ride_factory: RideFactory, pat: uuid.UUID
 ) -> None:
     earlier = await past_rides(ride_factory, pat, 1)
+    ride_factory.clock.advance(timedelta(minutes=1))
     same_time = await past_rides(ride_factory, pat, 4, step=timedelta(0))
     await login_as(client, "pat")
 
