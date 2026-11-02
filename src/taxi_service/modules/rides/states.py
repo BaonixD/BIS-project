@@ -3,7 +3,11 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Final
 
-from taxi_service.modules.rides.exceptions import InvalidRideTransitionError
+from taxi_service.modules.rides.exceptions import (
+    InvalidRideTransitionError,
+    RideCommandForbiddenError,
+    RideNotFoundError,
+)
 from taxi_service.modules.users.models import UserRole
 
 
@@ -49,12 +53,41 @@ class Actor:
     is_ride_passenger: bool = False
     is_assigned_driver: bool = False
 
+    def __post_init__(self) -> None:
+        if self.is_ride_passenger and self.role is not UserRole.PASSENGER:
+            raise ValueError("Actor: only a passenger can be the ride's passenger")
+        if self.is_assigned_driver and self.role is not UserRole.DRIVER:
+            raise ValueError("Actor: only a driver can be the ride's assigned driver")
+
     @property
     def is_system(self) -> bool:
-        return False
+        return self.role is None
+
+    @property
+    def is_participant(self) -> bool:
+        return self.is_ride_passenger or self.is_assigned_driver
 
 
 SYSTEM_ACTOR: Final = Actor(role=None)
+
+SYSTEM_COMMANDS: Final = frozenset({RideCommand.ASSIGN, RideCommand.MARK_NO_DRIVER})
+PASSENGER_COMMANDS: Final = frozenset({RideCommand.CANCEL})
+DRIVER_COMMANDS: Final = frozenset(
+    {RideCommand.ARRIVE, RideCommand.START, RideCommand.COMPLETE, RideCommand.RELEASE}
+)
+
+
+def authorize_command(command: RideCommand, actor: Actor) -> None:
+    if actor.is_system:
+        allowed = command in SYSTEM_COMMANDS
+    else:
+        if not actor.is_participant and actor.role is not UserRole.ADMIN:
+            raise RideNotFoundError
+        allowed = (actor.is_ride_passenger and command in PASSENGER_COMMANDS) or (
+            actor.is_assigned_driver and command in DRIVER_COMMANDS
+        )
+    if not allowed:
+        raise RideCommandForbiddenError(command=command.value)
 
 
 _TRANSITIONS: Final[Mapping[RideCommand, Mapping[RideStatus, RideStatus]]] = {
@@ -72,6 +105,7 @@ _TRANSITIONS: Final[Mapping[RideCommand, Mapping[RideStatus, RideStatus]]] = {
 
 
 def next_status(current: RideStatus, command: RideCommand, actor: Actor) -> RideStatus:
+    authorize_command(command, actor)
     target = _TRANSITIONS[command].get(current)
     if target is None:
         raise InvalidRideTransitionError(current_status=current.value, command=command.value)
