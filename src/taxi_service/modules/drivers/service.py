@@ -10,6 +10,7 @@ from taxi_service.database.session import read_transaction
 from taxi_service.modules.drivers.exceptions import (
     DriverNotApprovedError,
     DriverNotFoundError,
+    DriverOnActiveRideError,
     DriverProfileIncompleteError,
     PlateNumberTakenError,
     VehicleYearOutOfRangeError,
@@ -25,6 +26,7 @@ from taxi_service.modules.drivers.repository import DriverRepository
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate, VehicleInput
 from taxi_service.modules.geo.schemas import Coordinates
 from taxi_service.modules.rides.dispatch import revoke_driver_offers
+from taxi_service.modules.rides.repository import driver_has_active_ride
 from taxi_service.modules.users.models import User
 
 # Changing these after approval needs a new approval; the phone is only a contact.
@@ -47,12 +49,17 @@ class DriverService:
     async def update_profile(
         self, driver_id: uuid.UUID, update: DriverProfileUpdate
     ) -> DriverProfile:
-        """Apply the sent fields; an identity or vehicle change revokes the approval."""
+        """Apply the sent fields; an identity or vehicle change revokes the approval.
+
+        Not during an active ride (409 ``driver_on_active_ride``): the passenger
+        relies on the name, phone and car shown for the ride.
+        """
         if update.vehicle is not None:
             self._check_vehicle_year(update.vehicle.year)
         try:
             async with self._session.begin():
                 profile = await self._get_or_create(driver_id)
+                await self._ensure_no_active_ride(driver_id)
                 vehicle = update.vehicle
                 if vehicle is not None and await self._drivers.plate_number_taken(
                     vehicle.plate_number, by_other_than=driver_id
@@ -78,10 +85,13 @@ class DriverService:
         """Go online (approved, complete drivers only) or offline (always).
 
         Going offline revokes a pending offer; the dispatch loop then asks the
-        next candidate. An accepted ride is not affected (MVP_SPEC §6).
+        next candidate. With an active ride going offline is 409
+        ``driver_on_active_ride``: the ride is completed or released first.
         """
         async with self._session.begin():
             profile = await self._drivers.get_for_update(driver_id)
+            if not online:
+                await self._ensure_no_active_ride(driver_id)
             if online:
                 if profile is None or profile.approval_status is not ApprovalStatus.APPROVED:
                     raise DriverNotApprovedError
@@ -125,6 +135,10 @@ class DriverService:
                 raise
             return existing
         return profile
+
+    async def _ensure_no_active_ride(self, driver_id: uuid.UUID) -> None:
+        if await driver_has_active_ride(self._session, driver_id):
+            raise DriverOnActiveRideError
 
     def _check_vehicle_year(self, year: int) -> None:
         newest = self._clock.now().year + 1

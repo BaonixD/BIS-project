@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
+from taxi_service.modules.drivers.models import DriverProfile
 from taxi_service.modules.geo.schemas import Coordinates, RouteResult
 from taxi_service.modules.rides.models import REASON_MAX_LENGTH, Ride, RideQuote, RouteSnapshot
 from taxi_service.modules.rides.states import RideStatus
@@ -127,6 +128,62 @@ class RideResponse(BaseModel):
             cancelled_at=ride.cancelled_at,
             cancel_reason=ride.cancel_reason,
         )
+
+
+class VehicleCard(BaseModel):
+    make: str
+    model: str
+    color: str
+    plate_number: str
+
+
+class DriverCard(BaseModel):
+    """The assigned driver as the passenger sees them during the ride.
+
+    ``location`` is the last one the driver sent (no history); a stale
+    ``location_updated_at`` does not end or cancel the ride (MVP_SPEC §6).
+    """
+
+    full_name: str | None
+    phone: str | None
+    vehicle: VehicleCard | None
+    location: Coordinates | None
+    location_updated_at: datetime | None
+
+    @classmethod
+    def build(cls, profile: DriverProfile) -> "DriverCard":
+        vehicle = profile.vehicle
+        location = None
+        if profile.longitude is not None and profile.latitude is not None:
+            location = Coordinates(longitude=profile.longitude, latitude=profile.latitude)
+        return cls(
+            full_name=profile.full_name,
+            phone=profile.phone,
+            vehicle=None
+            if vehicle is None
+            else VehicleCard(
+                make=vehicle.make,
+                model=vehicle.model,
+                color=vehicle.color,
+                plate_number=vehicle.plate_number,
+            ),
+            location=location,
+            location_updated_at=profile.location_updated_at,
+        )
+
+
+class RideDetailsResponse(RideResponse):
+    """``GET /rides/{id}``: the ride, and its driver for the participants of an active ride."""
+
+    driver: DriverCard | None = Field(
+        description="Only for the passenger and the driver while the ride is assigned, "
+        "arrived or in_progress; otherwise null."
+    )
+
+    @classmethod
+    def with_driver(cls, ride: Ride, driver: DriverProfile | None) -> "RideDetailsResponse":
+        card = None if driver is None else DriverCard.build(driver)
+        return cls(**RideResponse.build(ride).model_dump(), driver=card)
 
 
 def pickup_of(snapshot: RouteSnapshot) -> Coordinates:

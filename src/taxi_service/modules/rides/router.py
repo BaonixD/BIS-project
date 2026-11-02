@@ -15,6 +15,7 @@ from taxi_service.modules.rides.schemas import (
     QuoteRequest,
     QuoteResponse,
     RideCreateRequest,
+    RideDetailsResponse,
     RideResponse,
 )
 from taxi_service.modules.rides.service import RideService
@@ -90,12 +91,18 @@ async def create_ride(
 
 
 @router.get("/{ride_id}", responses=error_responses(401, 404))
-async def read_ride(ride_id: uuid.UUID, user: CurrentUser, rides: RideServiceDep) -> RideResponse:
-    """A ride with its status, driver (if assigned), route and fixed price.
+async def read_ride(
+    ride_id: uuid.UUID, user: CurrentUser, rides: RideServiceDep
+) -> RideDetailsResponse:
+    """A ride with its status, stage times, route and fixed price.
 
     Visible to its passenger, the driver assigned to it and admins. Anyone
     else gets `404 ride_not_found`, as for an id that does not exist.
+
+    While the ride is `assigned`, `arrived` or `in_progress` its passenger
+    and driver also get `driver`: name, phone, car and the last location
+    with `location_updated_at` (poll this endpoint). An old location is
+    shown as it is and never ends the ride.
     """
-    return RideResponse.build(
-        await rides.get_ride(ride_id, viewer_id=user.id, viewer_role=user.role)
-    )
+    details = await rides.get_ride(ride_id, viewer_id=user.id, viewer_role=user.role)
+    return RideDetailsResponse.with_driver(details.ride, details.driver)

@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from taxi_service.core.clock import Clock
 from taxi_service.database.session import read_transaction
+from taxi_service.modules.drivers.models import DriverProfile
+from taxi_service.modules.drivers.repository import DriverRepository
 from taxi_service.modules.geo.client import RoutingProvider
 from taxi_service.modules.geo.schemas import Coordinates, RouteResult
 from taxi_service.modules.geo.service import plan_road_route
@@ -20,7 +22,12 @@ from taxi_service.modules.rides.exceptions import (
     RideNotFoundError,
 )
 from taxi_service.modules.rides.idempotency import request_fingerprint
-from taxi_service.modules.rides.models import IdempotencyRecord, Ride, RideQuote
+from taxi_service.modules.rides.models import (
+    ACCEPTED_ACTIVE_RIDE_STATUSES,
+    IdempotencyRecord,
+    Ride,
+    RideQuote,
+)
 from taxi_service.modules.rides.policy import DEFAULT_DISPATCH_POLICY, DispatchPolicy
 from taxi_service.modules.rides.pricing import Fare, calculate_fare
 from taxi_service.modules.rides.repository import RideRepository
@@ -29,6 +36,14 @@ from taxi_service.modules.users.models import UserRole
 
 QUOTE_TTL: Final = timedelta(minutes=5)
 CREATE_RIDE_OPERATION: Final = "create_ride"
+
+
+@dataclass(frozen=True, slots=True)
+class RideDetails:
+    """A ride and, for a participant of an active ride, its driver's profile."""
+
+    ride: Ride
+    driver: DriverProfile | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,13 +124,20 @@ class RideService:
 
     async def get_ride(
         self, ride_id: uuid.UUID, *, viewer_id: uuid.UUID, viewer_role: UserRole
-    ) -> Ride:
-        """The ride for its passenger, its assigned driver or an admin; else 404."""
+    ) -> RideDetails:
+        """The ride for its passenger, its assigned driver or an admin; else 404.
+
+        Its passenger and driver also get the driver's profile while the ride
+        is assigned, arrived or in_progress.
+        """
         async with read_transaction(self._session):
             ride = await self._rides.get_ride(ride_id)
-        if ride is None or not can_view_ride(ride, viewer_id, viewer_role):
-            raise RideNotFoundError
-        return ride
+            if ride is None or not can_view_ride(ride, viewer_id, viewer_role):
+                raise RideNotFoundError
+            driver = None
+            if ride.driver_id is not None and shows_driver(ride, viewer_id):
+                driver = await DriverRepository(self._session).get(ride.driver_id)
+        return RideDetails(ride, driver)
 
     async def _replay(self, user_id: uuid.UUID, key: str, fingerprint: str) -> Ride | None:
         record = await self._rides.get_idempotency_record(user_id, CREATE_RIDE_OPERATION, key)
@@ -166,6 +188,12 @@ class RideService:
 def can_view_ride(ride: Ride, viewer_id: uuid.UUID, viewer_role: UserRole) -> bool:
     """Admins, the ride's passenger and the driver assigned now (not a released one)."""
     return viewer_role is UserRole.ADMIN or viewer_id in (ride.passenger_id, ride.driver_id)
+
+
+def shows_driver(ride: Ride, viewer_id: uuid.UUID) -> bool:
+    """The driver card is for the ride's participants while the driver holds the ride."""
+    participant = viewer_id in (ride.passenger_id, ride.driver_id)
+    return participant and ride.status in ACCEPTED_ACTIVE_RIDE_STATUSES
 
 
 def route_snapshot(

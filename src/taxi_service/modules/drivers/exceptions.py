@@ -27,6 +27,17 @@ class DriverNotApprovedError(AppError):
         )
 
 
+class DriverOnActiveRideError(AppError):
+    """Offline and profile or car changes wait until the accepted ride ends (ADR 0007)."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=409,
+            code="driver_on_active_ride",
+            message="The driver has an active ride; complete or release it first.",
+        )
+
+
 class PlateNumberTakenError(AppError):
     def __init__(self) -> None:
         super().__init__(

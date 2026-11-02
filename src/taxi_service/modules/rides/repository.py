@@ -3,7 +3,12 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from taxi_service.modules.rides.models import IdempotencyRecord, Ride, RideQuote
+from taxi_service.modules.rides.models import (
+    ACCEPTED_ACTIVE_RIDE_STATUSES,
+    IdempotencyRecord,
+    Ride,
+    RideQuote,
+)
 from taxi_service.modules.rides.states import ACTIVE_RIDE_STATUSES
 
 
@@ -66,3 +71,13 @@ class RideRepository:
     async def add_idempotency_record(self, record: IdempotencyRecord) -> None:
         self._session.add(record)
         await self._session.flush()
+
+
+async def driver_has_active_ride(session: AsyncSession, driver_id: uuid.UUID) -> bool:
+    """Whether the driver holds an assigned, arrived or in_progress ride (caller's transaction)."""
+    found = await session.scalar(
+        select(Ride.id).where(
+            Ride.driver_id == driver_id, Ride.status.in_(ACCEPTED_ACTIVE_RIDE_STATUSES)
+        )
+    )
+    return found is not None
