@@ -15,6 +15,7 @@ from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from support.clock import ManualClock
+from support.dispatch import Dispatcher
 from support.drivers import DriverFactory
 from support.rides import RideFactory
 from support.routing import FakeRoutingProvider, isolate_routing_environment
@@ -155,3 +156,9 @@ def ride_factory(
 ) -> RideFactory:
     """Passengers and searching rides created directly through the services."""
     return RideFactory(session_factory, clock, PasswordHasher.from_settings(settings))
+
+
+@pytest.fixture
+def dispatcher(session_factory: SessionFactory, clock: ManualClock) -> Dispatcher:
+    """Dispatch service calls on their own sessions, with the test clock and default policy."""
+    return Dispatcher(session_factory, clock)

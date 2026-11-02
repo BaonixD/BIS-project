@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     login_attempt_window_seconds: int = Field(default=900, ge=1)
     login_limiter_max_keys: int = Field(default=10_000, ge=1)
 
+    offer_ttl_s: int = Field(default=30, ge=1)
+    search_budget_s: int = Field(default=180, ge=1)
+    dispatch_interval_s: float = Field(default=1.0, gt=0)
+    dispatch_loop_enabled: bool = True
+
     @field_validator("log_level", mode="before")
     @classmethod
     def normalize_log_level(cls, value: object) -> object:

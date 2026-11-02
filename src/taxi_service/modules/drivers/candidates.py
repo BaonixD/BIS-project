@@ -44,6 +44,7 @@ async def find_nearby_candidates(
     radius_m: float = DEFAULT_RADIUS_M,
     max_location_age_s: float = DEFAULT_MAX_LOCATION_AGE_S,
     exclude_driver_ids: Collection[uuid.UUID] = (),
+    for_ride_id: uuid.UUID | None = None,
     limit: int = DEFAULT_LIMIT,
 ) -> list[Candidate]:
     """At most ``limit`` candidates, nearest first; equal distances by ascending driver id.

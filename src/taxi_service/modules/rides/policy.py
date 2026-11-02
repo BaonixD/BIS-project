@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Final
 
+from taxi_service.core.config import Settings
 from taxi_service.modules.drivers.candidates import (
     DEFAULT_MAX_LOCATION_AGE_S,
     DEFAULT_RADIUS_M,
@@ -25,6 +26,10 @@ class DispatchPolicy:
     def __post_init__(self) -> None:
         if self.offer_ttl <= timedelta(0) or self.search_budget <= timedelta(0):
             raise ValueError("offer_ttl and search_budget must be positive")
+
+    @classmethod
+    def from_settings(cls, settings: Settings) -> "DispatchPolicy":
+        raise NotImplementedError
 
 
 DEFAULT_DISPATCH_POLICY: Final = DispatchPolicy()
