@@ -12,7 +12,7 @@
 | [T01](tasks/T01-database.md) | БД (SQLite), Alembic, изоляция тестов | T00 | `task/t01-database` | integrated (`df9e473`, [отчёт](reports/T01.md)) |
 | [T02](tasks/T02-auth.md) | Регистрация, сессии и права | T01 | `task/t02-auth` | integrated (`2446e6f`, [отчёт](reports/T02.md)) |
 | [T03](tasks/T03-drivers.md) | Профили, автомобиль и координаты | T02 | `task/t03-drivers` | in_progress |
-| [T04](tasks/T04-routing-pricing.md) | Дорожный маршрут и учебная цена | T02 | `task/t04-routing-pricing` | часть A integrated (`36f25bb`, [отчёт](reports/T04.md)); часть B in_progress |
+| [T04](tasks/T04-routing-pricing.md) | Дорожный маршрут и учебная цена | T02 | `task/t04-routing-pricing` | часть A integrated (`36f25bb`, [отчёт](reports/T04.md)); часть B integrated (`a484235`); реальный маршрут external_pending |
 | [T05](tasks/T05-ride-creation.md) | Quote и идемпотентное создание заказа | T03, T04 | `task/t05-ride-creation` | queued |
 | [T06](tasks/T06-dispatch.md) | Поиск и предложения водителям | T05 | `task/t06-dispatch` | queued |
 | [T07](tasks/T07-ride-lifecycle.md) | Жизненный цикл и отмена поездки | T06 | `task/t07-ride-lifecycle` | часть A in_progress (чистые правила состояний); часть B queued после T06 |

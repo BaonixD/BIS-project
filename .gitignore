@@ -26,3 +26,4 @@ dist/
 *.db-wal
 *.db-shm
 *.db-journal
+.claude/scheduled_tasks.lock
