@@ -29,7 +29,10 @@ class DispatchPolicy:
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "DispatchPolicy":
-        raise NotImplementedError
+        return cls(
+            offer_ttl=timedelta(seconds=settings.offer_ttl_s),
+            search_budget=timedelta(seconds=settings.search_budget_s),
+        )
 
 
 DEFAULT_DISPATCH_POLICY: Final = DispatchPolicy()

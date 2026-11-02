@@ -6,9 +6,11 @@ is at most ``max_location_age_s`` old and within ``radius_m`` of the pickup
 using the (longitude, latitude) index; Python computes the haversine distance,
 drops points outside the circle and orders by distance, then driver id.
 
-Extension point for T06: drivers with an active ride or a pending offer are
-not filtered here yet. Pass them in ``exclude_driver_ids`` or add a NOT EXISTS
-condition to :func:`eligible_drivers`.
+Drivers who are busy (an accepted active ride: assigned, arrived,
+in_progress) or reserved (a pending offer for any ride) are excluded in SQL,
+inside the caller's transaction. With ``for_ride_id`` every driver who has
+already had an offer for that ride is excluded too: a search never asks the
+same driver twice (ADR 0006).
 """
 
 import uuid
@@ -16,12 +18,14 @@ from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from sqlalchemy import ColumnElement, Select, and_, or_, select
+from sqlalchemy import ColumnElement, Exists, Select, and_, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from taxi_service.modules.drivers.geodesy import BoundingBox, bounding_box, haversine_m
 from taxi_service.modules.drivers.models import ApprovalStatus, DriverProfile, Vehicle
 from taxi_service.modules.geo.schemas import Coordinates
+from taxi_service.modules.rides.models import ACCEPTED_ACTIVE_RIDE_STATUSES, Ride, RideOffer
+from taxi_service.modules.rides.states import OfferStatus
 
 DEFAULT_RADIUS_M = 5000.0
 DEFAULT_MAX_LOCATION_AGE_S = 60.0
@@ -60,6 +64,8 @@ async def find_nearby_candidates(
     query = eligible_drivers(fresh_since).where(_inside(bounding_box(pickup, radius_m)))
     if exclude_driver_ids:
         query = query.where(DriverProfile.user_id.not_in(list(exclude_driver_ids)))
+    if for_ride_id is not None:
+        query = query.where(~_offered(for_ride_id))
     candidates = []
     for driver_id, longitude, latitude in await session.execute(query):
         if longitude is None or latitude is None:  # excluded by SQL; narrows the type
@@ -72,7 +78,10 @@ async def find_nearby_candidates(
 
 
 def eligible_drivers(fresh_since: datetime) -> Select[uuid.UUID, float | None, float | None]:
-    """Approved, online drivers with a vehicle and a location not older than ``fresh_since``."""
+    """Approved, online, not busy or reserved drivers with a vehicle and a fresh location.
+
+    The location must not be older than ``fresh_since``.
+    """
     return (
         select(DriverProfile.user_id, DriverProfile.longitude, DriverProfile.latitude)
         .join(Vehicle, Vehicle.driver_id == DriverProfile.user_id)
@@ -80,7 +89,29 @@ def eligible_drivers(fresh_since: datetime) -> Select[uuid.UUID, float | None, f
             DriverProfile.approval_status == ApprovalStatus.APPROVED,
             DriverProfile.is_online.is_(True),
             DriverProfile.location_updated_at >= fresh_since,
+            ~_busy(),
+            ~_reserved(),
         )
+    )
+
+
+def _busy() -> Exists:
+    return exists().where(
+        Ride.driver_id == DriverProfile.user_id,
+        Ride.status.in_(ACCEPTED_ACTIVE_RIDE_STATUSES),
+    )
+
+
+def _reserved() -> Exists:
+    return exists().where(
+        RideOffer.driver_id == DriverProfile.user_id,
+        RideOffer.status == OfferStatus.PENDING,
+    )
+
+
+def _offered(ride_id: uuid.UUID) -> Exists:
+    return exists().where(
+        RideOffer.ride_id == ride_id, RideOffer.driver_id == DriverProfile.user_id
     )
 
 

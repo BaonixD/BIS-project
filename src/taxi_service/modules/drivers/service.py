@@ -24,6 +24,7 @@ from taxi_service.modules.drivers.models import (
 from taxi_service.modules.drivers.repository import DriverRepository
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate, VehicleInput
 from taxi_service.modules.geo.schemas import Coordinates
+from taxi_service.modules.rides.dispatch import revoke_driver_offers
 from taxi_service.modules.users.models import User
 
 # Changing these after approval needs a new approval; the phone is only a contact.
@@ -64,6 +65,7 @@ class DriverService:
                     changed = self._apply_vehicle(profile, vehicle) or changed
                 if changed and profile.approval_status is ApprovalStatus.APPROVED:
                     _revoke_approval(profile)
+                    await revoke_driver_offers(self._session, driver_id, self._clock.now())
                 profile.updated_at = self._clock.now()
         except IntegrityError as error:
             # The pre-check above can race with another transaction; the constraint decides.
@@ -73,7 +75,11 @@ class DriverService:
         return profile
 
     async def set_availability(self, driver_id: uuid.UUID, *, online: bool) -> DriverProfile | None:
-        """Go online (approved, complete drivers only) or offline (always)."""
+        """Go online (approved, complete drivers only) or offline (always).
+
+        Going offline revokes a pending offer; the dispatch loop then asks the
+        next candidate. An accepted ride is not affected (MVP_SPEC §6).
+        """
         async with self._session.begin():
             profile = await self._drivers.get_for_update(driver_id)
             if online:
@@ -84,6 +90,8 @@ class DriverService:
             if profile is not None and profile.is_online != online:
                 profile.is_online = online
                 profile.updated_at = self._clock.now()
+            if not online:
+                await revoke_driver_offers(self._session, driver_id, self._clock.now())
         return profile
 
     async def update_location(self, driver_id: uuid.UUID, point: Coordinates) -> DriverProfile:

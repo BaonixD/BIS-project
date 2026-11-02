@@ -365,6 +365,7 @@ async def test_a_driver_who_said_no_is_not_asked_again_in_this_search(
     ride = await ride_factory.searching_ride(pickup=PICKUP)
     await dispatcher.process(ride.id)
     [offer] = await dispatcher.offers(ride.id)
+    clock.advance(timedelta(seconds=1))
     await dispatcher.reject(offer.id, first)
     clock.advance(TTL)  # the second driver lets it expire
 
@@ -390,12 +391,16 @@ async def test_search_budget_of_180_seconds_ends_in_no_driver(
     ride = await ride_factory.searching_ride(pickup=PICKUP)
     await dispatcher.process(ride.id)
 
-    for _ in range(5):
+    async def wait_for_timeout() -> None:
         clock.advance(TTL)
+        for index, driver in enumerate(drivers):  # drivers keep sending their location
+            await driver_factory.move(driver, east(100 + 100 * index))
         await dispatcher.process_due()
+
+    for _ in range(5):
+        await wait_for_timeout()
         assert (await dispatcher.ride(ride.id)).status is RideStatus.SEARCHING
-    clock.advance(TTL)  # 180 seconds since the ride was created
-    await dispatcher.process_due()
+    await wait_for_timeout()  # 180 seconds since the ride was created
 
     assert await statuses(dispatcher, ride.id) == [
         (driver.hex, OfferStatus.EXPIRED) for driver in drivers[:6]
@@ -409,19 +414,28 @@ async def test_offer_made_before_the_deadline_keeps_its_full_30_seconds(
     dispatcher: Dispatcher,
     clock: ManualClock,
 ) -> None:
-    await driver_factory.driver("first", location=east(100))
+    """The budget is checked before each new offer; the last one still runs 30 seconds."""
+    first = await driver_factory.driver("first", location=east(100))
+    second = await driver_factory.driver("second", location=east(500))
     late = await driver_factory.driver("late", location=east(900))
     ride = await ride_factory.searching_ride(pickup=PICKUP)
     await dispatcher.process(ride.id)
-    [offer] = await dispatcher.offers(ride.id)
     clock.advance(timedelta(seconds=170))
-    await dispatcher.reject(offer.id, offer.driver_id)
-    [_, last] = await dispatcher.offers(ride.id)
+    await driver_factory.move(second, east(500))
+    await driver_factory.move(late, east(900))
+    await dispatcher.process_due()  # the first offer expired at 30 s, unnoticed until now
+    offer = await dispatcher.pending(ride.id)
+    assert offer is not None
+    await dispatcher.reject(offer.id, second)
+    last = await dispatcher.pending(ride.id)
+    assert last is not None
+    assert last.expires_at == clock.now() + TTL
     clock.advance(timedelta(seconds=20))  # 190 s: past the budget, inside the offer
 
     assigned = await dispatcher.accept(last.id, late)
 
     assert (assigned.status, assigned.driver_id) == (RideStatus.ASSIGNED, late)
+    assert first != assigned.driver_id
 
 
 # Repeated and concurrent processing
@@ -579,13 +593,17 @@ async def test_a_lost_reservation_race_moves_on_to_the_next_candidate(
 
 
 async def test_going_offline_revokes_the_pending_offer(
-    driver_factory: DriverFactory, ride_factory: RideFactory, dispatcher: Dispatcher
+    driver_factory: DriverFactory,
+    ride_factory: RideFactory,
+    dispatcher: Dispatcher,
+    clock: ManualClock,
 ) -> None:
     leaving = await driver_factory.driver("leaving", location=east(100))
     next_one = await driver_factory.driver("next", location=east(900))
     ride = await ride_factory.searching_ride(pickup=PICKUP)
     await dispatcher.process(ride.id)
     [offer] = await dispatcher.offers(ride.id)
+    clock.advance(timedelta(seconds=5))
 
     await driver_factory.go_offline(leaving)
     with pytest.raises(InvalidOfferTransitionError):

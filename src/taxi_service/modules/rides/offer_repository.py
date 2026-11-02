@@ -1,0 +1,167 @@
+"""Data access for offers and the ride rows dispatch changes; the caller owns the transaction.
+
+Status changes are conditional UPDATEs (``... WHERE status = 'pending'``) that
+report whether a row changed, so a stale decision changes nothing. Rows are
+locked in the order rides -> ride_offers (``FOR UPDATE``; SQLite has no row
+locks and serializes writers with ``BEGIN IMMEDIATE`` instead).
+"""
+
+import uuid
+from datetime import datetime
+from typing import Any, cast
+
+from sqlalchemy import CursorResult, Select, func, select, union, update
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.dml import Update
+
+from taxi_service.modules.rides.models import Ride, RideOffer
+from taxi_service.modules.rides.states import OfferStatus, RideStatus
+
+
+class OfferRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def lock_ride(self, ride_id: uuid.UUID) -> Ride | None:
+        return await self._session.scalar(
+            select(Ride)
+            .where(Ride.id == ride_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+
+    async def get_offer(self, offer_id: uuid.UUID, *, lock: bool = False) -> RideOffer | None:
+        query = select(RideOffer).where(RideOffer.id == offer_id)
+        if lock:
+            query = query.with_for_update()
+        return await self._session.scalar(query.execution_options(populate_existing=True))
+
+    async def pending_offer(self, ride_id: uuid.UUID) -> RideOffer | None:
+        return await self._session.scalar(
+            select(RideOffer).where(
+                RideOffer.ride_id == ride_id, RideOffer.status == OfferStatus.PENDING
+            )
+        )
+
+    async def try_add_offer(self, offer: RideOffer) -> bool:
+        """Insert in a savepoint; ``False`` if a unique index refused it (a lost race)."""
+        try:
+            async with self._session.begin_nested():
+                self._session.add(offer)
+                await self._session.flush()
+        except IntegrityError:
+            return False
+        return True
+
+    async def decide_offer(
+        self,
+        offer_id: uuid.UUID,
+        status: OfferStatus,
+        now: datetime,
+        *,
+        unexpired: bool = False,
+    ) -> bool:
+        """Pending offer -> ``status``; with ``unexpired`` only while ``now < expires_at``."""
+        conditions = [RideOffer.id == offer_id]
+        if unexpired:
+            conditions.append(RideOffer.expires_at > now)
+        return await self._decide(conditions, status, now) == 1
+
+    async def expire_overdue(self, ride_id: uuid.UUID, status: OfferStatus, now: datetime) -> int:
+        """Pending offers of the ride with ``expires_at <= now`` -> ``status`` (expired)."""
+        return await self._decide(
+            [RideOffer.ride_id == ride_id, RideOffer.expires_at <= now], status, now
+        )
+
+    async def decide_pending_of_ride(
+        self, ride_id: uuid.UUID, status: OfferStatus, now: datetime
+    ) -> int:
+        return await self._decide([RideOffer.ride_id == ride_id], status, now)
+
+    async def decide_pending_of_driver(
+        self, driver_id: uuid.UUID, status: OfferStatus, now: datetime
+    ) -> int:
+        return await self._decide([RideOffer.driver_id == driver_id], status, now)
+
+    async def move_ride(
+        self,
+        ride_id: uuid.UUID,
+        *,
+        from_status: RideStatus,
+        to_status: RideStatus,
+        now: datetime,
+        driver_id: uuid.UUID | None = None,
+    ) -> bool:
+        """Conditional status change of a ride; ``driver_id`` is set when given."""
+        values: dict[str, Any] = {"status": to_status, "updated_at": now}
+        if driver_id is not None:
+            values["driver_id"] = driver_id
+        statement = (
+            update(Ride).where(Ride.id == ride_id, Ride.status == from_status).values(**values)
+        )
+        return await self._rowcount(statement) == 1
+
+    async def rides_needing_work(self, now: datetime) -> list[uuid.UUID]:
+        """Rides with an overdue pending offer, searching rides without a pending offer,
+        and rides that left ``searching`` but still have a pending offer."""
+        overdue = select(RideOffer.ride_id).where(
+            RideOffer.status == OfferStatus.PENDING, RideOffer.expires_at <= now
+        )
+        waiting = select(Ride.id).where(
+            Ride.status == RideStatus.SEARCHING,
+            ~select(RideOffer.id)
+            .where(RideOffer.ride_id == Ride.id, RideOffer.status == OfferStatus.PENDING)
+            .exists(),
+        )
+        stray = (
+            select(RideOffer.ride_id)
+            .join(Ride, Ride.id == RideOffer.ride_id)
+            .where(RideOffer.status == OfferStatus.PENDING, Ride.status != RideStatus.SEARCHING)
+        )
+        rows = await self._session.execute(union(overdue, waiting, stray))
+        return sorted(ride_id for (ride_id,) in rows)
+
+    async def pending_for_driver(
+        self, driver_id: uuid.UUID, now: datetime, *, limit: int, offset: int
+    ) -> list[tuple[RideOffer, Ride]]:
+        rows = await self._session.execute(
+            _open_offers(driver_id, now)
+            .order_by(RideOffer.created_at.desc(), RideOffer.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return [(offer, ride) for offer, ride in rows]
+
+    async def count_pending_for_driver(self, driver_id: uuid.UUID, now: datetime) -> int:
+        total = await self._session.scalar(
+            select(func.count()).select_from(_open_offers(driver_id, now).subquery())
+        )
+        return total or 0
+
+    async def _decide(self, conditions: list[Any], status: OfferStatus, now: datetime) -> int:
+        statement = (
+            update(RideOffer)
+            .where(RideOffer.status == OfferStatus.PENDING, *conditions)
+            .values(status=status, responded_at=now)
+        )
+        return await self._rowcount(statement)
+
+    async def _rowcount(self, statement: Update) -> int:
+        result = await self._session.execute(
+            statement, execution_options={"synchronize_session": False}
+        )
+        return cast(CursorResult[Any], result).rowcount
+
+
+def _open_offers(driver_id: uuid.UUID, now: datetime) -> Select[RideOffer, Ride]:
+    """Pending offers of the driver that can still be accepted, with their rides."""
+    return (
+        select(RideOffer, Ride)
+        .join(Ride, Ride.id == RideOffer.ride_id)
+        .where(
+            RideOffer.driver_id == driver_id,
+            RideOffer.status == OfferStatus.PENDING,
+            RideOffer.expires_at > now,
+        )
+    )
