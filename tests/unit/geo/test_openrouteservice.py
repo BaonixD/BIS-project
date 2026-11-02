@@ -132,7 +132,7 @@ async def test_http_client_uses_configured_base_url_and_timeouts() -> None:
     )
 
     async with create_routing_http_client(settings) as http:
-        assert http.base_url == "https://ors.example.test"
+        assert http.base_url == "https://ors.example.test/"
         assert http.timeout == httpx.Timeout(4.0, connect=1.5)
 
 
