@@ -17,8 +17,9 @@ After an application restart, ``town.reconnect(participant)`` gives the same use
 a client of the new application with the old session cookie.
 """
 
+import asyncio
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any, Final
@@ -60,6 +61,15 @@ def expect_error(response: httpx.Response, status: int, code: str) -> Json:
     body = expect(response, status)
     assert body["error"]["code"] == code, body
     return body
+
+
+async def eventually(check: Callable[[], Awaitable[bool]], *, timeout_s: float = 3.0) -> None:
+    """Poll ``check`` every 10 ms until it holds (a running background loop)."""
+    for _ in range(int(timeout_s / 0.01)):
+        if await check():
+            return
+        await asyncio.sleep(0.01)
+    raise AssertionError("the expected state was not reached")
 
 
 def only_item(page: Json) -> Json:
