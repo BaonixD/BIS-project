@@ -256,6 +256,9 @@ async def test_unreachable_points_are_route_not_found(reply: httpx.Response) -> 
         httpx.Response(403, json={"error": "Access to this API has been disallowed"}),
         httpx.Response(404, text="Not Found"),
         httpx.Response(301, headers={"Location": "https://elsewhere.test"}),
+        httpx.Response(204),
+        httpx.Response(202, json=ors_payload()),
+        httpx.Response(400, text="<html>Bad Request</html>"),
     ],
     ids=[
         "limits_exceeded",
@@ -263,6 +266,9 @@ async def test_unreachable_points_are_route_not_found(reply: httpx.Response) -> 
         "forbidden_or_daily_quota",
         "not_found_html",
         "redirect",
+        "no_content_204",
+        "accepted_202_with_route",
+        "bad_request_non_json",
     ],
 )
 async def test_other_refusals_are_not_retried(reply: httpx.Response) -> None:
