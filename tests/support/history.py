@@ -81,6 +81,12 @@ class StatementCounter:
     def __len__(self) -> int:
         return len(self.statements)
 
+    @property
+    def queries(self) -> int:
+        """Statements that read or write rows (not PRAGMA, BEGIN, COMMIT)."""
+        verbs = ("SELECT", "INSERT", "UPDATE", "DELETE", "WITH")
+        return sum(statement.lstrip().upper().startswith(verbs) for statement in self.statements)
+
 
 @contextmanager
 def count_statements(engine: AsyncEngine) -> Iterator[StatementCounter]:
