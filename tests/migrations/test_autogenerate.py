@@ -1,5 +1,8 @@
 """Autogenerate output for project column types."""
 
+from collections.abc import AsyncIterator
+
+import pytest
 from alembic.autogenerate import compare_metadata, render_python_code
 from alembic.operations import ops
 from alembic.runtime.migration import MigrationContext
@@ -9,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from taxi_service.database.base import UtcDateTime
 from taxi_service.database.migrations import render_item
+from taxi_service.database.session import create_database_engine
 
 
 def event_table(metadata: MetaData) -> Table:
@@ -30,7 +34,16 @@ def test_utc_datetime_renders_as_portable_sqlalchemy_type() -> None:
     assert "taxi_service" not in code
 
 
-async def test_rendered_column_matches_model_without_diff(engine: AsyncEngine) -> None:
+@pytest.fixture
+async def empty_engine(empty_database_url: str) -> AsyncIterator[AsyncEngine]:
+    # Empty on purpose: the comparison below covers only the probe table.
+    engine = create_database_engine(empty_database_url)
+    yield engine
+    await engine.dispose()
+
+
+async def test_rendered_column_matches_model_without_diff(empty_engine: AsyncEngine) -> None:
+    engine = empty_engine
     created = MetaData()
     Table(
         "event",
