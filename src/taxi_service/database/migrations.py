@@ -1,7 +1,9 @@
 """Alembic integration: configuration, expected head and the current revision."""
 
 from pathlib import Path
+from typing import Literal
 
+from alembic.autogenerate.api import AutogenContext
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
@@ -28,6 +30,10 @@ def expected_heads(config: Config | None = None) -> frozenset[str]:
     """Head revisions of the migration scripts (reads files, no database access)."""
     script = ScriptDirectory.from_config(config or alembic_config())
     return frozenset(script.get_heads())
+
+
+def render_item(type_: str, obj: object, autogen_context: AutogenContext) -> str | Literal[False]:
+    return False
 
 
 async def current_revisions(connection: AsyncConnection) -> frozenset[str]:
