@@ -1,9 +1,11 @@
 import uuid
 from dataclasses import dataclass
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from taxi_service.core.clock import Clock
+from taxi_service.database.errors import violates_unique
 from taxi_service.database.session import read_transaction
 from taxi_service.modules.drivers.exceptions import (
     DriverNotApprovedError,
@@ -47,21 +49,27 @@ class DriverService:
         """Apply the sent fields; an identity or vehicle change revokes the approval."""
         if update.vehicle is not None:
             self._check_vehicle_year(update.vehicle.year)
-        async with self._session.begin():
-            profile = await self._get_or_create(driver_id)
-            vehicle = update.vehicle
-            if vehicle is not None and await self._drivers.plate_number_taken(
-                vehicle.plate_number, by_other_than=driver_id
-            ):
-                raise PlateNumberTakenError
-            changed = _apply_identity(profile, update)
-            if update.phone is not None:
-                profile.phone = update.phone
-            if vehicle is not None:
-                changed = self._apply_vehicle(profile, vehicle) or changed
-            if changed and profile.approval_status is ApprovalStatus.APPROVED:
-                _revoke_approval(profile)
-            profile.updated_at = self._clock.now()
+        try:
+            async with self._session.begin():
+                profile = await self._get_or_create(driver_id)
+                vehicle = update.vehicle
+                if vehicle is not None and await self._drivers.plate_number_taken(
+                    vehicle.plate_number, by_other_than=driver_id
+                ):
+                    raise PlateNumberTakenError
+                changed = _apply_identity(profile, update)
+                if update.phone is not None:
+                    profile.phone = update.phone
+                if vehicle is not None:
+                    changed = self._apply_vehicle(profile, vehicle) or changed
+                if changed and profile.approval_status is ApprovalStatus.APPROVED:
+                    _revoke_approval(profile)
+                profile.updated_at = self._clock.now()
+        except IntegrityError as error:
+            # The pre-check above can race with another transaction; the constraint decides.
+            if update.vehicle is not None and _plate_number_conflict(error):
+                raise PlateNumberTakenError from error
+            raise
         return profile
 
     async def set_availability(self, driver_id: uuid.UUID, *, online: bool) -> DriverProfile | None:
@@ -90,10 +98,24 @@ class DriverService:
         return profile
 
     async def _get_or_create(self, driver_id: uuid.UUID) -> DriverProfile:
+        """The profile row, inserted on the driver's first write.
+
+        A concurrent first write may insert the row between the lookup and the
+        INSERT (possible on PostgreSQL); the savepoint keeps the transaction
+        usable and the row that won is used instead.
+        """
         profile = await self._drivers.get(driver_id)
-        if profile is None:
-            profile = DriverProfile.new(driver_id, self._clock.now())
-            await self._drivers.add(profile)
+        if profile is not None:
+            return profile
+        profile = DriverProfile.new(driver_id, self._clock.now())
+        try:
+            async with self._session.begin_nested():
+                await self._drivers.add(profile)
+        except IntegrityError:
+            existing = await self._drivers.get(driver_id)
+            if existing is None:
+                raise
+            return existing
         return profile
 
     def _check_vehicle_year(self, year: int) -> None:
@@ -172,3 +194,9 @@ def _revoke_approval(profile: DriverProfile) -> None:
     profile.approved_at = None
     profile.approved_by = None
     profile.is_online = False
+
+
+def _plate_number_conflict(error: IntegrityError) -> bool:
+    return violates_unique(
+        error, constraint="uq_vehicles_plate_number", table="vehicles", column="plate_number"
+    )

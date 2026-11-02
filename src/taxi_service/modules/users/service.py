@@ -49,13 +49,26 @@ class UserService:
     async def update_profile(self, user_id: uuid.UUID, update: MyProfileUpdate) -> UserProfile:
         """Apply the sent ``display_name``/``phone`` to the user's own profile."""
         async with self._session.begin():
-            profile = await self._users.get_profile(user_id)
-            if profile is None:
-                profile = UserProfile(user_id=user_id, updated_at=self._clock.now())
-                await self._users.add_profile(profile)
+            profile = await self._get_or_create_profile(user_id)
             for name, value in update.changes().items():
                 setattr(profile, name, value)
             profile.updated_at = self._clock.now()
+        return profile
+
+    async def _get_or_create_profile(self, user_id: uuid.UUID) -> UserProfile:
+        """Insert the row on the first write; a concurrent first write's row wins."""
+        profile = await self._users.get_profile(user_id)
+        if profile is not None:
+            return profile
+        profile = UserProfile(user_id=user_id, updated_at=self._clock.now())
+        try:
+            async with self._session.begin_nested():
+                await self._users.add_profile(profile)
+        except IntegrityError:
+            existing = await self._users.get_profile(user_id)
+            if existing is None:
+                raise
+            return existing
         return profile
 
     async def _username_exists(self, username: str) -> bool:
