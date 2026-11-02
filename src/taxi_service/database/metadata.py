@@ -5,9 +5,7 @@ the database only with tables registered in ``target_metadata``. Importing
 this module never connects to the database or creates schema.
 """
 
+import taxi_service.modules.users.models  # noqa: F401  (registers the tables)
 from taxi_service.database.base import Base
-
-# Model modules are added as the tasks introduce them, for example:
-# import taxi_service.modules.users.models
 
 target_metadata = Base.metadata
