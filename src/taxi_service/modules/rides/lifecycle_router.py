@@ -106,9 +106,9 @@ async def release(
     response shows the ride after the first search step (`searching` or
     `no_driver`); the ride is no longer visible to this driver afterwards.
 
-    Errors: `404 ride_not_found` (unknown or not your ride);
+    Errors: `422 validation_error` (no reason, or not 1-200 plain characters);
+    `404 ride_not_found` (unknown or not your ride, also after your release);
     `403 ride_command_forbidden` (not your command, admin included);
-    `409 invalid_ride_transition` (`details.current_status`). Repeating an
-    applied command returns the ride unchanged.
+    `409 invalid_ride_transition` (`details.current_status`).
     """
     return await _run(lifecycle, ride_id, RideCommand.RELEASE, user, body.reason)

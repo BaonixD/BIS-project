@@ -1,8 +1,8 @@
 """Finished rides for history and admin-list tests, and a counter of SQL statements.
 
-There is no dispatch or lifecycle API yet, so a ride gets its driver and final
-status with a direct UPDATE. Usage with the ``ride_factory`` and
-``session_factory`` fixtures::
+A ride gets its driver and final status with a direct UPDATE: quicker than
+dispatch and the ride commands (``support.lifecycle``) when only the list
+matters. Usage with the ``ride_factory`` and ``session_factory`` fixtures::
 
     ids = await past_rides(ride_factory, passenger_id, 3)          # oldest first
     await set_ride(session_factory, ids[0], RideStatus.COMPLETED, driver_id)
