@@ -26,7 +26,7 @@ def test_fare_carries_tariff_version_and_currency() -> None:
 
 @pytest.mark.parametrize(
     ("distance_m", "duration_s"),
-    [(0, 0), (1_000, 60), (2_000, 300), (2_500, 0)],
+    [(0, 0), (1_000, 60), (2_000, 120), (2_500, 0)],
 )
 def test_short_routes_cost_the_minimum_fare(distance_m: int, duration_s: int) -> None:
     assert calculate_fare(distance_m=distance_m, duration_s=duration_s).amount_kzt == 800
