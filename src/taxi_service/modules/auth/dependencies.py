@@ -1,4 +1,5 @@
 import hmac
+from collections.abc import Awaitable, Callable
 from typing import Annotated
 
 from fastapi import Depends, Request
@@ -9,6 +10,7 @@ from taxi_service.database.session import SessionDep
 from taxi_service.modules.auth.exceptions import CsrfFailedError, NotAuthenticatedError
 from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.auth.service import AuthenticatedUser, AuthService
+from taxi_service.modules.users.models import UserRole
 from taxi_service.modules.users.service import UserService
 
 SESSION_COOKIE_NAME = "taxi_session"
@@ -79,6 +81,13 @@ async def get_current_user(
 
 
 CurrentUser = Annotated[AuthenticatedUser, Depends(get_current_user)]
+
+
+def require_roles(*roles: UserRole) -> Callable[..., Awaitable[AuthenticatedUser]]:
+    async def current_user_with_role(user: CurrentUser) -> AuthenticatedUser:
+        return user
+
+    return current_user_with_role
 
 
 def _same_token(received: str | None, expected: str) -> bool:
