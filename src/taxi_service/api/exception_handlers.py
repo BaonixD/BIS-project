@@ -68,7 +68,12 @@ async def handle_validation_error(request: Request, exc: Exception) -> JSONRespo
 
 
 async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
-    logger.error("Unhandled exception", exc_info=exc)
+    # The request context is already reset here, so pass the ID explicitly.
+    logger.error(
+        "Unhandled exception",
+        exc_info=exc,
+        extra={"request_id": request.state.request_id},
+    )
     return error_response(
         request,
         status_code=500,
