@@ -130,6 +130,12 @@ class Town:
         expect(await login(client, username))
         return Participant(client, await current_session(client))
 
+    async def login(self, username: str) -> Participant:
+        """An existing account (shared test ``PASSWORD``) in a browser of its own."""
+        client = await self.browser()
+        expect(await login(client, username))
+        return Participant(client, await current_session(client))
+
     async def passenger(self, username: str) -> Participant:
         return await self.register(username)
 
@@ -137,9 +143,7 @@ class Town:
         """The admin (created on first use, outside the public API) in its own browser."""
         if self._admin is None:
             await create_admin(self.app, self.session_factory, self.clock)
-            client = await self.browser()
-            expect(await login(client, ADMIN_USERNAME))
-            self._admin = Participant(client, await current_session(client))
+            self._admin = await self.login(ADMIN_USERNAME)
         return self._admin
 
     async def driver(
