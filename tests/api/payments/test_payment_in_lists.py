@@ -81,9 +81,14 @@ async def seed_paid_rides(
         await insert_payment(ride_factory.session_factory, ride_id.hex)
 
 
-async def page_statements(app: FastAPI, client: httpx.AsyncClient, url: str) -> StatementCounter:
+async def page_statements(
+    app: FastAPI, client: httpx.AsyncClient, url: str, rides: int
+) -> StatementCounter:
+    """One page of all ``rides``; the payment join neither duplicates rows nor changes total."""
     with count_statements(app.state.engine) as counter:
         body = await get_page(client, url, limit=100)
+    assert (len(body["items"]), body["total"]) == (rides, rides)
+    assert len({item["id"] for item in body["items"]}) == rides
     assert {payment_of(item) for item in body["items"]} == {("unpaid", "cash")}
     return counter
 
@@ -99,14 +104,14 @@ async def test_lists_with_payments_cost_the_same_statements_for_10_and_30_rides(
 
     await seed_paid_rides(ride_factory, pat, dana, 10)
     await login_as(client, "pat")
-    small = await page_statements(app, client, RIDES_URL)
+    small = await page_statements(app, client, RIDES_URL, 10)
     await login_as(client, ADMIN)
-    small_admin = await page_statements(app, client, ADMIN_RIDES_URL)
+    small_admin = await page_statements(app, client, ADMIN_RIDES_URL, 10)
     await seed_paid_rides(ride_factory, pat, dana, 20)
     await login_as(client, "pat")
-    large = await page_statements(app, client, RIDES_URL)
+    large = await page_statements(app, client, RIDES_URL, 30)
     await login_as(client, ADMIN)
-    large_admin = await page_statements(app, client, ADMIN_RIDES_URL)
+    large_admin = await page_statements(app, client, ADMIN_RIDES_URL, 30)
 
     assert len(small) == len(large)
     assert len(small_admin) == len(large_admin)

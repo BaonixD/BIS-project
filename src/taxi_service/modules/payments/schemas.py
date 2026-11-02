@@ -40,7 +40,8 @@ class PaymentResponse(BaseModel):
 
     ``payment_url`` is the configured Kaspi link, only for ``kaspi_link``
     before confirmation; the buyer types the amount in Kaspi. The client may
-    show it as a QR code. ``confirmation_reference`` is shown to admins only.
+    show it as a QR code. ``confirmed_by`` and ``confirmation_reference`` are shown
+    to admins only; others get null (who confirmed is stored and audited).
     """
 
     ride_id: uuid.UUID
@@ -59,8 +60,8 @@ class PaymentResponse(BaseModel):
     confirmation_reference: str | None
 
     @classmethod
-    def build(cls, payment: Payment, settings: PaymentSettings, *, show_reference: bool) -> Self:
-        return cls(**_fields(payment, settings, show_reference=show_reference))
+    def build(cls, payment: Payment, settings: PaymentSettings, *, for_admin: bool) -> Self:
+        return cls(**_fields(payment, settings, for_admin=for_admin))
 
 
 class PaymentCommandResponse(PaymentResponse):
@@ -70,12 +71,12 @@ class PaymentCommandResponse(PaymentResponse):
 
     @classmethod
     def after(
-        cls, payment: Payment, settings: PaymentSettings, *, changed: bool, show_reference: bool
+        cls, payment: Payment, settings: PaymentSettings, *, changed: bool, for_admin: bool
     ) -> Self:
-        return cls(**_fields(payment, settings, show_reference=show_reference), changed=changed)
+        return cls(**_fields(payment, settings, for_admin=for_admin), changed=changed)
 
 
-def _fields(payment: Payment, settings: PaymentSettings, *, show_reference: bool) -> dict[str, Any]:
+def _fields(payment: Payment, settings: PaymentSettings, *, for_admin: bool) -> dict[str, Any]:
     instructions = build_payment_instructions(
         ride_id=payment.ride_id,
         amount_kzt=payment.amount_kzt,
@@ -95,6 +96,6 @@ def _fields(payment: Payment, settings: PaymentSettings, *, show_reference: bool
         "notice": instructions.notice,
         "reported_at": payment.reported_at,
         "confirmed_at": payment.confirmed_at,
-        "confirmed_by": payment.confirmed_by,
-        "confirmation_reference": payment.confirmation_reference if show_reference else None,
+        "confirmed_by": payment.confirmed_by if for_admin else None,
+        "confirmation_reference": payment.confirmation_reference if for_admin else None,
     }

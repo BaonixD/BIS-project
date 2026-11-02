@@ -49,7 +49,7 @@ def _respond(
         result.payment,
         settings,
         changed=result.changed,
-        show_reference=user.role is UserRole.ADMIN,
+        for_admin=user.role is UserRole.ADMIN,
     )
 
 
@@ -72,7 +72,7 @@ async def read_payment(
     ride_not_completed` (no payment before the ride is completed).
     """
     payment = await payments.get(ride_id, user_id=user.id, role=user.role)
-    return PaymentResponse.build(payment, settings, show_reference=user.role is UserRole.ADMIN)
+    return PaymentResponse.build(payment, settings, for_admin=user.role is UserRole.ADMIN)
 
 
 @router.put("/method", responses=error_responses(401, 403, 404, 409, 503))

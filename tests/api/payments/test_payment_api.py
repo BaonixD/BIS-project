@@ -152,7 +152,7 @@ async def test_assigned_driver_confirms_cash(
     assert body["method"] == "cash"
     assert body["verification"] == "manual"
     assert body["changed"] is True
-    assert body["confirmed_by"] == str(completed.driver_id)
+    assert body["confirmed_by"] is None  # who confirmed is shown to admins only
     assert body["confirmed_at"] is not None
     assert body["amount_kzt"] == 2200
     stored = await stored_payment(session_factory, completed.ride_id)
@@ -234,9 +234,27 @@ async def test_repeated_confirm_is_already_confirmed_without_a_second_event(
 
     assert again["changed"] is False
     assert again["status"] == "confirmed"
-    assert again["confirmed_by"] == first["confirmed_by"]
+    assert again["confirmed_by"] == str(completed.driver_id)
     assert again["confirmed_at"] == first["confirmed_at"]
     assert await actions_of(session_factory, completed.ride_id) == ["open", "confirm"]
+
+
+@pytest.mark.parametrize("username", ["pat", "dana"])
+async def test_confirmer_and_note_are_shown_to_admins_only(
+    client: httpx.AsyncClient, driver_factory: DriverFactory, completed: Trip, username: str
+) -> None:
+    await expect_paid_ok(client, completed.ride_id, "confirm", ADMIN, json={"reference": REFERENCE})
+
+    shown = await read_payment(client, completed.ride_id, username)
+    for_admin = await read_payment(client, completed.ride_id, ADMIN)
+
+    assert shown["status"] == "confirmed"
+    assert shown["confirmed_at"] == for_admin["confirmed_at"] is not None
+    assert (shown["confirmed_by"], shown["confirmation_reference"]) == (None, None)
+    assert (for_admin["confirmed_by"], for_admin["confirmation_reference"]) == (
+        str(await driver_factory.admin_id()),
+        REFERENCE,
+    )
 
 
 async def test_concurrent_confirms_record_one_confirmation(
@@ -257,6 +275,40 @@ async def test_concurrent_confirms_record_one_confirmation(
     assert [response.status_code for response in responses] == [200, 200]
     assert sorted(response.json()["changed"] for response in responses) == [False, True]
     assert await actions_of(session_factory, completed.ride_id) == ["open", "confirm"]
+
+
+async def test_cash_confirmation_against_switch_to_kaspi(
+    client: httpx.AsyncClient,
+    other_client: httpx.AsyncClient,
+    completed: Trip,
+    session_factory: SessionFactory,
+) -> None:
+    driver = await login_as(client, completed.driver)
+    passenger = await login_as(other_client, completed.passenger)
+
+    confirmed, switched = await asyncio.gather(
+        client.post(payment_url(completed.ride_id, "confirm"), headers=driver.csrf_headers),
+        other_client.put(
+            payment_url(completed.ride_id, "method"), json=KASPI, headers=passenger.csrf_headers
+        ),
+    )
+
+    stored = await stored_payment(session_factory, completed.ride_id)
+    assert stored is not None
+    actions = await actions_of(session_factory, completed.ride_id)
+    if confirmed.status_code == 200:  # the confirmation won: the payment stays cash
+        expect_error(switched, 409, "invalid_payment_transition")
+        assert (stored.method, stored.status, stored.confirmed_by) == (
+            "cash",
+            "confirmed",
+            completed.driver_id,
+        )
+        assert actions == ["open", "confirm"]
+    else:  # the switch won: a driver never confirms Kaspi
+        expect_error(confirmed, 403, "payment_action_forbidden")
+        assert switched.status_code == 200, switched.text
+        assert (stored.method, stored.status, stored.confirmed_by) == ("kaspi_link", "unpaid", None)
+        assert actions == ["open", "change_method"]
 
 
 async def test_confirming_one_payment_leaves_other_rides_alone(
@@ -426,7 +478,8 @@ async def test_admin_confirms_reported_kaspi_with_a_reference(
     )
     shown = await read_payment(client, completed.ride_id, completed.passenger)
     assert (shown["status"], shown["payment_url"]) == ("confirmed", None)
-    assert shown["confirmation_reference"] is None  # the reconciliation note is for admins
+    # The confirmer and the reconciliation note are for admins.
+    assert (shown["confirmed_by"], shown["confirmation_reference"]) == (None, None)
 
 
 async def test_admin_confirms_unreported_kaspi_after_reconciliation(
