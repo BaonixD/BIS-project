@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from collections.abc import Awaitable, Callable
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Annotated, Protocol
@@ -13,6 +14,8 @@ from taxi_service.modules.geo.exceptions import (
     RoutingUnavailableError,
 )
 from taxi_service.modules.geo.schemas import Coordinates, RouteGeometry, RouteResult
+
+logger = logging.getLogger(__name__)
 
 Sleep = Callable[[float], Awaitable[None]]
 
@@ -74,6 +77,10 @@ class OpenRouteServiceClient:
     ) -> None:
         self._http = http_client
         self._api_key = api_key
+        self._max_retries = max_retries
+        self._retry_backoff_s = retry_backoff_s
+        self._max_retry_delay_s = max_retry_delay_s
+        self._sleep = sleep
 
     @classmethod
     def from_settings(
@@ -83,22 +90,60 @@ class OpenRouteServiceClient:
         *,
         sleep: Sleep = asyncio.sleep,
     ) -> "OpenRouteServiceClient":
-        return cls(http_client, api_key=settings.api_key, sleep=sleep)
+        return cls(
+            http_client,
+            api_key=settings.api_key,
+            max_retries=settings.max_retries,
+            retry_backoff_s=settings.retry_backoff_s,
+            max_retry_delay_s=settings.max_retry_delay_s,
+            sleep=sleep,
+        )
 
     async def get_route(self, origin: Coordinates, destination: Coordinates) -> RouteResult:
+        """Road route between two points; raises a routing ``AppError`` on failure.
+
+        Only timeouts, connection errors, 429 and 5xx are retried, at most
+        ``max_retries`` times; directions requests have no side effects.
+        """
         if self._api_key is None:
             raise RoutingUnavailableError
-        response = await self._http.post(
-            DIRECTIONS_PATH,
-            json={"coordinates": [origin.as_lon_lat(), destination.as_lon_lat()]},
-            headers={
-                "Authorization": self._api_key.get_secret_value(),
-                "Accept": "application/geo+json, application/json",
-            },
-        )
-        if response.status_code != httpx.codes.OK:
-            raise _refusal(response)
-        return self._parse_route(response)
+        body = {"coordinates": [origin.as_lon_lat(), destination.as_lon_lat()]}
+        headers = {
+            "Authorization": self._api_key.get_secret_value(),
+            "Accept": "application/geo+json, application/json",
+        }
+        attempt = 0
+        while True:
+            outcome = await self._attempt(body, headers)
+            if isinstance(outcome, RouteResult):
+                return outcome
+            logger.warning("Routing attempt %d failed: %s", attempt + 1, outcome.reason)
+            if attempt >= self._max_retries:
+                raise outcome
+            await self._sleep(self._retry_delay(attempt))
+            attempt += 1
+
+    async def _attempt(
+        self, body: dict[str, object], headers: dict[str, str]
+    ) -> RouteResult | RoutingProviderError:
+        """One provider call: a route, a retryable failure, or a raised final error."""
+        try:
+            response = await self._http.post(DIRECTIONS_PATH, json=body, headers=headers)
+        except httpx.TimeoutException:
+            return RoutingProviderError("timeout")
+        except httpx.TransportError:
+            return RoutingProviderError("connection_error")
+        status = response.status_code
+        if status == httpx.codes.OK:
+            return self._parse_route(response)
+        if status == httpx.codes.TOO_MANY_REQUESTS:
+            return RoutingProviderError("rate_limited", provider_status=status)
+        if status >= httpx.codes.INTERNAL_SERVER_ERROR:
+            return RoutingProviderError("provider_unavailable", provider_status=status)
+        raise _refusal(response)
+
+    def _retry_delay(self, attempt: int) -> float:
+        return float(min(self._max_retry_delay_s, self._retry_backoff_s * 2**attempt))
 
     def _parse_route(self, response: httpx.Response) -> RouteResult:
         try:
