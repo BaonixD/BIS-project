@@ -1,7 +1,10 @@
 from fastapi import APIRouter
 
 from taxi_service.modules.auth.router import router as auth_router
+from taxi_service.modules.drivers.admin_router import router as admin_drivers_router
+from taxi_service.modules.drivers.router import router as drivers_router
 from taxi_service.modules.geo.router import router as geo_router
+from taxi_service.modules.users.router import router as users_router
 from taxi_service.schemas.errors import error_responses
 
 API_V1_PREFIX = "/api/v1"
@@ -10,3 +13,6 @@ API_V1_PREFIX = "/api/v1"
 v1_router = APIRouter(prefix=API_V1_PREFIX, responses=error_responses(422, 500))
 v1_router.include_router(auth_router)
 v1_router.include_router(geo_router)
+v1_router.include_router(users_router)
+v1_router.include_router(drivers_router)
+v1_router.include_router(admin_drivers_router)

@@ -1,7 +1,9 @@
+import uuid
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from taxi_service.modules.users.models import User
+from taxi_service.modules.users.models import User, UserProfile
 
 
 def normalize_username(username: str) -> str:
@@ -24,3 +26,10 @@ class UserRepository:
         return await self._session.scalar(
             select(User).where(User.username_normalized == normalize_username(username))
         )
+
+    async def get_profile(self, user_id: uuid.UUID) -> UserProfile | None:
+        return await self._session.get(UserProfile, user_id)
+
+    async def add_profile(self, profile: UserProfile) -> None:
+        self._session.add(profile)
+        await self._session.flush()

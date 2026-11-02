@@ -2,12 +2,14 @@ import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import CheckConstraint, Enum, String
+from sqlalchemy import CheckConstraint, Enum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from taxi_service.database.base import Base, UtcDateTime
 
 USERNAME_MAX_LENGTH = 32
+DISPLAY_NAME_MAX_LENGTH = 64
+PHONE_MAX_LENGTH = 16
 
 
 class UserRole(StrEnum):
@@ -43,3 +45,31 @@ class User(Base):
         )
     )
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class UserProfile(Base):
+    """Optional contact details of any user, edited through ``/users/me``.
+
+    Kept apart from ``users`` so account columns (role, password) and profile
+    columns never share an update path. A missing row means an empty profile.
+    """
+
+    __tablename__ = "user_profiles"
+    __table_args__ = (
+        CheckConstraint(
+            f"display_name IS NULL OR length(display_name) BETWEEN 1 AND {DISPLAY_NAME_MAX_LENGTH}",
+            name="display_name_length",
+        ),
+        CheckConstraint(
+            f"phone IS NULL OR (substr(phone, 1, 1) = '+' "
+            f"AND length(phone) BETWEEN 11 AND {PHONE_MAX_LENGTH})",
+            name="phone_format",
+        ),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    display_name: Mapped[str | None] = mapped_column(String(DISPLAY_NAME_MAX_LENGTH))
+    phone: Mapped[str | None] = mapped_column(String(PHONE_MAX_LENGTH))
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
