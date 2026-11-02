@@ -24,7 +24,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql.elements import TextClause
 
 from taxi_service.database.base import Base, UtcDateTime
-from taxi_service.modules.rides.states import ACTIVE_RIDE_STATUSES, OfferStatus, RideStatus
+from taxi_service.modules.rides.states import (
+    ACTIVE_RIDE_STATUSES,
+    OfferStatus,
+    RideCommand,
+    RideStatus,
+)
 
 PROVIDER_MAX_LENGTH: Final = 32
 TARIFF_VERSION_MAX_LENGTH: Final = 16
@@ -32,6 +37,7 @@ STATUS_MAX_LENGTH: Final = 16
 OPERATION_MAX_LENGTH: Final = 32
 IDEMPOTENCY_KEY_MAX_LENGTH: Final = 128
 SHA256_HEX_LENGTH: Final = 64
+REASON_MAX_LENGTH: Final = 200
 
 ACTIVE_PASSENGER_RIDE_INDEX: Final = "uq_rides_active_passenger_id"
 ACTIVE_DRIVER_RIDE_INDEX: Final = "uq_rides_active_driver_id"
@@ -42,6 +48,7 @@ PENDING_OFFER_RIDE_INDEX: Final = "uq_ride_offers_pending_ride_id"
 PENDING_OFFER_DRIVER_INDEX: Final = "uq_ride_offers_pending_driver_id"
 PENDING_OFFER_EXPIRY_INDEX: Final = "ix_ride_offers_pending_expires_at"
 SEARCH_OFFER_CONSTRAINT: Final = "uq_ride_offers_ride_id_driver_id_search_started_at"
+RIDE_EVENTS_INDEX: Final = "ix_ride_events_ride_id_created_at"
 
 # Statuses with an accepted driver; ``cancelled`` may keep the driver it had.
 ASSIGNED_RIDE_STATUSES: Final = frozenset(
@@ -63,7 +70,11 @@ SEARCHING: Final = text(f"status = '{RideStatus.SEARCHING.value}'")
 PENDING_OFFER: Final = text(f"status = '{OfferStatus.PENDING.value}'")
 
 
-def _string_enum[EnumT: (RideStatus, OfferStatus)](enum: type[EnumT]) -> Enum:
+def _values_in(column: str, enum: type[RideStatus | RideCommand]) -> str:
+    return f"{column} IN ({', '.join(f"'{member.value}'" for member in sorted(enum))})"
+
+
+def _string_enum[EnumT: (RideStatus, OfferStatus, RideCommand)](enum: type[EnumT]) -> Enum:
     """Stored as its value in a VARCHAR; the CHECK constraint is declared by the table."""
     return Enum(
         enum,
@@ -186,6 +197,13 @@ class Ride(RouteSnapshot, Base):
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
     search_started_at: Mapped[datetime] = mapped_column(UtcDateTime())
     search_deadline: Mapped[datetime] = mapped_column(UtcDateTime())
+    # Stage times of the current assignment and the end of the ride (ADR 0007).
+    assigned_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    arrived_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    started_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    completed_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    cancelled_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    cancel_reason: Mapped[str | None] = mapped_column(String(REASON_MAX_LENGTH))
 
     @classmethod
     def from_quote(cls, quote: RideQuote, now: datetime, *, search_budget: timedelta) -> "Ride":
@@ -264,6 +282,37 @@ class RideOffer(Base):
     expires_at: Mapped[datetime] = mapped_column(UtcDateTime())
     responded_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
     search_started_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class RideEvent(Base):
+    """One status change of a ride: who issued which command, and why (ADR 0007).
+
+    Written in the transaction of the change itself, so the history never
+    disagrees with ``rides.status``. ``actor_id`` is the user whose request
+    caused it (the accepting driver for ``assign``), ``NULL`` for the dispatch
+    loop. No coordinates or secrets are stored.
+    """
+
+    __tablename__ = "ride_events"
+    __table_args__ = (
+        CheckConstraint(_values_in("from_status", RideStatus), name="from_status"),
+        CheckConstraint(_values_in("to_status", RideStatus), name="to_status"),
+        CheckConstraint(_values_in("command", RideCommand), name="command"),
+        CheckConstraint(
+            f"reason IS NULL OR length(reason) BETWEEN 1 AND {REASON_MAX_LENGTH}",
+            name="reason_length",
+        ),
+        Index(RIDE_EVENTS_INDEX, "ride_id", "created_at", "id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    ride_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("rides.id"))
+    from_status: Mapped[RideStatus] = mapped_column(_string_enum(RideStatus))
+    to_status: Mapped[RideStatus] = mapped_column(_string_enum(RideStatus))
+    command: Mapped[RideCommand] = mapped_column(_string_enum(RideCommand))
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    reason: Mapped[str | None] = mapped_column(String(REASON_MAX_LENGTH))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
 
 class IdempotencyRecord(Base):

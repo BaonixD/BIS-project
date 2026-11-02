@@ -143,3 +143,29 @@ async def insert_offer(
     }
     await insert(session_factory, "ride_offers", row)
     return offer_id
+
+
+async def insert_event(
+    session_factory: SessionFactory,
+    ride_id: str | None,
+    *,
+    from_status: str | None = "searching",
+    to_status: str | None = "cancelled",
+    command: str | None = "cancel",
+    **values: Any,
+) -> str:
+    """One ``ride_events`` row: a transition of the ride (system actor, no reason)."""
+    event_id = uuid.uuid4().hex
+    row = {
+        "id": event_id,
+        "ride_id": ride_id,
+        "from_status": from_status,
+        "to_status": to_status,
+        "command": command,
+        "actor_id": None,
+        "reason": None,
+        "created_at": NOW,
+        **values,
+    }
+    await insert(session_factory, "ride_events", row)
+    return event_id

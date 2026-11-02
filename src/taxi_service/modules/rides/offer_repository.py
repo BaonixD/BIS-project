@@ -23,6 +23,7 @@ from taxi_service.modules.rides.models import (
     Ride,
     RideOffer,
 )
+from taxi_service.modules.rides.repository import RideRepository
 from taxi_service.modules.rides.states import OfferStatus, RideStatus
 
 
@@ -32,13 +33,7 @@ class OfferRepository:
 
     async def lock_ride(self, ride_id: uuid.UUID) -> Ride | None:
         """The ride, fresh from the database and locked for the rest of the transaction."""
-        result = await self._session.execute(
-            select(Ride)
-            .where(Ride.id == ride_id)
-            .with_for_update()
-            .execution_options(populate_existing=True)
-        )
-        return result.scalar_one_or_none()
+        return await RideRepository(self._session).lock_ride(ride_id)
 
     async def get_offer(self, offer_id: uuid.UUID, *, lock: bool = False) -> RideOffer | None:
         """The offer, fresh from the database; ``lock`` only after its ride is locked."""
@@ -106,24 +101,6 @@ class OfferRepository:
         self, driver_id: uuid.UUID, status: OfferStatus, now: datetime
     ) -> int:
         return await self._decide([RideOffer.driver_id == driver_id], status, now)
-
-    async def move_ride(
-        self,
-        ride_id: uuid.UUID,
-        *,
-        from_status: RideStatus,
-        to_status: RideStatus,
-        now: datetime,
-        driver_id: uuid.UUID | None = None,
-    ) -> bool:
-        """Conditional status change of a ride; ``driver_id`` is set when given."""
-        values: dict[str, Any] = {"status": to_status, "updated_at": now}
-        if driver_id is not None:
-            values["driver_id"] = driver_id
-        statement = (
-            update(Ride).where(Ride.id == ride_id, Ride.status == from_status).values(**values)
-        )
-        return await self._rowcount(statement) == 1
 
     async def rides_needing_work(self, now: datetime) -> list[uuid.UUID]:
         """Rides with an overdue pending offer, searching rides without a pending offer,

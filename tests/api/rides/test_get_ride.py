@@ -41,7 +41,7 @@ async def test_passenger_reads_their_ride(client: httpx.AsyncClient) -> None:
     response = await client.get(ride_url(created["id"]))
 
     assert response.status_code == 200
-    assert response.json() == created
+    assert response.json() == {**created, "driver": None}  # no card without a driver
 
 
 @pytest.mark.usefixtures("available_driver")
@@ -127,7 +127,7 @@ async def test_admin_reads_any_ride(
     response = await client.get(ride_url(created["id"]))
 
     assert response.status_code == 200
-    assert response.json() == created
+    assert response.json() == {**created, "driver": None}  # no card without a driver
 
 
 async def test_unknown_ride_is_not_found(client: httpx.AsyncClient) -> None:
