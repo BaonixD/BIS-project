@@ -19,7 +19,6 @@ dist/
 .worktrees/
 .claude/worktrees/
 .claude/settings.local.json
-postgres-data/
 *.log
 
 # Local SQLite databases

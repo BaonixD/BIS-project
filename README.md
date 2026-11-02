@@ -17,7 +17,7 @@
 | [docs/MVP_SPEC.md](docs/MVP_SPEC.md) | Контракты и рабочие допущения |
 | [docs/TASKS.md](docs/TASKS.md) | T00–T10, зависимости, ветки и статусы; T11 отдельно |
 
-Два профиля для Claude Code находятся в [.claude/agents](.claude/agents): изолированный исполнитель и независимый ревьюер. Они ещё не запускались.
+Два профиля для Claude Code находятся в [.claude/agents](.claude/agents): изолированный исполнитель и независимый ревьюер. Главная сессия использует их правила при делегировании задач.
 
 Реализация собирается в `integration/backend-mvp` для итогового ревью Astra. Команды установки, запуска и проверок — в разделе [Локальная разработка](#локальная-разработка); миграции и seed добавит T01.
 
@@ -50,7 +50,7 @@ cp .env.example .env  # локальные настройки; .env не ком�
 ### Запуск API
 
 ```bash
-uv run uvicorn taxi_service.main:app --port 8000
+uv run uvicorn --factory taxi_service.main:create_app --port 8000
 # для разработки: добавить --reload
 ```
 
