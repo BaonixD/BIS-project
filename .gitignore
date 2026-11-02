@@ -27,3 +27,6 @@ dist/
 *.db-shm
 *.db-journal
 .claude/scheduled_tasks.lock
+# curl cookie jars from README examples
+jar.txt
+*.jar.txt

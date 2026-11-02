@@ -69,7 +69,7 @@ CompletionHook = Callable[[AsyncSession, Ride, datetime], Awaitable[None]]
 async def on_ride_completed(session: AsyncSession, ride: Ride, now: datetime) -> None: ...
 ```
 
-- `create_app` кладёт хук в `app.state.ride_completion_hook` (по умолчанию `on_ride_completed`, сейчас ничего не делает); `RideLifecycleService(..., on_completed=...)` получает его через зависимость `CompletionHookDep`. Тесты подменяют `app.state.ride_completion_hook`.
+- `create_app` кладёт хук в `app.state.ride_completion_hook` (по умолчанию `on_ride_completed`; с T08 часть B открывает cash/unpaid-оплату и событие `open` в той же транзакции, ADR 0004); `RideLifecycleService(..., on_completed=...)` получает его через зависимость `CompletionHookDep`. Тесты подменяют `app.state.ride_completion_hook`.
 - Вызывается ровно один раз на поездку — только при реальном переходе `in_progress → completed`, внутри транзакции complete, после `UPDATE` и события: `ride.status == completed`, `ride.completed_at == now`, `ride.amount_kzt` — зафиксированная цена; строка поездки заблокирована. Повтор complete хук не вызывает.
 - Всё, что хук записал через `session`, коммитится вместе с завершением; исключение откатывает и завершение (поездка остаётся `in_progress`, клиент получает `500`/доменную ошибку). Хук не коммитит, не открывает новую транзакцию и не ждёт внешних вызовов.
 - T08B: в `on_ride_completed` (или своей функции, назначенной в `create_app`) добавить `Payment(ride_id=ride.id, amount_kzt=ride.amount_kzt, method=cash, status=unpaid, created_at=now)` через `session.add` + `flush`; `UNIQUE(payments.ride_id)` — защита от второй записи. Фальшивых подтверждений нет.
