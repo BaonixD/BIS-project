@@ -32,8 +32,15 @@ def create_session_factory(engine: AsyncEngine) -> SessionFactory:
 
 
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
-    raise NotImplementedError
-    yield  # pragma: no cover
+    """FastAPI dependency: a new session per request from ``app.state.session_factory``.
+
+    It never commits. The service opens the transaction with
+    ``async with session.begin():``; anything left uncommitted is rolled back
+    when the session closes after the request.
+    """
+    session_factory: SessionFactory = request.app.state.session_factory
+    async with session_factory() as session:
+        yield session
 
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
