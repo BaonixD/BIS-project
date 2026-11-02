@@ -8,6 +8,9 @@ Fixture ``dispatcher`` (test clock, default policy: 30 s offers, 180 s search)::
     clock.advance(timedelta(seconds=30))
     await dispatcher.process_due()          # what the background loop does every second
 
+Through the API: ``OFFERS_URL`` (GET, driver), ``accept_url(id)`` and ``reject_url(id)``
+(POST with the driver's CSRF header).
+
 Several calls can run concurrently with ``asyncio.gather``: separate sessions and
 connections, as separate requests would have.
 """
@@ -24,6 +27,17 @@ from taxi_service.modules.rides.dispatch import DispatchService
 from taxi_service.modules.rides.models import Ride, RideOffer
 from taxi_service.modules.rides.policy import DEFAULT_DISPATCH_POLICY, DispatchPolicy
 from taxi_service.modules.rides.states import OfferStatus
+
+OFFERS_URL = "/api/v1/drivers/me/offers"
+RIDE_OFFERS_URL = "/api/v1/ride-offers"
+
+
+def accept_url(offer_id: uuid.UUID | str) -> str:
+    return f"{RIDE_OFFERS_URL}/{offer_id}/accept"
+
+
+def reject_url(offer_id: uuid.UUID | str) -> str:
+    return f"{RIDE_OFFERS_URL}/{offer_id}/reject"
 
 
 @dataclass
