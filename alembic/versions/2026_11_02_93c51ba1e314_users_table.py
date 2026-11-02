@@ -26,6 +26,11 @@ def upgrade() -> None:
         sa.Column("role", sa.String(length=16), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_users")),
+        sa.UniqueConstraint("username_normalized", name=op.f("uq_users_username_normalized")),
+        sa.CheckConstraint(
+            "username_normalized = lower(username)", name=op.f("ck_users_username_normalized")
+        ),
+        sa.CheckConstraint("role IN ('passenger', 'driver', 'admin')", name=op.f("ck_users_role")),
     )
 
 
