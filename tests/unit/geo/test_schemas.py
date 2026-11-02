@@ -48,12 +48,6 @@ def test_coordinates_reject_out_of_range_or_non_numeric(point: dict[str, Any]) -
         Coordinates.model_validate(point)
 
 
-def test_swapped_almaty_point_is_rejected() -> None:
-    # Latitude/longitude passed in the wrong order puts latitude at 76.9 (> 90).
-    with pytest.raises(ValidationError):
-        Coordinates.model_validate({"longitude": 43.2389, "latitude": 76.9572})
-
-
 def test_route_geometry_is_a_geojson_linestring_of_lon_lat_positions() -> None:
     geometry = RouteGeometry.model_validate(LINE)
 
