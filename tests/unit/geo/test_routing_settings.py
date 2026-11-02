@@ -40,6 +40,18 @@ def test_blank_key_from_environment_means_not_configured(
     assert RoutingSettings(_env_file=None).api_key is None
 
 
+@pytest.mark.parametrize("value", [f" {SECRET}\n", f"\t{SECRET}  "])
+def test_key_surrounding_whitespace_is_stripped(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.setenv("ROUTING_API_KEY", value)
+
+    settings = RoutingSettings(_env_file=None)
+
+    assert settings.api_key is not None
+    assert settings.api_key.get_secret_value() == SECRET
+
+
 def test_key_is_read_from_prefixed_environment_and_hidden(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
