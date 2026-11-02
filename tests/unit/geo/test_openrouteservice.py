@@ -8,7 +8,11 @@ import pytest
 
 from taxi_service.modules.geo.client import OpenRouteServiceClient, create_routing_http_client
 from taxi_service.modules.geo.config import RoutingSettings
-from taxi_service.modules.geo.exceptions import RoutingProviderError, RoutingUnavailableError
+from taxi_service.modules.geo.exceptions import (
+    RouteNotFoundError,
+    RoutingProviderError,
+    RoutingUnavailableError,
+)
 from taxi_service.modules.geo.schemas import Coordinates, RouteGeometry, RouteResult
 
 TEST_KEY = "eyJ-test-routing-key-7f3a"
@@ -184,6 +188,70 @@ async def test_unusable_success_response_is_a_provider_error(reply: httpx.Respon
     assert caught.value.code == "routing_provider_error"
     assert caught.value.details == {"reason": "invalid_response", "provider_status": 200}
     assert len(provider.requests) == 1
+
+
+def ors_error(status: int, code: int, message: str) -> httpx.Response:
+    return httpx.Response(
+        status,
+        json={"error": {"code": code, "message": message}, "info": {"engine": {"version": "9"}}},
+    )
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        ors_error(404, 2010, "Could not find routable point within a radius of 350.0 meters."),
+        ors_error(404, 2009, "Route could not be found - Unable to find a route."),
+        ors_error(400, 2010, "Could not find point 1: 76.9286 43.2187 within a radius of 350."),
+    ],
+    ids=["point_not_routable", "route_not_found", "point_not_found_400"],
+)
+async def test_unreachable_points_are_route_not_found(reply: httpx.Response) -> None:
+    provider = FakeProvider(reply)
+
+    async with ors_client(provider) as client:
+        with pytest.raises(RouteNotFoundError) as caught:
+            await client.get_route(ORIGIN, DESTINATION)
+
+    assert caught.value.status_code == 422
+    assert caught.value.code == "route_not_found"
+    assert len(provider.requests) == 1
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        ors_error(400, 2004, "Request parameters exceed the server configuration limits."),
+        httpx.Response(401, json={"error": "Authorization field missing"}),
+        httpx.Response(403, json={"error": "Access to this API has been disallowed"}),
+        httpx.Response(404, text="Not Found"),
+        httpx.Response(301, headers={"Location": "https://elsewhere.test"}),
+    ],
+    ids=["limits_exceeded", "unauthorized", "forbidden_or_daily_quota", "not_found_html", "redirect"],
+)
+async def test_other_refusals_are_not_retried(reply: httpx.Response) -> None:
+    provider = FakeProvider(reply)
+
+    async with ors_client(provider) as client:
+        with pytest.raises(RoutingProviderError) as caught:
+            await client.get_route(ORIGIN, DESTINATION)
+
+    assert caught.value.details == {"reason": "rejected", "provider_status": reply.status_code}
+    assert len(provider.requests) == 1
+    assert provider.sleeps == []
+
+
+async def test_provider_error_never_echoes_the_key() -> None:
+    provider = FakeProvider(httpx.Response(403, json={"error": f"Key {TEST_KEY} is not valid"}))
+
+    async with ors_client(provider) as client:
+        with pytest.raises(RoutingProviderError) as caught:
+            await client.get_route(ORIGIN, DESTINATION)
+
+    exposed = [str(caught.value), repr(caught.value), caught.value.message]
+    exposed.append(json.dumps(caught.value.details))
+    assert all(TEST_KEY not in text for text in exposed)
+    assert caught.value.__cause__ is None
 
 
 async def test_client_repr_does_not_expose_key() -> None:
