@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Callable
 from functools import cached_property
 
 import argon2
@@ -14,7 +15,8 @@ class PasswordHasher:
     """Argon2id hashing and verification (argon2-cffi), run off the event loop.
 
     Argon2 is deliberately slow and memory-hard, so every call is executed in a
-    worker thread instead of blocking other requests.
+    worker thread instead of blocking other requests, and at most
+    ``max_concurrency`` calls run at once to bound memory use.
     """
 
     def __init__(
@@ -23,7 +25,7 @@ class PasswordHasher:
         self.time_cost = time_cost
         self.memory_kib = memory_kib
         self.parallelism = parallelism
-        self.max_concurrency = max_concurrency
+        self._slots = asyncio.Semaphore(max_concurrency)
         self._hasher = argon2.PasswordHasher(
             time_cost=time_cost,
             memory_cost=memory_kib,
@@ -40,7 +42,7 @@ class PasswordHasher:
         )
 
     async def hash(self, password: str) -> str:
-        return await asyncio.to_thread(self._hasher.hash, password)
+        return await self._run(self._hasher.hash, password)
 
     async def verify(self, password_hash: str | None, password: str) -> bool:
         """Whether ``password`` matches ``password_hash``.
@@ -49,9 +51,13 @@ class PasswordHasher:
         and always fails, so the response time does not reveal the username.
         """
         if password_hash is None:
-            await asyncio.to_thread(self._verify_dummy, password)
+            await self._run(self._verify_dummy, password)
             return False
-        return await asyncio.to_thread(self._verify, password_hash, password)
+        return await self._run(self._verify, password_hash, password)
+
+    async def _run[**P, R](self, function: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> R:
+        async with self._slots:
+            return await asyncio.to_thread(function, *args, **kwargs)
 
     @cached_property
     def _dummy_hash(self) -> str:
