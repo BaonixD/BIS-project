@@ -1,0 +1,156 @@
+import json
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from typing import Any
+
+import httpx
+import pytest
+
+from taxi_service.modules.geo.client import OpenRouteServiceClient, create_routing_http_client
+from taxi_service.modules.geo.config import RoutingSettings
+from taxi_service.modules.geo.exceptions import RoutingUnavailableError
+from taxi_service.modules.geo.schemas import Coordinates, RouteGeometry, RouteResult
+
+TEST_KEY = "eyJ-test-routing-key-7f3a"
+ORIGIN = Coordinates(longitude=76.9572, latitude=43.2389)
+DESTINATION = Coordinates(longitude=76.9286, latitude=43.2187)
+LINE = [[76.957247, 43.238911], [76.941002, 43.229514], [76.928612, 43.218701]]
+
+Reply = httpx.Response | type[httpx.TransportError]
+
+
+class FakeProvider:
+    """Scripted openrouteservice: replays replies in order and records requests and sleeps."""
+
+    def __init__(self, *replies: Reply) -> None:
+        self._replies = list(replies)
+        self.requests: list[httpx.Request] = []
+        self.sleeps: list[float] = []
+
+    def handle(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        reply = self._replies.pop(0)
+        if isinstance(reply, httpx.Response):
+            return reply
+        raise reply("scripted transport failure", request=request)
+
+    async def sleep(self, seconds: float) -> None:
+        self.sleeps.append(seconds)
+
+
+def ors_payload(
+    *, distance: Any = 4120.4, duration: Any = 610.6, geometry: Any = None
+) -> dict[str, Any]:
+    return {
+        "type": "FeatureCollection",
+        "bbox": [76.928612, 43.218701, 76.957247, 43.238911],
+        "features": [
+            {
+                "type": "Feature",
+                "bbox": [76.928612, 43.218701, 76.957247, 43.238911],
+                "properties": {
+                    "segments": [{"distance": distance, "duration": duration, "steps": []}],
+                    "summary": {"distance": distance, "duration": duration},
+                    "way_points": [0, 2],
+                },
+                "geometry": geometry or {"type": "LineString", "coordinates": LINE},
+            }
+        ],
+        "metadata": {"attribution": "openrouteservice.org | OpenStreetMap contributors"},
+    }
+
+
+def ok(payload: dict[str, Any] | None = None) -> httpx.Response:
+    return httpx.Response(200, json=payload or ors_payload())
+
+
+@asynccontextmanager
+async def ors_client(
+    provider: FakeProvider, *, api_key: str | None = TEST_KEY, **overrides: Any
+) -> AsyncIterator[OpenRouteServiceClient]:
+    settings = RoutingSettings(_env_file=None, api_key=api_key, **overrides)
+    transport = httpx.MockTransport(provider.handle)
+    async with create_routing_http_client(settings, transport=transport) as http:
+        yield OpenRouteServiceClient.from_settings(settings, http, sleep=provider.sleep)
+
+
+async def test_successful_route_is_normalized_to_route_result() -> None:
+    provider = FakeProvider(ok())
+
+    async with ors_client(provider) as client:
+        route = await client.get_route(ORIGIN, DESTINATION)
+
+    assert route == RouteResult(
+        distance_m=4120,
+        duration_s=611,
+        route_geometry=RouteGeometry.model_validate({"type": "LineString", "coordinates": LINE}),
+        provider="openrouteservice",
+    )
+    assert type(route.distance_m) is int
+    assert type(route.duration_s) is int
+
+
+async def test_request_follows_directions_geojson_contract() -> None:
+    provider = FakeProvider(ok())
+
+    async with ors_client(provider) as client:
+        await client.get_route(ORIGIN, DESTINATION)
+
+    [request] = provider.requests
+    assert request.method == "POST"
+    assert request.url == "https://api.openrouteservice.org/v2/directions/driving-car/geojson"
+    assert request.headers["Authorization"] == TEST_KEY
+    assert json.loads(request.content) == {
+        "coordinates": [[76.9572, 43.2389], [76.9286, 43.2187]]
+    }
+
+
+async def test_fractional_metrics_round_half_up() -> None:
+    provider = FakeProvider(ok(ors_payload(distance=4120.5, duration=610.49)))
+
+    async with ors_client(provider) as client:
+        route = await client.get_route(ORIGIN, DESTINATION)
+
+    assert (route.distance_m, route.duration_s) == (4121, 610)
+
+
+async def test_integer_metrics_are_accepted() -> None:
+    provider = FakeProvider(ok(ors_payload(distance=4120, duration=611)))
+
+    async with ors_client(provider) as client:
+        route = await client.get_route(ORIGIN, DESTINATION)
+
+    assert (route.distance_m, route.duration_s) == (4120, 611)
+
+
+async def test_http_client_uses_configured_base_url_and_timeouts() -> None:
+    settings = RoutingSettings(
+        _env_file=None,
+        base_url="https://ors.example.test",
+        connect_timeout_s=1.5,
+        read_timeout_s=4.0,
+    )
+
+    async with create_routing_http_client(settings) as http:
+        assert http.base_url == "https://ors.example.test"
+        assert http.timeout == httpx.Timeout(4.0, connect=1.5)
+
+
+@pytest.mark.parametrize("api_key", [None, ""])
+async def test_missing_key_fails_without_any_request(api_key: str | None) -> None:
+    provider = FakeProvider(ok())
+
+    async with ors_client(provider, api_key=api_key) as client:
+        with pytest.raises(RoutingUnavailableError) as caught:
+            await client.get_route(ORIGIN, DESTINATION)
+
+    assert provider.requests == []
+    assert provider.sleeps == []
+    assert caught.value.status_code == 503
+    assert caught.value.code == "routing_unavailable"
+
+
+async def test_client_repr_does_not_expose_key() -> None:
+    async with ors_client(FakeProvider()) as client:
+        assert TEST_KEY not in repr(client)
+        assert TEST_KEY not in repr(vars(client))
