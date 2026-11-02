@@ -4,7 +4,7 @@ from typing import Any
 
 import httpx
 import pytest
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 SECRET_PASSWORD = "short-pw"
@@ -26,6 +26,10 @@ def _probe_router() -> APIRouter:
     @router.post("/credentials")
     async def check_credentials(credentials: Credentials) -> dict[str, str]:
         return {"username": credentials.username}
+
+    @router.get("/nonstandard")
+    async def nonstandard() -> None:
+        raise HTTPException(status_code=499)
 
     @router.get("/failure")
     async def fail() -> None:
@@ -134,3 +138,9 @@ async def test_unhandled_exception_is_logged_with_request_id(
     [record] = [r for r in caplog.records if r.name.startswith("taxi_service")]
     assert record.exc_info is not None
     assert getattr(record, "request_id", None) == "trace-log"
+
+
+async def test_nonstandard_http_status_keeps_status_in_envelope(client: httpx.AsyncClient) -> None:
+    response = await client.get("/_probe/nonstandard")
+
+    assert_error_envelope(response, 499, "http_error")
