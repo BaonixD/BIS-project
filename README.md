@@ -1,25 +1,46 @@
 # BIS-project — Mini Taxi Service
 
-Учебный проект по Basics of Information Systems. На текущем этапе подготовлены спецификация и пакет реализации бэкенда для Claude Code; реализованы основа приложения (T00: запуск API, health endpoints, единый формат ошибок, локальные проверки), слой БД (T01: SQLite, Alembic, тестовая изоляция) и вход (T02: регистрация, серверные сессии, CSRF, роли — раздел [Аутентификация](#аутентификация)). Профили, поездки и оплата появятся в следующих задачах.
+Учебный проект по Basics of Information Systems: backend MVP сервиса такси в Алматы (KZT). Реализованы вход по username/password с серверными сессиями и CSRF, профили пассажиров и водителей, допуск водителей, дорожный маршрут и учебный тариф, идемпотентный заказ, назначение ближайшего водителя с 30-секундными предложениями, жизненный цикл поездки, учёт наличных и Kaspi по ссылке с ручной сверкой, история и административное чтение, демонстрационный seed.
 
-Стек: Python, FastAPI, SQLAlchemy; на текущем этапе SQLite без Docker ([ADR 0001](docs/decisions/0001-sqlite-without-docker.md)). Локальный модульный монолит, без CI и микросервисов. React-интерфейс — следующий этап.
+Стек: Python 3.12, FastAPI, SQLAlchemy 2 async, Alembic, SQLite без Docker ([ADR 0001](docs/decisions/0001-sqlite-without-docker.md)). Локальный модульный монолит, без CI и микросервисов. React-интерфейс — следующий этап.
 
-## Начать реализацию
+## Содержание
 
-Открыть репозиторий в Claude Code, выбрать Opus 5.5 и отправить стартовый промпт из [CLAUDE_START.md](CLAUDE_START.md).
+- [Документы](#документы)
+- [Быстрый старт](#быстрый-старт)
+- [Локальная разработка](#локальная-разработка): [установка](#установка), [переменные окружения](#переменные-окружения), [БД и миграции](#база-данных-и-миграции), [резервная копия](#резервная-копия-и-восстановление-локальной-бд), [запуск API](#запуск-api), [аутентификация](#аутентификация), [ошибки](#ошибки-request_id-и-логи), [проверки](#проверки)
+- [Продукт](#продукт) и [ограничения локального MVP](#ограничения-локального-mvp)
+- [Маршруты](#маршруты), [водители и профили](#водители-и-профили), [quote и создание поездки](#поездки-quote-и-создание), [история](#история-и-администрирование), [seed](#демонстрационные-данные-seed), [назначение водителя](#назначение-водителя), [жизненный цикл](#жизненный-цикл-поездки), [оплата](#оплата)
+- [Демонстрационный сценарий](#демонстрационный-сценарий)
+
+## Документы
 
 | Документ | Назначение |
 | --- | --- |
-| [CLAUDE_START.md](CLAUDE_START.md) | Готовый промпт, запуск и продолжение сессии |
-| [CLAUDE.md](CLAUDE.md) | Правила исполнителя, test-first и ограничения |
-| [BACKEND_PLAN.md](BACKEND_PLAN.md) | Инженерный план и ответы опроса |
-| [ORCHESTRATION.md](ORCHESTRATION.md) | Делегирование, ветки, ревью и интеграция |
+| [docs/architecture.md](docs/architecture.md) | Устройство приложения: слои, транзакции, модули, ER-схема, состояния, единицы |
+| [docs/api-handoff.md](docs/api-handoff.md) | API для React-клиента: cookie/CSRF, все маршруты, потоки пассажира и водителя, polling, оплата, коды ошибок |
+| [docs/decisions/](docs/decisions/README.md) | ADR 0001–0007 |
 | [docs/MVP_SPEC.md](docs/MVP_SPEC.md) | Контракты и рабочие допущения |
-| [docs/TASKS.md](docs/TASKS.md) | T00–T10, зависимости, ветки и статусы; T11 отдельно |
+| [BACKEND_PLAN.md](BACKEND_PLAN.md) | Инженерный план и ответы опроса |
+| [docs/TASKS.md](docs/TASKS.md), [docs/reports/](docs/reports/) | Очередь T00–T11, статусы и отчёты задач |
+| [CLAUDE_START.md](CLAUDE_START.md), [CLAUDE.md](CLAUDE.md), [ORCHESTRATION.md](ORCHESTRATION.md) | Стартовый промпт, правила исполнителя Claude Code, делегирование и интеграция |
 
-Два профиля для Claude Code находятся в [.claude/agents](.claude/agents): изолированный исполнитель и независимый ревьюер. Главная сессия использует их правила при делегировании задач.
+Профили исполнителя и ревьюера для Claude Code — в [.claude/agents](.claude/agents). Реализация собирается в `integration/backend-mvp` для итогового ревью Astra.
 
-Реализация собирается в `integration/backend-mvp` для итогового ревью Astra. Команды установки, миграций, запуска и проверок — в разделе [Локальная разработка](#локальная-разработка); демо-данные — в разделе [Демонстрационные данные (seed)](#демонстрационные-данные-seed).
+## Быстрый старт
+
+Из корня репозитория, на чистой копии (подробности — в следующих разделах):
+
+```bash
+uv sync --locked                       # окружение .venv по uv.lock
+cp .env.example .env                   # затем при необходимости вписать ROUTING_API_KEY, KASPI_PAYMENT_URL, DEMO_PASSWORD
+uv run alembic upgrade head            # создать ./taxi.db и схему
+uv run python scripts/seed.py          # демо-аккаунты (пароль — DEMO_PASSWORD или запрос в терминале)
+uv run python scripts/create_admin.py --username admin   # свой admin, по желанию (seed создаёт demo_admin)
+uv run uvicorn --factory taxi_service.main:create_app --port 8000
+```
+
+Проверка: `curl -s http://localhost:8000/health/ready` → `{"status":"ready"}`; Swagger UI — `http://localhost:8000/docs`. Проверки кода: `uv run python scripts/lint.py`, `uv run mypy src/taxi_service tests scripts`, `uv run pytest`.
 
 ## Локальная разработка
 
@@ -43,16 +64,18 @@ cp .env.example .env  # локальные настройки; .env не ком�
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` или `CRITICAL`, без учёта регистра |
 | `DATABASE_URL` | — (обязательна) | URL БД для приложения и Alembic; локально `sqlite+aiosqlite:///./taxi.db` |
 | `KASPI_PAYMENT_URL` | пусто | Ссылка Kaspi владельца `https://pay.kaspi.kz/pay/<id>`, только в локальном `.env`; пусто — Kaspi выключен, наличные работают (см. «Оплата») |
-| `ROUTING_API_KEY` | пусто | Ключ сервиса дорожных маршрутов; используется с T04, только в локальном `.env` |
+| `ROUTING_API_KEY` | пусто | Персональный ключ openrouteservice, только в локальном `.env`; пусто — маршрут и quote отвечают `503 routing_unavailable` (см. «Маршруты») |
+| `ROUTING_BASE_URL`, `ROUTING_CONNECT_TIMEOUT_S`, `ROUTING_READ_TIMEOUT_S`, `ROUTING_MAX_RETRIES`, `ROUTING_RETRY_BACKOFF_S`, `ROUTING_MAX_RETRY_DELAY_S`, `ROUTING_TOTAL_TIMEOUT_S` | `https://api.openrouteservice.org`, `3.0`, `5.0`, `1`, `0.5`, `5.0`, `10.0` | Необязательные параметры запроса маршрута ([ADR 0002](docs/decisions/0002-routing-provider.md)) |
 | `SESSION_COOKIE_SECURE` | `true` | Флаг `Secure` cookie сессии; для локального `http://` — `false` (так в `.env.example`) |
 | `CORS_ALLOWED_ORIGINS` | пусто | Origin браузерных клиентов через запятую, без `*`: CORS с credentials и проверка `Origin` у login/register |
 | `PASSWORD_HASH_TIME_COST`, `PASSWORD_HASH_MEMORY_KIB`, `PASSWORD_HASH_PARALLELISM` | `3`, `65536`, `4` | Параметры Argon2id (RFC 9106 low-memory); уменьшаются только в тестах |
 | `LOGIN_MAX_ATTEMPTS`, `LOGIN_ATTEMPT_WINDOW_SECONDS`, `LOGIN_LIMITER_MAX_KEYS` | `5`, `900`, `10000` | Ограничитель попыток входа на username |
 | `OFFER_TTL_S`, `SEARCH_BUDGET_S` | `30`, `180` | Срок предложения водителю и общий бюджет поиска водителя, секунды |
 | `DISPATCH_INTERVAL_S`, `DISPATCH_LOOP_ENABLED` | `1.0`, `true` | Интервал фонового цикла назначения; `false` выключает цикл (тесты) |
-| `ADMIN_PASSWORD` | — | Только для `scripts/create_admin.py`; в `.env` не хранить |
+| `DEMO_PASSWORD` | пусто | Пароль демо-аккаунтов для `scripts/seed.py` (10–128 символов), окружение или локальный `.env`; пусто — команда спросит пароль |
+| `ADMIN_PASSWORD` | — | Только для `scripts/create_admin.py`, только из окружения процесса (`.env` эта команда не читает); пусто — запрос пароля |
 
-Значения берутся из окружения процесса и из `.env` в текущем каталоге. Переменные последующих задач, которые приложение ещё не читает, игнорируются. Файлы `*.db`, `*.db-wal`, `*.db-shm` не попадают в Git.
+Значения берутся из окружения процесса и из `.env` в текущем каталоге; неизвестные переменные игнорируются. Файлы `*.db`, `*.db-wal`, `*.db-shm` не попадают в Git.
 
 ### База данных и миграции
 
@@ -170,7 +193,11 @@ with httpx.Client(base_url="http://127.0.0.1:8000/api/v1") as client:
     assert client.get("/auth/session").status_code == 401
 ```
 
+`jar.txt` содержит токен сессии и `.gitignore` его не исключает: не коммитьте его и удалите после проверки (`rm jar.txt`).
+
 В Swagger UI (`/docs`): выполнить register и login (cookie сохранит браузер), затем скопировать `csrf_token` из `GET /auth/session` в **Authorize → CsrfToken**.
+
+Браузерный клиент (React): все `fetch` с `credentials: "include"`, `csrf_token` из ответа login или `GET /auth/session` — в заголовок `X-CSRF-Token` каждого изменяющего запроса; origin фронтенда — в `CORS_ALLOWED_ORIGINS`; фронтенд и API на одном хосте (`localhost`), т. к. cookie `SameSite=Lax`. Подробно — [docs/api-handoff.md](docs/api-handoff.md#вход-cookie-и-csrf).
 
 Администратор создаётся только локальной командой, не через API; постоянный пароль в репозиторий не попадает:
 
@@ -216,11 +243,22 @@ CI и Git hooks не настраиваются; проверки запуска
 
 Алматы, KZT. Вход по username/password. Поездка предлагается ближайшему доступному водителю; 30 секунд на ответ, затем следующий. Реальный дорожный маршрут, учебный расчёт цены, наличные и Kaspi по ссылке с ручным подтверждением. Google-вход — последующий этап.
 
-Реальный запрос маршрута потребует API-ключа, Kaspi — ссылки владельца. Секреты и локальные `.env` в Git не добавляются.
+Внешние значения хранятся только в локальном `.env` и в Git не попадают: `ROUTING_API_KEY` (без него маршрут и quote — `503 routing_unavailable`), `KASPI_PAYMENT_URL` (без неё доступны только наличные), `DEMO_PASSWORD` (seed). `ADMIN_PASSWORD` задаётся только в окружении команды `create_admin`.
+
+### Ограничения локального MVP
+
+- SQLite-файл и один процесс uvicorn: запись в БД сериализована, ограничитель входа живёт в памяти процесса и сбрасывается при перезапуске. PostgreSQL/PostGIS не проверялись ([ADR 0001](docs/decisions/0001-sqlite-without-docker.md)).
+- Реальный маршрут по Алматы — **external_pending**: без ключа заказ поездки через API невозможен (quote отвечает `503`), подставного маршрута нет. Тесты используют контролируемый провайдер.
+- Kaspi — только ссылка и **ручная** сверка admin; сервер не получает статусов от Kaspi, реальная оплата не проверялась (**external_pending**). Возвратов и эквайринга нет.
+- Клиенты опрашивают API (polling), WebSocket/SSE нет. Ближайший водитель — по прямой (haversine), не по дорогам. Адресного поиска (геокодирования) нет: клиент передаёт точки.
+- Нет автоматической очистки истёкших сессий, quote, ключей идемпотентности, предложений и журналов.
+- Нет CI, Docker и деплоя; HTTPS не настроен (локально `SESSION_COOKIE_SECURE=false`). Google-вход — отдельная задача T11.
+
+Подробнее — [docs/architecture.md](docs/architecture.md#ограничения).
 
 ## Маршруты
 
-Дорожный маршрут строит openrouteservice Directions (`driving-car`), решение и контракт ошибок — [ADR 0002](docs/decisions/0002-routing-provider.md). Статус реальной проверки: **external_pending** — ключа пока нет, настоящий маршрут по Алматы не запрашивался.
+Дорожный маршрут строит openrouteservice Directions (`driving-car`), решение и контракт ошибок — [ADR 0002](docs/decisions/0002-routing-provider.md). Статус реальной проверки: **external_pending** — ключ в проект не передан, настоящий маршрут по Алматы не запрашивался.
 
 ### Ключ openrouteservice
 
@@ -240,7 +278,7 @@ curl -s -b jar.txt -X POST "$API/geo/route" -H "X-CSRF-Token: $CSRF" \
   -d '{"origin":{"longitude":76.9572,"latitude":43.2389},"destination":{"longitude":76.9286,"latitude":43.2187}}'
 ```
 
-Ответ `200` — нормализованный `RouteResult`; `route_geometry` — GeoJSON `LineString`, каждая позиция `[longitude, latitude]`. Цены в ответе нет: её считает quote поездки (T05).
+Ответ `200` — нормализованный `RouteResult`; `route_geometry` — GeoJSON `LineString`, каждая позиция `[longitude, latitude]`. Цены в ответе нет: её считает quote поездки (`POST /rides/quotes`).
 
 ```json
 {"distance_m": 4121, "duration_s": 610,
@@ -296,7 +334,7 @@ uv run python scripts/routing_smoke.py
 - Координата одна текущая: `longitude` −180…180, `latitude` −90…90 включительно, числа JSON (не строки, не массив). Время `location_updated_at` ставит сервер; координаты пишет и не допущенный водитель.
 - Список admin упорядочен по регистрации: `created_at DESC, id DESC`; водитель, ещё не заполнявший профиль, тоже в списке как `pending`.
 
-Поиск кандидатов для назначения (T06): `taxi_service.modules.drivers.candidates.find_nearby_candidates(session, pickup, now=..., radius_m=5000, max_location_age_s=60, exclude_driver_ids=(), limit=10)` → `[Candidate(driver_id, distance_m)]`. Кандидат — допущенный, online, с машиной, координата не старше 60 с, расстояние haversine до pickup не больше 5 км (обе границы включительно). SQL отбирает строки в bounding box круга по индексу `(longitude, latitude)`, точное расстояние и порядок (расстояние, затем `driver_id`) считаются в Python. Функция работает в транзакции вызывающего сервиса.
+Поиск кандидатов для назначения: `taxi_service.modules.drivers.candidates.find_nearby_candidates(session, pickup, now=..., radius_m=5000, max_location_age_s=60, exclude_driver_ids=(), limit=10)` → `[Candidate(driver_id, distance_m)]`. Кандидат — допущенный, online, с машиной, координата не старше 60 с, расстояние haversine до pickup не больше 5 км (обе границы включительно). SQL отбирает строки в bounding box круга по индексу `(longitude, latitude)`, точное расстояние и порядок (расстояние, затем `driver_id`) считаются в Python. Функция работает в транзакции вызывающего сервиса.
 
 В тестах: `support.drivers` — помощники через API (`registered_driver`, `approve`, `approved_driver`, `create_admin`, `complete_profile`), фикстура `driver_factory` — водители через сервисы без HTTP (`await driver_factory.driver("d1", location=Coordinates(...))`, `move`, `go_offline`; время координат — `clock`).
 
@@ -326,7 +364,7 @@ curl -s -b jar.txt -X POST "$API/rides" -H "X-CSRF-Token: $CSRF" -H "Idempotency
 
 - Цену считает сервер по дорожному маршруту (тариф `edu-v1`), quote действует 5 минут. Поездка копирует маршрут, сумму и `tariff_version` из quote; смена тарифа сохранённые quote и поездки не меняет. Сумма, статус или водитель в теле — `422 validation_error`.
 - Маршрут запрашивается у провайдера вне транзакции БД; его ошибки (`503 routing_unavailable`, `503 routing_provider_error`, `422 route_not_found`, `422 route_points_identical`) возвращаются как есть, quote не создаётся.
-- `Idempotency-Key`: 1–128 видимых ASCII-символов (подходит UUID), новый на каждый новый заказ. Повтор с тем же ключом и телом возвращает ту же поездку (`201`, заголовок `Idempotent-Replayed: true`); тот же ключ с другим `quote_id` — `409 idempotency_key_reused`. Нет ключа — `422 idempotency_key_required`, неверный формат — `422 idempotency_key_invalid`. Ключ действует для пользователя и операции; записи хранятся не меньше 24 часов (очистки пока нет).
+- `Idempotency-Key`: 1–128 видимых ASCII-символов (подходит UUID), новый на каждый новый заказ. Повтор с тем же ключом и телом возвращает ту же поездку (`201`, заголовок `Idempotent-Replayed: true`); тот же ключ с другим `quote_id` — `409 idempotency_key_reused`. Нет ключа — `422 idempotency_key_required`, неверный формат — `422 idempotency_key_invalid`. Ключ действует для пользователя и операции; записи хранятся не меньше 24 часов (автоматической очистки нет).
 - Ошибки создания: `404 quote_not_found` (нет или чужой), `409 quote_expired`, `409 quote_already_used`, `409 active_ride_exists` (у пассажира уже есть поездка `searching/assigned/arrived/in_progress`). Ограничения защищены и в БД (уникальный `quote_id`, частичные уникальные индексы активной поездки пассажира и принятой поездки водителя); одновременные запросы дают одну поездку и `409`, не `500`.
 - Сразу после создания начинается поиск водителя (раздел «Назначение водителя»): ответ — `searching` с предложением ближайшему водителю или уже `no_driver`, если свободных водителей рядом нет. Повтор с тем же ключом поиск не перезапускает.
 
@@ -353,7 +391,7 @@ curl -s -b jar.txt "$API/rides?status=completed&limit=10"
 curl -s -b jar.txt "$API/admin/users?role=driver"   # под admin
 ```
 
-В тестах: `support.history` — `past_rides` (завершённые поездки со сдвигом `ManualClock`), `set_ride` (водитель и статус прямым UPDATE, пока нет dispatch), `get_page`, `count_statements`.
+В тестах: `support.history` — `past_rides` (завершённые поездки со сдвигом `ManualClock`), `set_ride` (водитель и статус прямым UPDATE, минуя dispatch и команды), `get_page`, `count_statements`.
 
 ## Демонстрационные данные (seed)
 
@@ -460,7 +498,7 @@ curl -s -b jar.txt -X POST "$API/rides/$RIDE_ID/release" -H "X-CSRF-Token: $CSRF
 
 | Маршрут (`/api/v1`) | Кто | Что делает |
 | --- | --- | --- |
-| `GET /rides/{id}/payment` | пассажир, назначенный водитель, admin | инструкции: `amount_kzt`, `currency`, `method`, `status`, `verification`, `kaspi_available`, `payment_url` (только `kaspi_link` до подтверждения), `amount_entered_by_buyer`, `notice`, `reported_at`, `confirmed_at`, `confirmed_by`, `confirmation_reference` (только admin) |
+| `GET /rides/{id}/payment` | пассажир, назначенный водитель, admin | инструкции: `amount_kzt`, `currency`, `method`, `status`, `verification`, `kaspi_available`, `payment_url` (только `kaspi_link` до подтверждения), `amount_entered_by_buyer`, `notice`, `reported_at`, `confirmed_at`, `confirmed_by` и `confirmation_reference` (оба только для admin, остальным `null`) |
 | `PUT /rides/{id}/payment/method`, тело `{"method": "kaspi_link"}` или `"cash"` | пассажир | смена метода до подтверждения; статус снова `unpaid` (заявление Kaspi на наличные не переносится); Kaspi без ссылки — `503 kaspi_unavailable` |
 | `POST /rides/{id}/payment/report` | пассажир | `kaspi_link`: `unpaid → reported` (не `confirmed`); для наличных — `409` |
 | `POST /rides/{id}/payment/confirm`, тело `{"reference": "..."}` | cash: назначенный водитель или admin; kaspi_link: только admin | ручное подтверждение; для Kaspi `reference` (заметка сверки с POS, до 200 символов, без секретов) обязательна, для наличных — по желанию |
@@ -484,3 +522,47 @@ curl -s -b admin.txt -X POST "$API/rides/$RIDE_ID/payment/confirm" -H "X-CSRF-To
 ```
 
 В тестах: `support.payments` — `pay(client, ride_id, "confirm", "dana")`, `read_payment`, `stored_payment`, `payment_events`; фикстура `payment_settings` по умолчанию выключает Kaspi, тесты Kaspi подменяют её на `kaspi_on()` с контролируемой ссылкой `https://pay.kaspi.kz/pay/test123`. `KASPI_PAYMENT_URL` из окружения и локального `.env` в тесты не попадает.
+
+## Демонстрационный сценарий
+
+Полный путь заказа через API на демо-данных: пассажир заказывает, ближайший водитель отказывается, следующий принимает, везёт, подтверждает наличные; пассажир видит историю. Нужны мигрированная БД с seed, запущенный API (раздел «Быстрый старт») и **`ROUTING_API_KEY`**: без ключа шаг quote отвечает `503 routing_unavailable` и сценарий останавливается (реальная маршрутизация — `external_pending`). Тот же путь без ключа и без сети проверяют тесты с контролируемым провайдером (`uv run pytest`).
+
+Команды для bash/zsh из корня репозитория, во втором терминале при запущенном API. Координата водителя свежа 60 с: выполняйте шаги без пауз или повторите `--refresh-locations` перед заказом.
+
+```bash
+API=http://localhost:8000/api/v1
+read -rs DEMO_PASSWORD   # пароль демо-аккаунтов, заданный при seed
+json() { python3 -c "import json,sys; print(json.load(sys.stdin)$1)"; }
+login() {  # login <cookie-jar> <username> -> csrf_token
+  curl -s -c "$1" -X POST "$API/auth/login" -H 'Content-Type: application/json' \
+    -d "{\"username\":\"$2\",\"password\":\"$DEMO_PASSWORD\"}" | json '["csrf_token"]'
+}
+P=$(login p.txt demo_passenger_1); D1=$(login d1.txt demo_driver_1); D2=$(login d2.txt demo_driver_2)
+
+uv run python scripts/seed.py --refresh-locations   # водители online у демо-точки
+
+# пассажир: цена и заказ от демо-точки посадки
+QUOTE_ID=$(curl -s -b p.txt -X POST "$API/rides/quotes" -H "X-CSRF-Token: $P" -H 'Content-Type: application/json' \
+  -d '{"pickup":{"longitude":76.9457,"latitude":43.2383},"dropoff":{"longitude":76.9286,"latitude":43.2187}}' | json '["quote_id"]')
+RIDE_ID=$(curl -s -b p.txt -X POST "$API/rides" -H "X-CSRF-Token: $P" -H "Idempotency-Key: $(uuidgen)" \
+  -H 'Content-Type: application/json' -d "{\"quote_id\":\"$QUOTE_ID\"}" | json '["id"]')
+
+# demo_driver_1 (ближайший) отказывается, предложение уходит demo_driver_2
+OFFER_ID=$(curl -s -b d1.txt "$API/drivers/me/offers" | json '["items"][0]["id"]')
+curl -s -b d1.txt -X POST "$API/ride-offers/$OFFER_ID/reject" -H "X-CSRF-Token: $D1" | json '["status"]'   # rejected
+OFFER_ID=$(curl -s -b d2.txt "$API/drivers/me/offers" | json '["items"][0]["id"]')
+curl -s -b d2.txt -X POST "$API/ride-offers/$OFFER_ID/accept" -H "X-CSRF-Token: $D2" | json '["status"]'   # assigned
+
+# поездка и наличные
+for step in arrive start complete; do
+  curl -s -b d2.txt -X POST "$API/rides/$RIDE_ID/$step" -H "X-CSRF-Token: $D2" | json '["status"]'
+done
+curl -s -b d2.txt -X POST "$API/rides/$RIDE_ID/payment/confirm" -H "X-CSRF-Token: $D2" | json '["status"]'   # confirmed
+
+# пассажир: поездка и история
+curl -s -b p.txt "$API/rides/$RIDE_ID" | json '["status"]'                        # completed
+curl -s -b p.txt "$API/rides?limit=5" | json '["items"][0]["payment_status"]'     # confirmed
+rm -f p.txt d1.txt d2.txt
+```
+
+Вместо отказа можно дождаться истечения 30 с: фоновый цикл сам предложит поездку следующему водителю (если с `--refresh-locations` прошло больше 60 с, повторите его). Для Kaspi нужен `KASPI_PAYMENT_URL`: пассажир переключает метод и сообщает об оплате, подтверждает admin (раздел «Оплата»).
