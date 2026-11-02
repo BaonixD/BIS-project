@@ -1,7 +1,14 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Response, status
 
-from taxi_service.modules.auth.dependencies import UserServiceDep
-from taxi_service.modules.auth.schemas import RegisterRequest
+from taxi_service.core.config import Settings, SettingsDep
+from taxi_service.modules.auth.dependencies import (
+    SESSION_COOKIE_NAME,
+    AuthServiceDep,
+    CurrentUser,
+    UserServiceDep,
+)
+from taxi_service.modules.auth.schemas import LoginRequest, RegisterRequest, SessionResponse
+from taxi_service.modules.auth.service import SESSION_TTL
 from taxi_service.modules.users.models import UserRole
 from taxi_service.modules.users.schemas import UserResponse
 
@@ -17,3 +24,31 @@ async def register(body: RegisterRequest, users: UserServiceDep) -> UserResponse
         role=UserRole(body.role),
     )
     return UserResponse.model_validate(user)
+
+
+@router.post("/login")
+async def login(
+    body: LoginRequest, response: Response, auth: AuthServiceDep, settings: SettingsDep
+) -> SessionResponse:
+    """Open a 7-day session: sets the HttpOnly session cookie and returns the CSRF token."""
+    issued = await auth.login(body.username, body.password.get_secret_value())
+    _set_session_cookie(response, issued.token, settings)
+    return SessionResponse.from_user(issued.user)
+
+
+@router.get("/session")
+async def read_session(user: CurrentUser) -> SessionResponse:
+    """Current user and the session's CSRF token (for the X-CSRF-Token header)."""
+    return SessionResponse.from_user(user)
+
+
+def _set_session_cookie(response: Response, token: str, settings: Settings) -> None:
+    response.set_cookie(
+        SESSION_COOKIE_NAME,
+        token,
+        max_age=int(SESSION_TTL.total_seconds()),
+        path="/",
+        secure=settings.session_cookie_secure,
+        httponly=True,
+        samesite="lax",
+    )

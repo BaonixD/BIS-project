@@ -1,5 +1,6 @@
 from typing import Annotated, Literal
 
+from fastapi import Depends, Request
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from sqlalchemy.engine import make_url
@@ -72,3 +73,12 @@ class Settings(BaseSettings):
     def normalize_origins(cls, value: list[str]) -> list[str]:
         # Credentialed CORS must never be combined with a wildcard origin.
         return list(dict.fromkeys(normalize_origin(origin) for origin in value))
+
+
+def get_settings(request: Request) -> Settings:
+    """FastAPI dependency: the settings the application was created with."""
+    settings: Settings = request.app.state.settings
+    return settings
+
+
+SettingsDep = Annotated[Settings, Depends(get_settings)]
