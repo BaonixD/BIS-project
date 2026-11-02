@@ -1,0 +1,13 @@
+# Архитектурные решения (ADR)
+
+Короткие записи существенных решений: контекст, выбор, последствия. Новое решение — следующий номер; принятое решение не переписывается, а заменяется новым ADR со ссылкой на прежний. Как решения сложены вместе — [architecture.md](../architecture.md).
+
+| ADR | Решение |
+| --- | --- |
+| [0001](0001-sqlite-without-docker.md) | SQLite и запуск через `uv` без Docker; переносимые типы и частичные индексы, `BEGIN IMMEDIATE`, ближайший водитель — haversine с bounding box |
+| [0002](0002-routing-provider.md) | Дорожные маршруты — openrouteservice Directions `driving-car`, нормализованный `RouteResult`, ошибки и повторы; реальная проверка `external_pending` |
+| [0003](0003-auth-sessions-csrf.md) | Серверные сессии в HttpOnly cookie, CSRF-токен сессии, проверка Origin у login/register, CORS allowlist, in-memory ограничитель входа |
+| [0004](0004-payments-cash-kaspi.md) | Оплата: наличные по умолчанию, Kaspi по ссылке из `KASPI_PAYMENT_URL` с ручной сверкой admin, хранение и аудит |
+| [0005](0005-quotes-idempotency.md) | Quote на 5 минут со снимком цены и идемпотентное создание поездки по обязательному `Idempotency-Key` |
+| [0006](0006-dispatch.md) | Назначение ближайшего водителя: предложения по одному на 30 с, бюджет поиска 180 с, фоновый цикл в процессе, порядок блокировок |
+| [0007](0007-ride-lifecycle.md) | Жизненный цикл поездки: команды arrive/start/complete/cancel/release, журнал `ride_events`, гонки, карточка водителя, хук завершения |
