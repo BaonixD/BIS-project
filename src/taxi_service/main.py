@@ -12,8 +12,28 @@ from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.auth.rate_limit import LoginAttemptLimiter
 
 
+API_DESCRIPTION = """\
+Backend MVP of a taxi service in Almaty (KZT).
+
+**Session in Swagger UI** (the browser keeps the HttpOnly cookie itself):
+
+1. `POST /api/v1/auth/register`, then `POST /api/v1/auth/login`.
+2. `GET /api/v1/auth/session` and copy `csrf_token`.
+3. **Authorize** -> `CsrfToken`: paste the token. It is sent as `X-CSRF-Token`,
+   required on every POST/PUT/PATCH/DELETE made with the session.
+4. `POST /api/v1/auth/logout` ends the session; its CSRF token stops working.
+
+Errors always use the `ErrorResponse` envelope.
+"""
+
+
 def create_app(settings: Settings | None = None, *, clock: Clock | None = None) -> FastAPI:
-    app = FastAPI(title="Mini Taxi Service", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(
+        title="Mini Taxi Service",
+        version="0.1.0",
+        description=API_DESCRIPTION,
+        lifespan=lifespan,
+    )
     settings = settings or Settings()
     clock = clock or SystemClock()
     app.state.settings = settings
