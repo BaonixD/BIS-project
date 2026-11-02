@@ -15,8 +15,8 @@
 | [T04](tasks/T04-routing-pricing.md) | Дорожный маршрут и учебная цена | T02 | `task/t04-routing-pricing` | часть A integrated (`36f25bb`, [отчёт](reports/T04.md)); часть B in_progress |
 | [T05](tasks/T05-ride-creation.md) | Quote и идемпотентное создание заказа | T03, T04 | `task/t05-ride-creation` | queued |
 | [T06](tasks/T06-dispatch.md) | Поиск и предложения водителям | T05 | `task/t06-dispatch` | queued |
-| [T07](tasks/T07-ride-lifecycle.md) | Жизненный цикл и отмена поездки | T06 | `task/t07-ride-lifecycle` | queued |
-| [T08](tasks/T08-payments.md) | Наличные и Kaspi-ссылка | T07 | `task/t08-payments` | queued |
+| [T07](tasks/T07-ride-lifecycle.md) | Жизненный цикл и отмена поездки | T06 | `task/t07-ride-lifecycle` | часть A in_progress (чистые правила состояний); часть B queued после T06 |
+| [T08](tasks/T08-payments.md) | Наличные и Kaspi-ссылка | T07 | `task/t08-payments` | часть A in_progress (чистые правила оплаты и Kaspi-ссылки); часть B queued после T07 |
 | [T09](tasks/T09-history-admin.md) | История и административное чтение | T07 | `task/t09-history-admin` | queued |
 | [T10](tasks/T10-acceptance.md) | Seed, E2E, документация и передача | T08, T09 | `task/t10-acceptance` | queued |
 | [T11](tasks/T11-google.md) | Google-вход | T10 + отдельный запуск | `task/t11-google` | deferred |
@@ -25,6 +25,7 @@
 
 - После T00: T01 и часть A задачи T04 — чистый тариф `edu-v1` и адаптер openrouteservice без HTTP-роутера, БД и auth. Часть B (`POST /geo/route` с авторизацией) — после T02, параллельно T03.
 
+- По запросу владельца 3 ноября 2026 (до четырёх исполнителей одновременно): параллельно T03 и T04 часть B выполняются T07 часть A (`modules/rides/states.py`: статусы поездки и предложения, таблица переходов, права команд) и T08 часть A (`modules/payments/`: статусы и переходы оплаты, права подтверждения, проверка `KASPI_PAYMENT_URL`, инструкции). Только чистые модули и unit-тесты, без БД, миграций и общих файлов.
 - После T02: T03 и T04. T03 владеет изменениями схемы; T04 не вводит миграций и не редактирует общие auth/DB файлы.
 - После T07: T08 и T09. T08 владеет payment-схемой; T09 — чтением истории и административными read-only маршрутами, без изменения payment-контрактов.
 - T05/T06/T07 выполняются последовательно: общий жизненный цикл и ограничения данных.
