@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field, SecretStr
 
 from taxi_service.modules.geo.config import RoutingSettings
 from taxi_service.modules.geo.exceptions import (
+    ProviderFailure,
     RouteNotFoundError,
     RoutingProviderError,
     RoutingUnavailableError,
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 Sleep = Callable[[float], Awaitable[None]]
 
+PROVIDER_NAME = "openrouteservice"
 DIRECTIONS_PATH = "/v2/directions/driving-car/geojson"
 # ORS routing error codes: 2009 route not found, 2010 point not found.
 UNREACHABLE_POINT_CODES = frozenset({2009, 2010})
@@ -69,8 +71,6 @@ class _TransientFailure:
 
 class OpenRouteServiceClient:
     """openrouteservice Directions adapter for the ``driving-car`` profile."""
-
-    PROVIDER = "openrouteservice"
 
     def __init__(
         self,
@@ -133,44 +133,47 @@ class OpenRouteServiceClient:
     async def _attempt(
         self, body: Mapping[str, object], headers: Mapping[str, str]
     ) -> RouteResult | _TransientFailure:
-        """One provider call: a route, a retryable failure, or a raised final error."""
         try:
             response = await self._http.post(DIRECTIONS_PATH, json=body, headers=headers)
         except httpx.TimeoutException:
             return _TransientFailure(RoutingProviderError("timeout"))
         except httpx.TransportError:
             return _TransientFailure(RoutingProviderError("connection_error"))
-        status = response.status_code
-        if status == httpx.codes.OK:
-            return self._parse_route(response)
-        retry_after_s = _retry_after_seconds(response)
-        if status == httpx.codes.TOO_MANY_REQUESTS:
-            error = RoutingProviderError("rate_limited", provider_status=status)
-            return _TransientFailure(error, retry_after_s)
-        if status >= httpx.codes.INTERNAL_SERVER_ERROR:
-            error = RoutingProviderError("provider_unavailable", provider_status=status)
-            return _TransientFailure(error, retry_after_s)
-        raise _refusal(response)
+        return _classify(response)
 
     def _retry_delay(self, attempt: int, retry_after_s: float | None) -> float:
         delay = self._retry_backoff_s * 2**attempt if retry_after_s is None else retry_after_s
         return float(min(self._max_retry_delay_s, delay))
 
-    def _parse_route(self, response: httpx.Response) -> RouteResult:
-        try:
-            payload = response.json()
-            feature = _OrsFeatureCollection.model_validate(payload).features[0]
-        except ValueError:
-            # Covers JSONDecodeError and pydantic.ValidationError.
-            raise RoutingProviderError(
-                "invalid_response", provider_status=response.status_code
-            ) from None
-        return RouteResult(
-            distance_m=_round_metric(feature.properties.summary.distance),
-            duration_s=_round_metric(feature.properties.summary.duration),
-            route_geometry=feature.geometry,
-            provider=self.PROVIDER,
+
+def _classify(response: httpx.Response) -> RouteResult | _TransientFailure:
+    """A route, a retryable failure, or a raised final error for one provider response."""
+    status = response.status_code
+    if status == httpx.codes.OK:
+        return _route_from(response)
+    if status == httpx.codes.TOO_MANY_REQUESTS or status >= httpx.codes.INTERNAL_SERVER_ERROR:
+        reason: ProviderFailure = (
+            "rate_limited" if status == httpx.codes.TOO_MANY_REQUESTS else "provider_unavailable"
         )
+        error = RoutingProviderError(reason, provider_status=status)
+        return _TransientFailure(error, _retry_after_seconds(response))
+    raise _refusal(response)
+
+
+def _route_from(response: httpx.Response) -> RouteResult:
+    try:
+        feature = _OrsFeatureCollection.model_validate(response.json()).features[0]
+    except ValueError:
+        # Covers JSONDecodeError and pydantic.ValidationError.
+        raise RoutingProviderError(
+            "invalid_response", provider_status=response.status_code
+        ) from None
+    return RouteResult(
+        distance_m=_round_metric(feature.properties.summary.distance),
+        duration_s=_round_metric(feature.properties.summary.duration),
+        route_geometry=feature.geometry,
+        provider=PROVIDER_NAME,
+    )
 
 
 def _retry_after_seconds(response: httpx.Response) -> float | None:
