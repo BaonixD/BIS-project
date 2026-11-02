@@ -9,14 +9,27 @@ demo drivers, and then only their location and availability.
 
 import uuid
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Literal
 
+from sqlalchemy import select
+
 from taxi_service.core.clock import Clock
-from taxi_service.database.session import SessionFactory
+from taxi_service.database.session import SessionFactory, read_transaction
 from taxi_service.modules.auth.passwords import PasswordHasher
+from taxi_service.modules.drivers.exceptions import (
+    DriverNotApprovedError,
+    DriverProfileIncompleteError,
+)
+from taxi_service.modules.drivers.geodesy import haversine_m
+from taxi_service.modules.drivers.models import Vehicle
+from taxi_service.modules.drivers.schemas import DriverProfileUpdate
+from taxi_service.modules.drivers.service import DriverAdminService, DriverService
 from taxi_service.modules.geo.schemas import Coordinates
 from taxi_service.modules.users.models import UserRole
+from taxi_service.modules.users.repository import UserRepository
+from taxi_service.modules.users.schemas import MyProfileUpdate
+from taxi_service.modules.users.service import UserService
 
 DEMO_ADMIN = "demo_admin"
 DEMO_PICKUP = Coordinates(longitude=76.9457, latitude=43.2383)
@@ -78,11 +91,12 @@ DEMO_DRIVERS = (
         Coordinates(longitude=76.9240, latitude=43.2225),  # ~2.5 km south-west
     ),
 )
-DEMO_USERNAMES = (
-    DEMO_ADMIN,
-    *(passenger.username for passenger in DEMO_PASSENGERS),
-    *(driver.username for driver in DEMO_DRIVERS),
-)
+DEMO_ROLES: Mapping[str, UserRole] = {
+    DEMO_ADMIN: UserRole.ADMIN,
+    **{passenger.username: UserRole.PASSENGER for passenger in DEMO_PASSENGERS},
+    **{driver.username: UserRole.DRIVER for driver in DEMO_DRIVERS},
+}
+DEMO_USERNAMES = tuple(DEMO_ROLES)
 
 Action = Literal["created", "skipped", "refreshed"]
 
@@ -125,7 +139,23 @@ class SeedReport:
 
 
 async def plan_demo_seed(session_factory: SessionFactory) -> DemoPlan:
-    raise NotImplementedError
+    """Read which demo accounts exist; ``DemoSeedConflictError`` if existing data blocks them."""
+    async with session_factory() as session, read_transaction(session):
+        users = UserRepository(session)
+        existing = {}
+        for username in DEMO_USERNAMES:
+            user = await users.get_by_username(username)
+            if user is not None:
+                existing[username] = ExistingAccount(id=user.id, role=user.role)
+        plan = DemoPlan(existing=existing)
+        plates = [demo.vehicle.plate_number for demo in _missing_drivers(plan)]
+        taken = set(
+            await session.scalars(
+                select(Vehicle.plate_number).where(Vehicle.plate_number.in_(plates))
+            )
+        )
+    _check_conflicts(plan, taken)
+    return plan
 
 
 async def apply_demo_seed(
@@ -137,7 +167,33 @@ async def apply_demo_seed(
     password: str | None,
     refresh_locations: bool = False,
 ) -> SeedReport:
-    raise NotImplementedError
+    """Create the accounts the plan lists as missing; skip (or refresh) the others.
+
+    ``password`` is needed only when something is missing; every created
+    account gets it. Each step runs through the services in its own transaction.
+    """
+    if plan.missing and password is None:
+        raise ValueError("a password is required to create the missing demo accounts")
+    seeder = _DemoSeeder(session_factory, clock, hasher, password or "")
+    report = SeedReport()
+    admin = plan.existing.get(DEMO_ADMIN)
+    if admin is None:
+        admin_id = await seeder.create_user(DEMO_ADMIN, UserRole.ADMIN)
+        report.entries.append(SeedEntry("created", UserRole.ADMIN, DEMO_ADMIN))
+    else:
+        admin_id = admin.id
+        report.entries.append(_skipped(UserRole.ADMIN, DEMO_ADMIN))
+    for passenger in DEMO_PASSENGERS:
+        if passenger.username in plan.existing:
+            report.entries.append(_skipped(UserRole.PASSENGER, passenger.username))
+            continue
+        await seeder.create_passenger(passenger)
+        report.entries.append(SeedEntry("created", UserRole.PASSENGER, passenger.username))
+    for driver in DEMO_DRIVERS:
+        report.entries.append(
+            await _seed_driver(seeder, plan, driver, admin_id, refresh_locations=refresh_locations)
+        )
+    return report
 
 
 async def seed_demo(
@@ -148,4 +204,110 @@ async def seed_demo(
     password: str,
     refresh_locations: bool = False,
 ) -> SeedReport:
-    raise NotImplementedError
+    """:func:`plan_demo_seed` followed by :func:`apply_demo_seed`."""
+    plan = await plan_demo_seed(session_factory)
+    return await apply_demo_seed(
+        session_factory,
+        plan,
+        clock=clock,
+        hasher=hasher,
+        password=password,
+        refresh_locations=refresh_locations,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class _DemoSeeder:
+    session_factory: SessionFactory
+    clock: Clock
+    hasher: PasswordHasher
+    password: str
+
+    async def create_user(self, username: str, role: UserRole) -> uuid.UUID:
+        async with self.session_factory() as session:
+            service = UserService(session, self.clock, self.hasher)
+            user = await service.create_user(username=username, password=self.password, role=role)
+        return user.id
+
+    async def create_passenger(self, passenger: DemoPassenger) -> None:
+        user_id = await self.create_user(passenger.username, UserRole.PASSENGER)
+        async with self.session_factory() as session:
+            await UserService(session, self.clock, self.hasher).update_profile(
+                user_id, MyProfileUpdate(display_name=passenger.display_name)
+            )
+
+    async def create_driver(self, driver: DemoDriver, admin_id: uuid.UUID) -> None:
+        user_id = await self.create_user(driver.username, UserRole.DRIVER)
+        async with self.session_factory() as session:
+            await DriverService(session, self.clock).update_profile(user_id, _profile(driver))
+        async with self.session_factory() as session:
+            await DriverAdminService(session, self.clock).approve(user_id, admin_id=admin_id)
+        await self.place_online(user_id, driver.location)
+
+    async def place_online(self, driver_id: uuid.UUID, location: Coordinates) -> None:
+        """Location stamped with the clock now, then online (approved drivers only)."""
+        async with self.session_factory() as session:
+            await DriverService(session, self.clock).update_location(driver_id, location)
+        async with self.session_factory() as session:
+            await DriverService(session, self.clock).set_availability(driver_id, online=True)
+
+
+async def _seed_driver(
+    seeder: _DemoSeeder,
+    plan: DemoPlan,
+    driver: DemoDriver,
+    admin_id: uuid.UUID,
+    *,
+    refresh_locations: bool,
+) -> SeedEntry:
+    existing = plan.existing.get(driver.username)
+    if existing is None:
+        await seeder.create_driver(driver, admin_id)
+        return SeedEntry("created", UserRole.DRIVER, driver.username, _whereabouts(driver))
+    if not refresh_locations:
+        return _skipped(UserRole.DRIVER, driver.username)
+    try:
+        await seeder.place_online(existing.id, driver.location)
+    except (DriverNotApprovedError, DriverProfileIncompleteError):
+        detail = "location refreshed; left offline: not approved (profile changed)"
+        return SeedEntry("refreshed", UserRole.DRIVER, driver.username, detail)
+    return SeedEntry("refreshed", UserRole.DRIVER, driver.username, _whereabouts(driver))
+
+
+def _check_conflicts(plan: DemoPlan, taken_plates: set[str]) -> None:
+    for username, account in plan.existing.items():
+        expected = DEMO_ROLES[username]
+        if account.role is not expected:
+            raise DemoSeedConflictError(
+                f"{username} already exists as {account.role.value}, not {expected.value}"
+            )
+    for driver in _missing_drivers(plan):
+        if driver.vehicle.plate_number in taken_plates:
+            raise DemoSeedConflictError(
+                f"plate {driver.vehicle.plate_number} of {driver.username}"
+                " is registered to another driver"
+            )
+
+
+def _missing_drivers(plan: DemoPlan) -> list[DemoDriver]:
+    return [driver for driver in DEMO_DRIVERS if driver.username not in plan.existing]
+
+
+def _profile(driver: DemoDriver) -> DriverProfileUpdate:
+    return DriverProfileUpdate.model_validate(
+        {
+            "full_name": driver.full_name,
+            "phone": driver.phone,
+            "license_number": driver.license_number,
+            "vehicle": asdict(driver.vehicle),
+        }
+    )
+
+
+def _skipped(role: UserRole, username: str) -> SeedEntry:
+    return SeedEntry("skipped", role, username, "already exists; not changed")
+
+
+def _whereabouts(driver: DemoDriver) -> str:
+    distance = haversine_m(DEMO_PICKUP, driver.location)
+    return f"{driver.vehicle.plate_number}, online ~{distance:.0f} m from the demo pickup"
