@@ -1,7 +1,9 @@
 """The application owns one routing provider: openrouteservice, or one injected by tests."""
 
+import httpx
 import pytest
 
+from support.auth import register_and_login
 from support.routing import FakeRoutingProvider, isolate_routing_environment
 from taxi_service.core.config import Settings
 from taxi_service.main import create_app
@@ -20,6 +22,22 @@ async def test_app_starts_without_routing_key_and_uses_openrouteservice(
 
     async with app.router.lifespan_context(app):
         assert isinstance(app.state.routing_provider, OpenRouteServiceClient)
+
+
+async def test_route_without_routing_key_is_unavailable(client: httpx.AsyncClient) -> None:
+    user = await register_and_login(client, "pat")
+
+    response = await client.post(
+        "/api/v1/geo/route",
+        json={
+            "origin": {"longitude": 76.9572, "latitude": 43.2389},
+            "destination": {"longitude": 76.9286, "latitude": 43.2187},
+        },
+        headers=user.csrf_headers,
+    )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "routing_unavailable"
 
 
 async def test_lifespan_closes_its_routing_http_client(settings: Settings) -> None:
