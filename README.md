@@ -48,6 +48,8 @@ cp .env.example .env  # локальные настройки; .env не ком�
 | `CORS_ALLOWED_ORIGINS` | пусто | Origin браузерных клиентов через запятую, без `*`: CORS с credentials и проверка `Origin` у login/register |
 | `PASSWORD_HASH_TIME_COST`, `PASSWORD_HASH_MEMORY_KIB`, `PASSWORD_HASH_PARALLELISM` | `3`, `65536`, `4` | Параметры Argon2id (RFC 9106 low-memory); уменьшаются только в тестах |
 | `LOGIN_MAX_ATTEMPTS`, `LOGIN_ATTEMPT_WINDOW_SECONDS`, `LOGIN_LIMITER_MAX_KEYS` | `5`, `900`, `10000` | Ограничитель попыток входа на username |
+| `OFFER_TTL_S`, `SEARCH_BUDGET_S` | `30`, `180` | Срок предложения водителю и общий бюджет поиска водителя, секунды |
+| `DISPATCH_INTERVAL_S`, `DISPATCH_LOOP_ENABLED` | `1.0`, `true` | Интервал фонового цикла назначения; `false` выключает цикл (тесты) |
 | `ADMIN_PASSWORD` | — | Только для `scripts/create_admin.py`; в `.env` не хранить |
 
 Значения берутся из окружения процесса и из `.env` в текущем каталоге. Переменные последующих задач, которые приложение ещё не читает, игнорируются. Файлы `*.db`, `*.db-wal`, `*.db-shm` не попадают в Git.
@@ -325,6 +327,35 @@ curl -s -b jar.txt -X POST "$API/rides" -H "X-CSRF-Token: $CSRF" -H "Idempotency
 - Маршрут запрашивается у провайдера вне транзакции БД; его ошибки (`503 routing_unavailable`, `503 routing_provider_error`, `422 route_not_found`, `422 route_points_identical`) возвращаются как есть, quote не создаётся.
 - `Idempotency-Key`: 1–128 видимых ASCII-символов (подходит UUID), новый на каждый новый заказ. Повтор с тем же ключом и телом возвращает ту же поездку (`201`, заголовок `Idempotent-Replayed: true`); тот же ключ с другим `quote_id` — `409 idempotency_key_reused`. Нет ключа — `422 idempotency_key_required`, неверный формат — `422 idempotency_key_invalid`. Ключ действует для пользователя и операции; записи хранятся не меньше 24 часов (очистки пока нет).
 - Ошибки создания: `404 quote_not_found` (нет или чужой), `409 quote_expired`, `409 quote_already_used`, `409 active_ride_exists` (у пассажира уже есть поездка `searching/assigned/arrived/in_progress`). Ограничения защищены и в БД (уникальный `quote_id`, частичные уникальные индексы активной поездки пассажира и принятой поездки водителя); одновременные запросы дают одну поездку и `409`, не `500`.
-- Назначения водителя пока нет (T06): новая поездка остаётся в `searching`, `driver_id: null`.
+- Сразу после создания начинается поиск водителя (раздел «Назначение водителя»): ответ — `searching` с предложением ближайшему водителю или уже `no_driver`, если свободных водителей рядом нет. Повтор с тем же ключом поиск не перезапускает.
 
 В тестах: `support.rides` — `request_quote`, `order_ride`, `ride_headers`, `ride_url`; фикстура `ride_factory` — пассажиры и поездки через сервисы без HTTP (`await ride_factory.searching_ride(pickup=Coordinates(...))`).
+
+## Назначение водителя
+
+Поиск — по одному водителю за раз, предложение действует 30 секунд, поиск — 180 секунд. Подробности и обоснование — [ADR 0006](docs/decisions/0006-dispatch.md).
+
+| Маршрут | Роль | Что делает |
+| --- | --- | --- |
+| `GET /drivers/me/offers` | driver | открытые предложения (страница `items/limit/offset/total`, не больше одного): `ride_id`, `pickup`, `dropoff`, `distance_m`, `duration_s`, `amount_kzt`, `currency`, `expires_at` |
+| `POST /ride-offers/{id}/accept` | адресат предложения | `200` поездка `assigned` с `driver_id`; повтор — тот же ответ |
+| `POST /ride-offers/{id}/reject` | адресат предложения | `200` предложение `rejected`; поездка сразу предлагается следующему водителю |
+
+Правила:
+
+- Кандидат: допущен, online, есть машина, координата не старше 60 с, до pickup не дальше 5 км по прямой (haversine), нет поездки `assigned/arrived/in_progress` и нет другого открытого предложения. Ближайший — по расстоянию, при равенстве — меньший `driver_id`. Водитель, уже получавший предложение по этой поездке (в любом статусе, в том числе освободивший её), больше её не получает.
+- Предложение истекает при `now >= expires_at` (ровно 30 с — уже поздно): `409 offer_expired`, даже если фоновый цикл ещё не успел отметить; поездка переходит к следующему кандидату. Чужое или несуществующее предложение — `404 offer_not_found`; отклонённое/отозванное — `409 invalid_offer_transition`; у водителя уже есть активная поездка — `409 driver_busy`. POST требуют `X-CSRF-Token`.
+- Нет кандидатов на шаге или прошло 180 с с начала поиска — поездка `no_driver`; пассажир может заказать снова. Последнее предложение, сделанное до конца бюджета, живёт полные 30 с.
+- Водитель ушёл offline (или потерял допуск) — его открытое предложение `revoked`, цикл предлагает поездку следующему.
+- Фоновый цикл работает внутри приложения (`DISPATCH_INTERVAL_S`, по умолчанию 1 с); Celery/Redis не нужны. Всё состояние в БД: после перезапуска первый проход приводит просроченные предложения в порядок, двойного назначения нет (частичные уникальные индексы: одно открытое предложение на поездку и на водителя; одна принятая активная поездка на водителя).
+- Клиенты опрашивают `GET /drivers/me/offers` и `GET /rides/{id}`; WebSocket нет.
+
+Пример ответа водителя (после входа водителем: `$API`, `jar.txt`, `$CSRF`):
+
+```bash
+OFFER_ID=$(curl -s -b jar.txt "$API/drivers/me/offers" \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["items"][0]["id"])')
+curl -s -b jar.txt -X POST "$API/ride-offers/$OFFER_ID/accept" -H "X-CSRF-Token: $CSRF"
+```
+
+В тестах цикл выключен (`DISPATCH_LOOP_ENABLED=false` в `tests/conftest.py`); фикстура `dispatcher` вызывает сервис напрямую (`process`, `process_due`, `accept`, `reject`, `offers`), время двигает `clock.advance(...)`. Фикстура `available_driver` — один свободный водитель у pickup по умолчанию, чтобы поездка из API оставалась `searching`.
