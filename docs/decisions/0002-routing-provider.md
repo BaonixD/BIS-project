@@ -20,17 +20,21 @@ MVP_SPEC §5 требует реальный дорожный маршрут в 
 | Ситуация | Код | HTTP | Повтор |
 | --- | --- | --- | --- |
 | Нет/пустой `ROUTING_API_KEY` | `routing_unavailable` | 503 | запроса нет |
-| Timeout (connect/read) | `routing_provider_error`, `reason=timeout` | 503 | да |
-| Ошибка соединения | `routing_provider_error`, `reason=connection_error` | 503 | да |
+| Timeout httpx (connect/read) | `routing_provider_error`, `reason=timeout` | 503 | да |
+| Исчерпан общий срок `ROUTING_TOTAL_TIMEOUT_S` во время запроса | `routing_provider_error`, `reason=timeout` | 503 | нет |
+| Ошибка соединения (прочие `httpx.TransportError`) | `routing_provider_error`, `reason=connection_error` | 503 | да |
 | 429 | `routing_provider_error`, `reason=rate_limited` | 503 | да |
 | 5xx | `routing_provider_error`, `reason=provider_unavailable` | 503 | да |
 | ORS-код 2009/2010 (точки недостижимы, маршрут не найден) | `route_not_found` | 422 | нет |
-| Прочие 3xx/4xx (в т.ч. 401, 403 дневной квоты, 2004 лимиты) | `routing_provider_error`, `reason=rejected` | 503 | нет |
-| 200 с некорректным JSON, геометрией или метриками | `routing_provider_error`, `reason=invalid_response` | 503 | нет |
+| Прочие 3xx/4xx и 2xx кроме 200 (в т.ч. 204, 401, 403 дневной квоты, 2004 лимиты, 400 без JSON) | `routing_provider_error`, `reason=rejected` | 503 | нет |
+| 200 с некорректным JSON, геометрией или метриками; `httpx.DecodingError` (повреждённое сжатое тело) | `routing_provider_error`, `reason=invalid_response` | 503 | нет |
+| Прочие `httpx.RequestError` (например `TooManyRedirects`) | `routing_provider_error`, `reason=rejected` | 503 | нет |
 
-`details` содержит только `reason` и `provider_status` (HTTP-статус провайдера или `null`). Исключения провайдера не прикрепляются как `__cause__`.
+`details` содержит только `reason` и `provider_status` (HTTP-статус провайдера или `null`). Исключения провайдера не прикрепляются как `__cause__`. Ключ не попадает в ошибки, repr и логи (проверено тестом с `caplog` на серии повторов); в лог пишутся только номер попытки и `reason`. Ключ из окружения обрезается по краям, пустая строка или одни пробелы означают «не задан».
 
-Повторы: не более `ROUTING_MAX_RETRIES` (по умолчанию 2, максимум 5), экспоненциальная задержка `ROUTING_RETRY_BACKOFF_S * 2^n` (0,5 с, 1 с), ограниченная `ROUTING_MAX_RETRY_DELAY_S` (5 с). `Retry-After` в форме delay-seconds используется для 429/5xx с той же верхней границей; HTTP-date и некорректные значения — обычная задержка. Ошибки соединения повторяются вместе с timeout: запрос маршрута не имеет побочных эффектов. Таймауты по умолчанию: connect 3 с, read 5 с; худший случай одного вызова ≈ 3 × 8 с + 1,5 с.
+Повторы: не более `ROUTING_MAX_RETRIES` (по умолчанию 1, максимум 5), экспоненциальная задержка `ROUTING_RETRY_BACKOFF_S * 2^n` (0,5 с, 1 с, …), ограниченная `ROUTING_MAX_RETRY_DELAY_S` (5 с). `Retry-After` в форме delay-seconds используется для 429/5xx с той же верхней границей; HTTP-date и некорректные значения — обычная задержка. Ошибки соединения повторяются вместе с timeout: запрос маршрута не имеет побочных эффектов.
+
+Общий срок: все попытки и паузы одного `get_route` укладываются в `ROUTING_TOTAL_TIMEOUT_S` (по умолчанию 10 с, максимум 60). Текущий запрос прерывается через `asyncio.timeout` → `reason=timeout`. Если следующая пауза достигла бы срока, она не выполняется и сразу возвращается последняя ошибка провайдера (например `rate_limited`). Таймауты httpx по умолчанию: connect 3 с, read 5 с; read-таймаут действует на каждое чтение, а не на весь ответ, поэтому верхнюю границу задаёт именно общий срок. Худший случай одного вызова по умолчанию ≈ 10 с.
 
 ## Сверка с документацией (3 ноября 2026, docs v10.0.1)
 
@@ -46,6 +50,7 @@ MVP_SPEC §5 требует реальный дорожный маршрут в 
 - Формат JSON-тела ошибки (`{"error": {"code", "message"}}`) и HTTP-статус, с которым приходят 2009/2010; поэтому `route_not_found` определяется по коду ошибки при любом не-200 статусе.
 - Актуальные лимиты Standard-плана (страница `openrouteservice.org/plans/` вернула 404) и текст условий/атрибуции (ToS отрисовывается JavaScript и не прочитан).
 - Поведение для совпадающих точек (может отсутствовать `summary.distance`); сейчас это `invalid_response`.
+- Какой заголовок ORS реально присылает при 429: `Retry-After` не подтверждён документацией; FAQ упоминает только `x-ratelimit-remaining`/`x-ratelimit-reset`. Адаптер читает лишь `Retry-After`, а `x-ratelimit-reset` пока игнорирует; при его отсутствии действует обычная задержка в пределах общего срока.
 
 ## Атрибуция
 
