@@ -45,10 +45,15 @@ async def handle_http_exception(request: Request, exc: Exception) -> JSONRespons
     return error_response(
         request,
         status_code=error.status_code,
-        code=status.phrase.lower().replace(" ", "_").replace("-", "_"),
+        code=_error_code(status),
         message=message,
         headers=error.headers,
     )
+
+
+def _error_code(status: HTTPStatus) -> str:
+    """Snake-case status phrase: 404 -> ``not_found``, 405 -> ``method_not_allowed``."""
+    return status.phrase.lower().replace(" ", "_").replace("-", "_")
 
 
 async def handle_validation_error(request: Request, exc: Exception) -> JSONResponse:

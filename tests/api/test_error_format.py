@@ -7,9 +7,6 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from pydantic import BaseModel, Field
 
-from taxi_service.core.config import Settings
-from taxi_service.main import create_app
-
 SECRET_PASSWORD = "short-pw"
 INTERNAL_FAILURE = "sensitive internal failure"
 
@@ -38,14 +35,14 @@ def _probe_router() -> APIRouter:
 
 
 @pytest.fixture
-def app() -> FastAPI:
-    app = create_app(Settings(_env_file=None))
+def app(app: FastAPI) -> FastAPI:
     app.include_router(_probe_router())
     return app
 
 
 @pytest.fixture
 async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
+    # Unhandled errors must surface as HTTP 500 responses, not test exceptions.
     transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         yield client
