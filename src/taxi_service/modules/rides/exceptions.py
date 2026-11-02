@@ -44,6 +44,31 @@ class InvalidOfferTransitionError(AppError):
         )
 
 
+class OfferNotFoundError(AppError):
+    """No offer with this id, or it was made to another driver; both look the same."""
+
+    def __init__(self) -> None:
+        super().__init__(status_code=404, code="offer_not_found", message="Offer not found.")
+
+
+class OfferExpiredError(AppError):
+    """The offer's time is up (``now >= expires_at``), whether or not the loop marked it."""
+
+    def __init__(self) -> None:
+        super().__init__(status_code=409, code="offer_expired", message="The offer has expired.")
+
+
+class DriverBusyError(AppError):
+    """The driver already has an accepted active ride; a second one is never assigned."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=409,
+            code="driver_busy",
+            message="The driver already has an active ride.",
+        )
+
+
 class QuoteNotFoundError(AppError):
     """No quote with this id, or it belongs to another passenger; both look the same."""
 

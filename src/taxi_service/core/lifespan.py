@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from taxi_service.core.config import Settings
 from taxi_service.core.logging import configure_logging
@@ -15,6 +16,7 @@ from taxi_service.modules.geo.client import (
     create_routing_http_client,
 )
 from taxi_service.modules.geo.config import RoutingSettings
+from taxi_service.modules.rides.dispatch_loop import DispatchLoop
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +26,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Acquire application resources on startup and release them on shutdown.
 
     Sets ``app.state.engine``, ``app.state.session_factory``,
-    ``app.state.migration_heads``, ``app.state.routing_provider`` and
-    ``app.state.routing_http_client``. Never runs migrations or seed; those are
-    separate commands. Connecting is lazy: startup succeeds without a database
-    and without a routing key (routing then answers ``routing_unavailable``).
+    ``app.state.migration_heads``, ``app.state.routing_provider``,
+    ``app.state.routing_http_client`` and ``app.state.dispatch_loop`` (``None``
+    when ``DISPATCH_LOOP_ENABLED`` is false). Never runs migrations or seed;
+    those are separate commands. Connecting is lazy: startup succeeds without a
+    database and without a routing key (routing then answers
+    ``routing_unavailable``). On shutdown the dispatch loop is cancelled and
+    awaited before the engine is disposed.
     """
     settings: Settings = app.state.settings
     configure_logging(settings.log_level)
@@ -38,14 +43,32 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     provider, routing_http = _routing_provider(app.state.routing_provider_override)
     app.state.routing_provider = provider
     app.state.routing_http_client = routing_http
+    dispatch_loop = _dispatch_loop(app, settings, engine)
+    app.state.dispatch_loop = dispatch_loop
+    if dispatch_loop is not None:
+        dispatch_loop.start()
     logger.info("Application started")
     try:
         yield
     finally:
+        if dispatch_loop is not None:
+            await dispatch_loop.stop()
         if routing_http is not None:
             await routing_http.aclose()
         await engine.dispose()
         logger.info("Application stopped")
+
+
+def _dispatch_loop(app: FastAPI, settings: Settings, engine: AsyncEngine) -> DispatchLoop | None:
+    if not settings.dispatch_loop_enabled:
+        return None
+    return DispatchLoop(
+        app.state.session_factory,
+        app.state.clock,
+        app.state.dispatch_policy,
+        interval_s=settings.dispatch_interval_s,
+        database_url=engine.url,
+    )
 
 
 def _routing_provider(

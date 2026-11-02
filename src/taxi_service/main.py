@@ -12,6 +12,7 @@ from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.auth.rate_limit import LoginAttemptLimiter
 from taxi_service.modules.geo.client import RoutingProvider
 from taxi_service.modules.rides.idempotency import IDEMPOTENCY_HEADER, REPLAYED_HEADER
+from taxi_service.modules.rides.policy import DispatchPolicy
 
 API_DESCRIPTION = """\
 Backend MVP of a taxi service in Almaty (KZT).
@@ -52,6 +53,7 @@ def create_app(
     app.state.routing_provider_override = routing_provider
     app.state.password_hasher = PasswordHasher.from_settings(settings)
     app.state.login_limiter = LoginAttemptLimiter.from_settings(settings, clock)
+    app.state.dispatch_policy = DispatchPolicy.from_settings(settings)
     # Added first, so RequestIdMiddleware wraps it: preflight answers get an ID too.
     app.add_middleware(
         CORSMiddleware,

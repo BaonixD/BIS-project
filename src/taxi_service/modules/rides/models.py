@@ -5,7 +5,7 @@ reach a stored quote or ride, ``tariff_version`` says which tariff priced it.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Final
 
 from sqlalchemy import (
@@ -24,7 +24,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql.elements import TextClause
 
 from taxi_service.database.base import Base, UtcDateTime
-from taxi_service.modules.rides.states import ACTIVE_RIDE_STATUSES, RideStatus
+from taxi_service.modules.rides.states import ACTIVE_RIDE_STATUSES, OfferStatus, RideStatus
 
 PROVIDER_MAX_LENGTH: Final = 32
 TARIFF_VERSION_MAX_LENGTH: Final = 16
@@ -35,6 +35,13 @@ SHA256_HEX_LENGTH: Final = 64
 
 ACTIVE_PASSENGER_RIDE_INDEX: Final = "uq_rides_active_passenger_id"
 ACTIVE_DRIVER_RIDE_INDEX: Final = "uq_rides_active_driver_id"
+PASSENGER_HISTORY_INDEX: Final = "ix_rides_passenger_id_created_at"
+DRIVER_HISTORY_INDEX: Final = "ix_rides_driver_id_created_at"
+SEARCHING_DEADLINE_INDEX: Final = "ix_rides_searching_search_deadline"
+PENDING_OFFER_RIDE_INDEX: Final = "uq_ride_offers_pending_ride_id"
+PENDING_OFFER_DRIVER_INDEX: Final = "uq_ride_offers_pending_driver_id"
+PENDING_OFFER_EXPIRY_INDEX: Final = "ix_ride_offers_pending_expires_at"
+SEARCH_OFFER_CONSTRAINT: Final = "uq_ride_offers_ride_id_driver_id_search_started_at"
 
 # Statuses with an accepted driver; ``cancelled`` may keep the driver it had.
 ASSIGNED_RIDE_STATUSES: Final = frozenset(
@@ -50,6 +57,21 @@ def _sql_list(statuses: frozenset[RideStatus]) -> str:
 
 def _status_in(statuses: frozenset[RideStatus]) -> TextClause:
     return text(f"status IN ({_sql_list(statuses)})")
+
+
+SEARCHING: Final = text(f"status = '{RideStatus.SEARCHING.value}'")
+PENDING_OFFER: Final = text(f"status = '{OfferStatus.PENDING.value}'")
+
+
+def _string_enum[EnumT: (RideStatus, OfferStatus)](enum: type[EnumT]) -> Enum:
+    """Stored as its value in a VARCHAR; the CHECK constraint is declared by the table."""
+    return Enum(
+        enum,
+        native_enum=False,
+        create_constraint=False,
+        length=STATUS_MAX_LENGTH,
+        values_callable=lambda members: [member.value for member in members],
+    )
 
 
 def _route_checks() -> tuple[CheckConstraint, ...]:
@@ -113,6 +135,9 @@ class Ride(RouteSnapshot, Base):
     and a driver that matches the status — none while ``searching`` or
     ``no_driver``, one from ``assigned`` on; a ``cancelled`` ride keeps
     whatever it had, because it is cancelled before or after assignment.
+
+    ``search_started_at``/``search_deadline`` bound the current driver search
+    (MVP_SPEC §6: 180 seconds); a release starts a new window (ADR 0006).
     """
 
     __tablename__ = "rides"
@@ -139,27 +164,35 @@ class Ride(RouteSnapshot, Base):
             sqlite_where=_status_in(ACCEPTED_ACTIVE_RIDE_STATUSES),
             postgresql_where=_status_in(ACCEPTED_ACTIVE_RIDE_STATUSES),
         ),
+        CheckConstraint("search_deadline > search_started_at", name="search_deadline_after_start"),
+        # History of a passenger or a driver: ORDER BY created_at DESC, id DESC (T09).
+        Index(PASSENGER_HISTORY_INDEX, "passenger_id", "created_at", "id"),
+        Index(DRIVER_HISTORY_INDEX, "driver_id", "created_at", "id"),
+        # The dispatch loop looks for searching rides only.
+        Index(
+            SEARCHING_DEADLINE_INDEX,
+            "search_deadline",
+            sqlite_where=SEARCHING,
+            postgresql_where=SEARCHING,
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     passenger_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
     driver_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("driver_profiles.user_id"))
     quote_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("ride_quotes.id"), unique=True)
-    status: Mapped[RideStatus] = mapped_column(
-        Enum(
-            RideStatus,
-            native_enum=False,
-            create_constraint=False,
-            length=STATUS_MAX_LENGTH,
-            values_callable=lambda statuses: [status.value for status in statuses],
-        )
-    )
+    status: Mapped[RideStatus] = mapped_column(_string_enum(RideStatus))
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    search_started_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    search_deadline: Mapped[datetime] = mapped_column(UtcDateTime())
 
     @classmethod
-    def from_quote(cls, quote: RideQuote, now: datetime) -> "Ride":
-        """New ``searching`` ride without a driver; route and fare copied from the quote."""
+    def from_quote(cls, quote: RideQuote, now: datetime, *, search_budget: timedelta) -> "Ride":
+        """New ``searching`` ride without a driver; route and fare copied from the quote.
+
+        Its driver search starts now and lasts ``search_budget``.
+        """
         snapshot = {name: getattr(quote, name) for name in ROUTE_SNAPSHOT_COLUMNS}
         return cls(
             id=uuid.uuid4(),
@@ -170,7 +203,67 @@ class Ride(RouteSnapshot, Base):
             **snapshot,
             created_at=now,
             updated_at=now,
+            search_started_at=now,
+            search_deadline=now + search_budget,
         )
+
+
+class RideOffer(Base):
+    """A ride offered to one driver until ``expires_at`` (MVP_SPEC §6: 30 seconds).
+
+    ``pending`` changes once to ``accepted``, ``rejected``, ``expired`` or
+    ``revoked`` (``states.next_offer_status``), with ``responded_at`` set. The
+    database allows one pending offer per ride and one per driver (partial
+    unique indexes on the status only, never on the current time: an overdue
+    pending offer still blocks until it is marked expired) and at most one
+    offer per driver in one search of a ride (``search_started_at`` copies
+    ``rides.search_started_at`` of the search that made it), so a search never
+    asks the same driver twice; a new search after release may (ADR 0006).
+    """
+
+    __tablename__ = "ride_offers"
+    __table_args__ = (
+        CheckConstraint(
+            f"status IN ({', '.join(f"'{status.value}'" for status in sorted(OfferStatus))})",
+            name="status",
+        ),
+        CheckConstraint("expires_at > created_at", name="expires_after_created"),
+        CheckConstraint(
+            f"(status = '{OfferStatus.PENDING.value}' AND responded_at IS NULL)"
+            f" OR (status <> '{OfferStatus.PENDING.value}' AND responded_at IS NOT NULL)",
+            name="responded_matches_status",
+        ),
+        UniqueConstraint("ride_id", "driver_id", "search_started_at"),
+        Index(
+            PENDING_OFFER_RIDE_INDEX,
+            "ride_id",
+            unique=True,
+            sqlite_where=PENDING_OFFER,
+            postgresql_where=PENDING_OFFER,
+        ),
+        Index(
+            PENDING_OFFER_DRIVER_INDEX,
+            "driver_id",
+            unique=True,
+            sqlite_where=PENDING_OFFER,
+            postgresql_where=PENDING_OFFER,
+        ),
+        Index(
+            PENDING_OFFER_EXPIRY_INDEX,
+            "expires_at",
+            sqlite_where=PENDING_OFFER,
+            postgresql_where=PENDING_OFFER,
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    ride_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("rides.id"))
+    driver_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("driver_profiles.user_id"))
+    status: Mapped[OfferStatus] = mapped_column(_string_enum(OfferStatus))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    expires_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    responded_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    search_started_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
 
 class IdempotencyRecord(Base):

@@ -83,4 +83,6 @@ async def test_write_paths_lock_the_driver_profile(
 
     assert driver_profile_selects, "the profile must be read with a locking SELECT"
     for sql in driver_profile_selects:
-        assert "FOR UPDATE OF driver_profiles" in sql
+        # NO KEY: the row is never re-keyed, and the FK checks of offers and rides
+        # (FOR KEY SHARE) must not wait for it (ADR 0006, lock order).
+        assert "FOR NO KEY UPDATE OF driver_profiles" in sql

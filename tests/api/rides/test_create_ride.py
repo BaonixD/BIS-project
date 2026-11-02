@@ -54,6 +54,7 @@ async def stored_rides(session_factory: SessionFactory) -> list[Ride]:
 # Creation
 
 
+@pytest.mark.usefixtures("available_driver")
 async def test_passenger_creates_a_searching_ride_from_the_quote(
     client: httpx.AsyncClient, clock: ManualClock
 ) -> None:
@@ -87,6 +88,7 @@ async def test_passenger_creates_a_searching_ride_from_the_quote(
     assert datetime.fromisoformat(ride["updated_at"]) == clock.now()
 
 
+@pytest.mark.usefixtures("available_driver")
 async def test_ride_and_its_idempotency_record_are_stored(
     client: httpx.AsyncClient, session_factory: SessionFactory
 ) -> None:
@@ -254,6 +256,7 @@ async def test_used_quote_cannot_start_another_ride(
     assert await count_rows(session_factory, Ride) == 1
 
 
+@pytest.mark.usefixtures("available_driver")
 async def test_one_active_ride_per_passenger(
     client: httpx.AsyncClient, session_factory: SessionFactory
 ) -> None:
@@ -405,6 +408,7 @@ async def test_ride_creation_needs_the_csrf_token(client: httpx.AsyncClient) -> 
 # Concurrent requests: two at a time, each on its own session and connection
 
 
+@pytest.mark.usefixtures("available_driver")
 async def test_two_simultaneous_orders_create_one_ride(
     client: httpx.AsyncClient, session_factory: SessionFactory
 ) -> None:
@@ -498,6 +502,7 @@ async def test_constraint_race_on_the_same_key_with_another_body_is_a_conflict(
     assert await count_rows(session_factory, Ride) == 1
 
 
+@pytest.mark.usefixtures("available_driver")
 async def test_constraint_race_on_the_active_ride_is_a_conflict(
     client: httpx.AsyncClient, session_factory: SessionFactory, stale_checks: Callable[[], None]
 ) -> None:

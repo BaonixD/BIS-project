@@ -5,6 +5,7 @@ copy under ``tmp_path``. Sessions commit for real, so concurrency tests can use
 several independent sessions from ``session_factory``.
 """
 
+import uuid
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
@@ -15,8 +16,9 @@ from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from support.clock import ManualClock
+from support.dispatch import Dispatcher
 from support.drivers import DriverFactory
-from support.rides import RideFactory
+from support.rides import PICKUP, RideFactory
 from support.routing import FakeRoutingProvider, isolate_routing_environment
 from taxi_service.core.config import Settings
 from taxi_service.database.migrations import alembic_config
@@ -38,6 +40,13 @@ def sqlite_url(path: Path) -> str:
 def _no_ambient_database_url(monkeypatch: pytest.MonkeyPatch) -> None:
     # A DATABASE_URL exported in the developer's shell must never reach a test.
     monkeypatch.delenv("DATABASE_URL", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _no_dispatch_loop(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Applications built in tests run no background dispatch loop unless a test
+    # enables it (tests/api/test_dispatch_loop.py); tests call dispatch directly.
+    monkeypatch.setenv("DISPATCH_LOOP_ENABLED", "false")
 
 
 @pytest.fixture(scope="session")
@@ -155,3 +164,19 @@ def ride_factory(
 ) -> RideFactory:
     """Passengers and searching rides created directly through the services."""
     return RideFactory(session_factory, clock, PasswordHasher.from_settings(settings))
+
+
+@pytest.fixture
+def dispatcher(session_factory: SessionFactory, clock: ManualClock) -> Dispatcher:
+    """Dispatch service calls on their own sessions, with the test clock and default policy."""
+    return Dispatcher(session_factory, clock)
+
+
+@pytest.fixture
+async def available_driver(driver_factory: DriverFactory) -> uuid.UUID:
+    """An approved, online driver next to the default pickup (``support.rides.ABAY_DOSTYK``).
+
+    With it a ride ordered through the API stays ``searching`` with a pending
+    offer; without any driver dispatch ends the search at once (``no_driver``).
+    """
+    return await driver_factory.driver("available_driver", location=PICKUP)

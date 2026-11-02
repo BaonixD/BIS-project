@@ -113,6 +113,8 @@ async def insert_ride(
         **route_snapshot(),
         "created_at": NOW,
         "updated_at": NOW,
+        "search_started_at": NOW,
+        "search_deadline": LATER,
         **values,
     }
     await insert(session_factory, "rides", row)
