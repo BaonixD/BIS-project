@@ -15,6 +15,7 @@ from support.auth import (
     login,
     register,
     register_and_login,
+    use_session_token,
 )
 from support.clock import ManualClock
 from taxi_service.database.session import SessionFactory, read_transaction
@@ -100,8 +101,12 @@ async def test_session_without_cookie_is_not_authenticated(client: httpx.AsyncCl
 
 
 async def test_unknown_session_token_is_not_authenticated(client: httpx.AsyncClient) -> None:
-    client.cookies.set(SESSION_COOKIE, "forged-token-value", domain="testserver")
+    await register_and_login(client, "alice")
+    token = client.cookies[SESSION_COOKIE]
+    use_session_token(client, token)
+    assert (await client.get(SESSION_URL)).status_code == 200  # the replayed cookie is sent
 
+    use_session_token(client, token[:-2] + "xx")
     response = await client.get(SESSION_URL)
 
     assert response.status_code == 401

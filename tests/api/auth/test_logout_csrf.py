@@ -15,6 +15,7 @@ from support.auth import (
     current_session,
     login,
     register_and_login,
+    use_session_token,
 )
 from taxi_service.database.session import SessionFactory, read_transaction
 from taxi_service.modules.auth.dependencies import CurrentUser
@@ -85,6 +86,8 @@ async def test_logout_revokes_the_session_in_the_database(
 ) -> None:
     user = await register_and_login(client, "alice")
     token = client.cookies[SESSION_COOKIE]
+    use_session_token(client, token)
+    assert (await client.get(SESSION_URL)).status_code == 200  # the replayed cookie is sent
 
     await client.post(LOGOUT_URL, headers=user.csrf_headers)
 
@@ -92,7 +95,7 @@ async def test_logout_revokes_the_session_in_the_database(
         [stored] = list(await session.scalars(select(AuthSession)))
     assert stored.revoked_at is not None
     # Replaying the old cookie after logout does not bring the session back.
-    client.cookies.set(SESSION_COOKIE, token, domain="testserver")
+    use_session_token(client, token)
     assert_error(await client.get(SESSION_URL), 401, "not_authenticated")
 
 

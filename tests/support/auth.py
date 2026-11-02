@@ -34,6 +34,17 @@ class LoggedInUser:
         return {CSRF_HEADER: self.csrf_token}
 
 
+def use_session_token(client: httpx.AsyncClient, token: str) -> None:
+    """Replace the client's cookies with a session cookie carrying ``token``.
+
+    The cookie jar files cookies of a dot-less host such as ``testserver``
+    under ``testserver.local``; a cookie set for ``testserver`` is never sent.
+    """
+    host = client.base_url.host
+    client.cookies.clear()
+    client.cookies.set(SESSION_COOKIE, token, domain=host if "." in host else f"{host}.local")
+
+
 async def register(
     client: httpx.AsyncClient, username: str, *, password: str = PASSWORD, role: str = "passenger"
 ) -> httpx.Response:
