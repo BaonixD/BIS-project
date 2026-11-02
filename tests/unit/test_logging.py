@@ -71,8 +71,10 @@ def test_configure_logging_is_idempotent(app_logger: logging.Logger) -> None:
     assert app_logger.propagate is False
 
 
-async def test_app_lifespan_configures_application_logger(app_logger: logging.Logger) -> None:
-    app = create_app(Settings(_env_file=None, log_level="WARNING"))
+async def test_app_lifespan_configures_application_logger(
+    app_logger: logging.Logger, database_url: str
+) -> None:
+    app = create_app(Settings(_env_file=None, log_level="WARNING", database_url=database_url))
 
     async with app.router.lifespan_context(app):
         assert app_logger.level == logging.WARNING
