@@ -14,11 +14,13 @@ from support.dispatch import Dispatcher
 from support.drivers import AVAILABILITY_URL, LOCATION_URL
 from support.e2e import (
     answer,
+    create_ride,
     expect,
     expect_error,
     offers,
     open_town,
     order,
+    quote,
     ride,
     ride_command,
 )
@@ -127,6 +129,28 @@ async def test_release_starts_a_new_search_without_the_releasing_driver(
         ("complete", dima.id),
     ]
     assert events[2].reason == "flat tyre"
+
+
+async def test_driver_going_offline_hands_the_offer_to_the_next_driver(
+    app: FastAPI, session_factory: SessionFactory, clock: ManualClock
+) -> None:
+    async with open_town(app, session_factory, clock) as town:
+        pat = await town.passenger("pat")
+        dana = await town.driver("dana", location=NEAREST)
+        dima = await town.driver("dima", location=SECOND)
+        ride_id = (await order(pat))["id"]
+        quoted = await quote(pat)
+        second_order = await create_ride(pat, quoted["quote_id"], uuid.uuid4().hex)
+        expect_error(second_order, 409, "active_ride_exists")
+        [offer] = await offers(dana)
+
+        expect(await dana.put(AVAILABILITY_URL, {"online": False}))
+        assert await offers(dana) == []
+        assert await town.dispatch_step() == 1
+        [handed_on] = await offers(dima)
+        assert handed_on["ride_id"] == ride_id
+        expect_error(await answer(dana, offer["id"], "accept"), 409, "invalid_offer_transition")
+        assert expect(await answer(dima, handed_on["id"], "accept"))["driver_id"] == str(dima.id)
 
 
 async def test_no_driver_at_once_without_candidates(

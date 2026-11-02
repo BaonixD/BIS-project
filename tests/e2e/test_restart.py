@@ -56,11 +56,12 @@ def restarted(settings: Settings, clock: ManualClock, **changes: Any) -> FastAPI
     )
 
 
-async def completed_ride(passenger: Participant, driver: Participant) -> str:
+async def started_ride(passenger: Participant, driver: Participant) -> str:
+    """The passenger's new ride, accepted by ``driver`` (the nearest free one) and started."""
     ride_id: str = (await order(passenger))["id"]
     [offer] = await offers(driver)
     expect(await answer(driver, offer["id"], "accept"))
-    for command in ("arrive", "start", "complete"):
+    for command in ("arrive", "start"):
         expect(await ride_command(driver, ride_id, command))
     return ride_id
 
@@ -77,11 +78,13 @@ async def test_restart_after_the_offer_deadline_moves_on_without_double_assignme
     dispatcher: Dispatcher,
 ) -> None:
     async with open_town(app, session_factory, clock) as before:
-        pat, pia = await before.passenger("pat"), await before.passenger("pia")
+        pat, pia, sam = [await before.passenger(name) for name in ("pat", "pia", "sam")]
+        dora = await before.driver("dora", location=THIRD)
+        trip = await started_ride(sam, dora)  # in progress across the restart
         dana = await before.driver("dana", location=NEAREST)
         dima = await before.driver("dima", location=SECOND)
-        dora = await before.driver("dora", location=THIRD)
-        unpaid_ride = await completed_ride(pia, dana)
+        unpaid_ride = await started_ride(pia, dana)
+        expect(await ride_command(dana, unpaid_ride, "complete"))
         ride_id = (await order(pat))["id"]
         [stale] = await offers(dana)
     clock.advance(TTL)  # the offer runs out while the application is down
@@ -90,7 +93,9 @@ async def test_restart_after_the_offer_deadline_moves_on_without_double_assignme
 
     app_after = restarted(settings, clock, **LOOP)
     async with open_town(app_after, session_factory, clock) as after:
-        pat, pia, dana, dima, dora = await reconnect_all(after, pat, pia, dana, dima, dora)
+        pat, pia, sam, dana, dima, dora = await reconnect_all(
+            after, pat, pia, sam, dana, dima, dora
+        )
         assert app_after.state.dispatch_loop.running
 
         async def moved_on() -> bool:
@@ -113,13 +118,22 @@ async def test_restart_after_the_offer_deadline_moves_on_without_double_assignme
         left_open = await payment(pia, unpaid_ride)
         assert (left_open["status"], left_open["amount_kzt"]) == ("unpaid", 2200)
         assert expect(await pay(dana, unpaid_ride, "confirm"))["status"] == "confirmed"
+        # The ride in progress goes on with its driver and is paid after completion.
+        assert expect(await ride(sam, trip))["status"] == "in_progress"
+        expect(await ride_command(dora, trip, "complete"))
+        assert expect(await pay(dora, trip, "confirm"))["status"] == "confirmed"
 
     assert {o.driver_id: o.status for o in await dispatcher.offers(ride_uuid)} == {
         dana.id: OfferStatus.EXPIRED,
         dima.id: OfferStatus.ACCEPTED,
     }
-    assert (await dispatcher.offers(driver_id=dora.id)) == []
     assert await commands_of(session_factory, ride_uuid) == ["assign"]
+    assert await commands_of(session_factory, uuid.UUID(trip)) == [
+        "assign",
+        "arrive",
+        "start",
+        "complete",
+    ]
 
 
 async def test_two_applications_on_one_database_make_one_next_offer(
