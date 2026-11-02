@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -125,3 +126,14 @@ async def test_unhandled_exception_returns_generic_internal_error(
     assert body["request_id"] == "trace-500"
     assert body["error"]["details"] == {}
     assert INTERNAL_FAILURE not in response.text
+
+
+async def test_unhandled_exception_is_logged_with_request_id(
+    client: httpx.AsyncClient, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.ERROR, logger="taxi_service"):
+        await client.get("/_probe/failure", headers={"X-Request-ID": "trace-log"})
+
+    [record] = [r for r in caplog.records if r.name.startswith("taxi_service")]
+    assert record.exc_info is not None
+    assert getattr(record, "request_id", None) == "trace-log"
