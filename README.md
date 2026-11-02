@@ -296,3 +296,35 @@ uv run python scripts/routing_smoke.py
 Поиск кандидатов для назначения (T06): `taxi_service.modules.drivers.candidates.find_nearby_candidates(session, pickup, now=..., radius_m=5000, max_location_age_s=60, exclude_driver_ids=(), limit=10)` → `[Candidate(driver_id, distance_m)]`. Кандидат — допущенный, online, с машиной, координата не старше 60 с, расстояние haversine до pickup не больше 5 км (обе границы включительно). SQL отбирает строки в bounding box круга по индексу `(longitude, latitude)`, точное расстояние и порядок (расстояние, затем `driver_id`) считаются в Python. Функция работает в транзакции вызывающего сервиса.
 
 В тестах: `support.drivers` — помощники через API (`registered_driver`, `approve`, `approved_driver`, `create_admin`, `complete_profile`), фикстура `driver_factory` — водители через сервисы без HTTP (`await driver_factory.driver("d1", location=Coordinates(...))`, `move`, `go_offline`; время координат — `clock`).
+
+## Поездки: quote и создание
+
+Все маршруты — под `/api/v1`, с сессией; POST требует `X-CSRF-Token`. Подробности и обоснование — [ADR 0005](docs/decisions/0005-quotes-idempotency.md).
+
+| Маршрут | Роль | Что делает |
+| --- | --- | --- |
+| `POST /rides/quotes` | passenger | `{"pickup": {...}, "dropoff": {...}}` → `201`: `quote_id`, `route`, `amount_kzt`, `currency`, `tariff_version`, `expires_at` |
+| `POST /rides` | passenger | `{"quote_id": "..."}` + заголовок `Idempotency-Key` → `201` поездка в `searching` без водителя |
+| `GET /rides/{id}` | пассажир поездки, назначенный водитель, admin | поездка; остальным `404 ride_not_found` |
+
+Пример (после входа пассажиром, как в разделе «Аутентификация»: `$API`, `jar.txt`, `$CSRF`; нужен ключ маршрутизации):
+
+```bash
+QUOTE_ID=$(curl -s -b jar.txt -X POST "$API/rides/quotes" -H "X-CSRF-Token: $CSRF" \
+  -H 'Content-Type: application/json' \
+  -d '{"pickup":{"longitude":76.9572,"latitude":43.2389},"dropoff":{"longitude":76.9286,"latitude":43.2187}}' \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["quote_id"])')
+KEY=$(uuidgen)
+curl -s -b jar.txt -X POST "$API/rides" -H "X-CSRF-Token: $CSRF" -H "Idempotency-Key: $KEY" \
+  -H 'Content-Type: application/json' -d "{\"quote_id\":\"$QUOTE_ID\"}"   # 201, повтор — та же поездка
+```
+
+Правила:
+
+- Цену считает сервер по дорожному маршруту (тариф `edu-v1`), quote действует 5 минут. Поездка копирует маршрут, сумму и `tariff_version` из quote; смена тарифа сохранённые quote и поездки не меняет. Сумма, статус или водитель в теле — `422 validation_error`.
+- Маршрут запрашивается у провайдера вне транзакции БД; его ошибки (`503 routing_unavailable`, `503 routing_provider_error`, `422 route_not_found`, `422 route_points_identical`) возвращаются как есть, quote не создаётся.
+- `Idempotency-Key`: 1–128 видимых ASCII-символов (подходит UUID), новый на каждый новый заказ. Повтор с тем же ключом и телом возвращает ту же поездку (`201`, заголовок `Idempotent-Replayed: true`); тот же ключ с другим `quote_id` — `409 idempotency_key_reused`. Нет ключа — `422 idempotency_key_required`, неверный формат — `422 idempotency_key_invalid`. Ключ действует для пользователя и операции; записи хранятся не меньше 24 часов (очистки пока нет).
+- Ошибки создания: `404 quote_not_found` (нет или чужой), `409 quote_expired`, `409 quote_already_used`, `409 active_ride_exists` (у пассажира уже есть поездка `searching/assigned/arrived/in_progress`). Ограничения защищены и в БД (уникальный `quote_id`, частичные уникальные индексы активной поездки пассажира и принятой поездки водителя); одновременные запросы дают одну поездку и `409`, не `500`.
+- Назначения водителя пока нет (T06): новая поездка остаётся в `searching`, `driver_id: null`.
+
+В тестах: `support.rides` — `request_quote`, `order_ride`, `ride_headers`, `ride_url`; фикстура `ride_factory` — пассажиры и поездки через сервисы без HTTP (`await ride_factory.searching_ride(pickup=Coordinates(...))`).

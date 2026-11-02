@@ -4,6 +4,7 @@ from taxi_service.modules.auth.router import router as auth_router
 from taxi_service.modules.drivers.admin_router import router as admin_drivers_router
 from taxi_service.modules.drivers.router import router as drivers_router
 from taxi_service.modules.geo.router import router as geo_router
+from taxi_service.modules.rides.router import router as rides_router
 from taxi_service.modules.users.router import router as users_router
 from taxi_service.schemas.errors import error_responses
 
@@ -16,3 +17,4 @@ v1_router.include_router(geo_router)
 v1_router.include_router(users_router)
 v1_router.include_router(drivers_router)
 v1_router.include_router(admin_drivers_router)
+v1_router.include_router(rides_router)

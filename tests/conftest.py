@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from support.clock import ManualClock
 from support.drivers import DriverFactory
+from support.rides import RideFactory
 from support.routing import FakeRoutingProvider, isolate_routing_environment
 from taxi_service.core.config import Settings
 from taxi_service.database.migrations import alembic_config
@@ -146,3 +147,11 @@ def driver_factory(
 ) -> DriverFactory:
     """Drivers (and their approving admin) created directly through the services."""
     return DriverFactory(session_factory, clock, PasswordHasher.from_settings(settings))
+
+
+@pytest.fixture
+def ride_factory(
+    session_factory: SessionFactory, clock: ManualClock, settings: Settings
+) -> RideFactory:
+    """Passengers and searching rides created directly through the services."""
+    return RideFactory(session_factory, clock, PasswordHasher.from_settings(settings))
