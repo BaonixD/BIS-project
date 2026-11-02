@@ -14,6 +14,7 @@ from alembic import command
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from support.clock import ManualClock
 from taxi_service.core.config import Settings
 from taxi_service.database.migrations import alembic_config
 from taxi_service.database.safety import remove_sqlite_database, replace_sqlite_database
@@ -84,8 +85,14 @@ def session_factory(engine: AsyncEngine) -> SessionFactory:
 
 
 @pytest.fixture
-def app(database_url: str) -> FastAPI:
-    return create_app(Settings(_env_file=None, database_url=database_url))
+def clock() -> ManualClock:
+    """The application's clock in API tests; move it with ``clock.advance(...)``."""
+    return ManualClock()
+
+
+@pytest.fixture
+def app(database_url: str, clock: ManualClock) -> FastAPI:
+    return create_app(Settings(_env_file=None, database_url=database_url), clock=clock)
 
 
 @pytest.fixture
