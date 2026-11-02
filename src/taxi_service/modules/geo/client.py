@@ -139,6 +139,10 @@ class OpenRouteServiceClient:
             return _TransientFailure(RoutingProviderError("timeout"))
         except httpx.TransportError:
             return _TransientFailure(RoutingProviderError("connection_error"))
+        except httpx.DecodingError:
+            raise RoutingProviderError("invalid_response") from None
+        except httpx.RequestError:
+            raise RoutingProviderError("rejected") from None
         return _classify(response)
 
     def _retry_delay(self, attempt: int, retry_after_s: float | None) -> float:
