@@ -259,6 +259,40 @@ async def test_concurrent_confirms_record_one_confirmation(
     assert await actions_of(session_factory, completed.ride_id) == ["open", "confirm"]
 
 
+async def test_cash_confirmation_against_switch_to_kaspi(
+    client: httpx.AsyncClient,
+    other_client: httpx.AsyncClient,
+    completed: Trip,
+    session_factory: SessionFactory,
+) -> None:
+    driver = await login_as(client, completed.driver)
+    passenger = await login_as(other_client, completed.passenger)
+
+    confirmed, switched = await asyncio.gather(
+        client.post(payment_url(completed.ride_id, "confirm"), headers=driver.csrf_headers),
+        other_client.put(
+            payment_url(completed.ride_id, "method"), json=KASPI, headers=passenger.csrf_headers
+        ),
+    )
+
+    stored = await stored_payment(session_factory, completed.ride_id)
+    assert stored is not None
+    actions = await actions_of(session_factory, completed.ride_id)
+    if confirmed.status_code == 200:  # the confirmation won: the payment stays cash
+        expect_error(switched, 409, "invalid_payment_transition")
+        assert (stored.method, stored.status, stored.confirmed_by) == (
+            "cash",
+            "confirmed",
+            completed.driver_id,
+        )
+        assert actions == ["open", "confirm"]
+    else:  # the switch won: a driver never confirms Kaspi
+        expect_error(confirmed, 403, "payment_action_forbidden")
+        assert switched.status_code == 200, switched.text
+        assert (stored.method, stored.status, stored.confirmed_by) == ("kaspi_link", "unpaid", None)
+        assert actions == ["open", "change_method"]
+
+
 async def test_confirming_one_payment_leaves_other_rides_alone(
     client: httpx.AsyncClient, completed: Trip, session_factory: SessionFactory
 ) -> None:
