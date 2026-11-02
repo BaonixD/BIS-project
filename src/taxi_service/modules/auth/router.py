@@ -2,16 +2,19 @@ from typing import Annotated
 
 from fastapi import APIRouter, Cookie, Depends, Response, status
 
-from taxi_service.core.config import Settings, SettingsDep
-from taxi_service.modules.auth.dependencies import (
+from taxi_service.core.config import SettingsDep
+from taxi_service.modules.auth.cookies import (
     SESSION_COOKIE_NAME,
+    clear_session_cookie,
+    set_session_cookie,
+)
+from taxi_service.modules.auth.dependencies import (
     AuthServiceDep,
     CurrentUser,
     UserServiceDep,
     require_allowed_origin,
 )
 from taxi_service.modules.auth.schemas import LoginRequest, RegisterRequest, SessionResponse
-from taxi_service.modules.auth.service import SESSION_TTL
 from taxi_service.modules.users.models import UserRole
 from taxi_service.modules.users.schemas import UserResponse
 from taxi_service.schemas.errors import error_responses
@@ -56,7 +59,7 @@ async def login(
     issued = await auth.login(
         body.username, body.password.get_secret_value(), replaces_token=current_token
     )
-    _set_session_cookie(response, issued.token, settings)
+    set_session_cookie(response, issued.token, settings)
     return SessionResponse.from_user(issued.user)
 
 
@@ -71,23 +74,5 @@ async def logout(user: CurrentUser, auth: AuthServiceDep, settings: SettingsDep)
     """Revoke the current session and clear its cookie. Needs the X-CSRF-Token header."""
     await auth.logout(user.session_id)
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
-    response.delete_cookie(
-        SESSION_COOKIE_NAME,
-        path="/",
-        secure=settings.session_cookie_secure,
-        httponly=True,
-        samesite="lax",
-    )
+    clear_session_cookie(response, settings)
     return response
-
-
-def _set_session_cookie(response: Response, token: str, settings: Settings) -> None:
-    response.set_cookie(
-        SESSION_COOKIE_NAME,
-        token,
-        max_age=int(SESSION_TTL.total_seconds()),
-        path="/",
-        secure=settings.session_cookie_secure,
-        httponly=True,
-        samesite="lax",
-    )

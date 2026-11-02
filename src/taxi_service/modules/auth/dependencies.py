@@ -9,6 +9,7 @@ from taxi_service.core.clock import ClockDep
 from taxi_service.core.config import SettingsDep
 from taxi_service.core.origins import normalize_origin
 from taxi_service.database.session import SessionDep
+from taxi_service.modules.auth.cookies import SESSION_COOKIE_NAME
 from taxi_service.modules.auth.exceptions import (
     CsrfFailedError,
     ForbiddenError,
@@ -21,7 +22,6 @@ from taxi_service.modules.auth.service import AuthenticatedUser, AuthService
 from taxi_service.modules.users.models import UserRole
 from taxi_service.modules.users.service import UserService
 
-SESSION_COOKIE_NAME = "taxi_session"
 CSRF_HEADER_NAME = "X-CSRF-Token"
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
