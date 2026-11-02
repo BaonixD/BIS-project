@@ -1,6 +1,7 @@
 """T07B revision on a database with rides: new columns are empty, downgrade keeps rides."""
 
 import asyncio
+import re
 from pathlib import Path
 
 import pytest
@@ -114,6 +115,6 @@ def test_downgrade_to_t06_keeps_rides_and_their_constraints(config: Config) -> N
     assert execute(config, RIDES_INDEXES) == t06_indexes
     table_sql = rides_table_sql(config)
     assert all(name in table_sql for name in RIDES_CHECKS)
-    assert not any(column in table_sql for column in NEW_RIDE_COLUMNS)
+    assert not any(re.search(rf"\b{column}\b", table_sql) for column in NEW_RIDE_COLUMNS)
     command.upgrade(config, "head")
     command.check(config)
