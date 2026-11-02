@@ -33,6 +33,14 @@ DEFAULT_LIMIT = 10
 
 
 @dataclass(frozen=True, slots=True)
+class SearchScope:
+    """The current driver search of a ride: it started at ``started_at``."""
+
+    ride_id: uuid.UUID
+    started_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class Candidate:
     driver_id: uuid.UUID
     """User id of the driver (``driver_profiles.user_id``)."""
@@ -48,7 +56,7 @@ async def find_nearby_candidates(
     radius_m: float = DEFAULT_RADIUS_M,
     max_location_age_s: float = DEFAULT_MAX_LOCATION_AGE_S,
     exclude_driver_ids: Collection[uuid.UUID] = (),
-    for_ride_id: uuid.UUID | None = None,
+    in_search: SearchScope | None = None,
     limit: int = DEFAULT_LIMIT,
 ) -> list[Candidate]:
     """At most ``limit`` candidates, nearest first; equal distances by ascending driver id.
@@ -64,8 +72,8 @@ async def find_nearby_candidates(
     query = eligible_drivers(fresh_since).where(_inside(bounding_box(pickup, radius_m)))
     if exclude_driver_ids:
         query = query.where(DriverProfile.user_id.not_in(list(exclude_driver_ids)))
-    if for_ride_id is not None:
-        query = query.where(~_offered(for_ride_id))
+    if in_search is not None:
+        query = query.where(~_offered(in_search.ride_id))
     candidates = []
     for driver_id, longitude, latitude in await session.execute(query):
         if longitude is None or latitude is None:  # excluded by SQL; narrows the type

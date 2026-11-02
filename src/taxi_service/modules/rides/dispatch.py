@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from taxi_service.core.clock import Clock
 from taxi_service.database.errors import violates_unique
 from taxi_service.database.session import read_transaction
-from taxi_service.modules.drivers.candidates import find_nearby_candidates
+from taxi_service.modules.drivers.candidates import SearchScope, find_nearby_candidates
 from taxi_service.modules.rides.exceptions import (
     DriverBusyError,
     InvalidOfferTransitionError,
@@ -264,7 +264,7 @@ class DispatchService:
             now=now,
             radius_m=self._policy.radius_m,
             max_location_age_s=self._policy.max_location_age_s,
-            for_ride_id=ride.id,
+            in_search=SearchScope(ride.id, ride.search_started_at),
             limit=CANDIDATE_BATCH,
         )
         if not candidates:

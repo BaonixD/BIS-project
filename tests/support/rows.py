@@ -138,6 +138,7 @@ async def insert_offer(
         "created_at": NOW,
         "expires_at": IN_30_S,
         "responded_at": None if status == "pending" else IN_30_S,
+        "search_started_at": NOW,
         **values,
     }
     await insert(session_factory, "ride_offers", row)

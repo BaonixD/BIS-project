@@ -25,12 +25,15 @@ from taxi_service.modules.drivers.candidates import Candidate, find_nearby_candi
 from taxi_service.modules.drivers.geodesy import EARTH_RADIUS_M
 from taxi_service.modules.geo.schemas import Coordinates
 from taxi_service.modules.rides import dispatch as dispatch_module
+from taxi_service.modules.rides.dispatch import restart_search
 from taxi_service.modules.rides.exceptions import (
     DriverBusyError,
     InvalidOfferTransitionError,
     OfferExpiredError,
     OfferNotFoundError,
 )
+from taxi_service.modules.rides.models import Ride
+from taxi_service.modules.rides.policy import DEFAULT_DISPATCH_POLICY
 from taxi_service.modules.rides.states import OfferStatus, RideStatus
 
 PICKUP = Coordinates(longitude=76.9457, latitude=43.2383)
@@ -704,3 +707,62 @@ async def test_an_integrity_error_other_than_a_lost_race_is_not_hidden(
 
     assert await dispatcher.offers(ride.id) == []
     assert (await dispatcher.ride(ride.id)).status is RideStatus.SEARCHING
+
+
+# A new search after release (T07B performs the release itself)
+
+
+async def release(session_factory: SessionFactory, clock: ManualClock, ride_id: uuid.UUID) -> Ride:
+    """What T07B's release does in its transaction: back to searching, new search window."""
+    async with session_factory() as session, session.begin():
+        ride = await session.get(Ride, ride_id, with_for_update=True)
+        assert ride is not None
+        ride.status = RideStatus.SEARCHING
+        ride.driver_id = None
+        ride.updated_at = clock.now()
+        restart_search(ride, clock.now(), DEFAULT_DISPATCH_POLICY)
+    return ride
+
+
+async def test_after_release_a_new_search_may_ask_earlier_drivers_but_not_the_releaser(
+    driver_factory: DriverFactory,
+    ride_factory: RideFactory,
+    dispatcher: Dispatcher,
+    session_factory: SessionFactory,
+    clock: ManualClock,
+) -> None:
+    refuser = await driver_factory.driver("refuser", location=east(100))
+    releaser = await driver_factory.driver("releaser", location=east(900))
+    ride = await ride_factory.searching_ride(pickup=PICKUP)
+    await dispatcher.process(ride.id)
+    [first] = await dispatcher.offers(ride.id)
+    clock.advance(timedelta(seconds=1))
+    await dispatcher.reject(first.id, refuser)
+    second = await dispatcher.pending(ride.id)
+    assert second is not None
+    await dispatcher.accept(second.id, releaser)
+    clock.advance(timedelta(seconds=10))
+
+    restarted = await release(session_factory, clock, ride.id)
+    await dispatcher.process(ride.id)
+
+    assert (restarted.search_started_at, restarted.search_deadline) == (
+        clock.now(),
+        clock.now() + timedelta(seconds=180),
+    )
+    again = await dispatcher.pending(ride.id)
+    assert again is not None
+    assert again.driver_id == refuser
+    clock.advance(timedelta(seconds=1))
+    await dispatcher.reject(again.id, refuser)  # asked once in this search: not again
+    assert (await dispatcher.ride(ride.id)).status is RideStatus.NO_DRIVER
+
+
+async def test_a_new_search_starts_strictly_after_the_previous_one(
+    ride_factory: RideFactory, session_factory: SessionFactory, clock: ManualClock
+) -> None:
+    ride = await ride_factory.searching_ride(pickup=PICKUP)
+
+    restarted = await release(session_factory, clock, ride.id)  # same clock reading
+
+    assert restarted.search_started_at > ride.search_started_at

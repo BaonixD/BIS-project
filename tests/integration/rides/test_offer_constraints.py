@@ -122,7 +122,7 @@ async def test_driver_history_does_not_block_a_new_pending_offer(
 
 
 @pytest.mark.parametrize("first", DECIDED)
-async def test_a_driver_gets_at_most_one_offer_per_ride(
+async def test_a_driver_gets_at_most_one_offer_per_search_of_a_ride(
     session_factory: SessionFactory, first: str
 ) -> None:
     ride = await insert_ride(session_factory)
@@ -131,6 +131,32 @@ async def test_a_driver_gets_at_most_one_offer_per_ride(
 
     with pytest.raises(IntegrityError, match="UNIQUE"):
         await insert_offer(session_factory, ride, driver)
+
+
+async def test_a_new_search_of_the_ride_may_ask_the_driver_again(
+    session_factory: SessionFactory,
+) -> None:
+    ride = await insert_ride(session_factory)
+    driver = await insert_driver(session_factory)
+    await insert_offer(session_factory, ride, driver, status="rejected")
+
+    await insert_offer(
+        session_factory,
+        ride,
+        driver,
+        created_at=IN_30_S,
+        expires_at="2026-11-03 09:01:00.000000",
+        search_started_at=IN_30_S,
+    )
+
+
+async def test_offer_records_its_search(session_factory: SessionFactory) -> None:
+    ride = await insert_ride(session_factory)
+
+    with pytest.raises(IntegrityError, match="NOT NULL"):
+        await insert_offer(
+            session_factory, ride, await insert_driver(session_factory), search_started_at=None
+        )
 
 
 async def test_offer_needs_an_existing_ride(session_factory: SessionFactory) -> None:
