@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from taxi_service.database.sqlite import configure_sqlite_engine
+from taxi_service.database.sqlite import READ_ONLY_OPTION, configure_sqlite_engine
 
 SessionFactory = async_sessionmaker[AsyncSession]
 
@@ -49,5 +49,13 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 @asynccontextmanager
 async def read_transaction(session: AsyncSession) -> AsyncIterator[AsyncSession]:
+    """Short read-only transaction: ``async with read_transaction(session):``.
+
+    On SQLite it begins DEFERRED with ``query_only``, so it does not wait for
+    writers and any write inside raises ``OperationalError``. Reads whose result
+    decides a following write belong in ``session.begin()`` instead. On other
+    databases it is an ordinary transaction.
+    """
     async with session.begin():
+        await session.connection(execution_options={READ_ONLY_OPTION: True})
         yield session

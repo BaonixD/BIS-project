@@ -5,9 +5,12 @@ from typing import Any
 
 from sqlalchemy import event
 from sqlalchemy.engine import Connection, Engine
-from sqlalchemy.pool import ConnectionPoolEntry
+from sqlalchemy.pool import ConnectionPoolEntry, PoolResetState
 
 BUSY_TIMEOUT_MS = 5000
+READ_ONLY_OPTION = "taxi_read_only"
+"""Execution option selecting the read path; set it before the transaction begins."""
+_QUERY_ONLY_KEY = "taxi_query_only"
 
 
 def configure_sqlite_engine(engine: Engine, *, enforce_foreign_keys: bool = True) -> None:
@@ -21,6 +24,12 @@ def configure_sqlite_engine(engine: Engine, *, enforce_foreign_keys: bool = True
     start, so concurrent transactions wait (up to ``busy_timeout``) and run one
     after another.
 
+    A connection with the ``READ_ONLY_OPTION`` execution option instead begins a
+    plain (DEFERRED) transaction with ``PRAGMA query_only=ON``: in WAL mode it
+    reads a committed snapshot without waiting for writers, and any write in it
+    fails. ``query_only`` is switched off again when the connection returns to
+    the pool and before any later write transaction on it.
+
     Consequence for callers: every transaction, even a read-only one, holds the
     database write lock until it ends. Keep transactions short, never await
     external services inside one, and never open a second session while the
@@ -32,6 +41,7 @@ def configure_sqlite_engine(engine: Engine, *, enforce_foreign_keys: bool = True
     """
     event.listen(engine, "connect", partial(_on_connect, enforce_foreign_keys=enforce_foreign_keys))
     event.listen(engine, "begin", _on_begin)
+    event.listen(engine, "reset", _on_reset)
 
 
 def check_foreign_keys(connection: Connection) -> None:
@@ -56,4 +66,25 @@ def _on_connect(
 
 
 def _on_begin(connection: Connection) -> None:
+    if connection.get_execution_options().get(READ_ONLY_OPTION):
+        connection.info[_QUERY_ONLY_KEY] = True
+        connection.exec_driver_sql("PRAGMA query_only=ON")
+        connection.exec_driver_sql("BEGIN DEFERRED")
+        return
+    if connection.info.pop(_QUERY_ONLY_KEY, False):
+        connection.exec_driver_sql("PRAGMA query_only=OFF")
     connection.exec_driver_sql("BEGIN IMMEDIATE")
+
+
+def _on_reset(
+    dbapi_connection: Any, record: ConnectionPoolEntry, reset_state: PoolResetState
+) -> None:
+    # Without asyncio safety the pool discards the connection instead of reusing it.
+    if not record.info.get(_QUERY_ONLY_KEY) or not reset_state.asyncio_safe:
+        return
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("PRAGMA query_only=OFF")
+    finally:
+        cursor.close()
+    del record.info[_QUERY_ONLY_KEY]
