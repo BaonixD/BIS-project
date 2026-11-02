@@ -72,7 +72,8 @@ def test_box_is_tight_around_almaty() -> None:
     assert box.max_latitude - box.min_latitude == pytest.approx(2 * 5000 / ONE_DEGREE_M, rel=1e-6)
     [(low, high)] = box.longitude_ranges
     assert 0.12 < high - low < 0.125  # 2 x 5 km at cos(43.24 deg)
-    assert not contains(point(76.9457, 43.2383), 5000, point(77.0, 43.2383))
+    # 77.01 is 0.0643 deg east of the centre; the half-width is about 0.0617 deg.
+    assert not contains(point(76.9457, 43.2383), 5000, point(77.01, 43.2383))
 
 
 def test_box_crossing_the_antimeridian_is_split() -> None:
