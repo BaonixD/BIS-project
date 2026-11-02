@@ -5,12 +5,12 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from taxi_service.database.session import SessionFactory
+from taxi_service.database.session import SessionFactory, read_transaction
 from taxi_service.database.sqlite import BUSY_TIMEOUT_MS
 
 
 async def pragma(session_factory: SessionFactory, name: str) -> object:
-    async with session_factory() as session:
+    async with session_factory() as session, read_transaction(session):
         return await session.scalar(text(f"PRAGMA {name}"))
 
 
@@ -28,7 +28,7 @@ async def test_foreign_keys_are_enforced(session_factory: SessionFactory) -> Non
 
 async def test_every_connection_has_foreign_keys_enabled(session_factory: SessionFactory) -> None:
     async def foreign_keys_on_own_connection() -> object:
-        async with session_factory() as session:
+        async with session_factory() as session, read_transaction(session):
             value = await session.scalar(text("PRAGMA foreign_keys"))
             await asyncio.sleep(0.05)  # keep this connection checked out
             return value

@@ -28,16 +28,24 @@ def create_database_engine(url: str, *, enforce_foreign_keys: bool = True) -> As
 
 
 def create_session_factory(engine: AsyncEngine) -> SessionFactory:
-    """Sessions keep loaded attributes after commit so responses need no extra SQL."""
-    return async_sessionmaker(engine, expire_on_commit=False)
+    """Sessions without autobegin that keep loaded attributes after commit.
+
+    A statement outside ``session.begin()`` or :func:`read_transaction` raises
+    instead of silently opening a transaction that would hold the SQLite lock
+    until the session closes.
+    """
+    return async_sessionmaker(engine, expire_on_commit=False, autobegin=False)
 
 
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
     """FastAPI dependency: a new session per request from ``app.state.session_factory``.
 
-    It never commits. The service opens the transaction with
-    ``async with session.begin():``; anything left uncommitted is rolled back
-    when the session closes after the request.
+    It never commits and never begins. Rules for every use:
+
+    - router or auth dependency: a short ``async with read_transaction(session):``;
+    - service: one ``async with session.begin():`` around the whole operation
+      (reads that decide a write belong inside it);
+    - never await external HTTP or other slow I/O inside a transaction.
     """
     session_factory: SessionFactory = request.app.state.session_factory
     async with session_factory() as session:

@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from sqlalchemy import text
 
 from taxi_service.core.config import Settings
-from taxi_service.database.session import SessionFactory
+from taxi_service.database.session import SessionFactory, read_transaction
 from taxi_service.main import create_app
 
 
@@ -85,7 +85,11 @@ async def test_readiness_does_not_create_schema(empty_database_url: str) -> None
 
 
 async def tables_in(database_url: str) -> list[str]:
-    async with serve(database_url) as (app, _), app.state.session_factory() as session:
+    async with (
+        serve(database_url) as (app, _),
+        app.state.session_factory() as session,
+        read_transaction(session),
+    ):
         result = await session.scalars(text("SELECT name FROM sqlite_master WHERE type = 'table'"))
         return list(result)
 
@@ -97,7 +101,7 @@ async def test_app_uses_the_test_database(
         await session.execute(text("CREATE TABLE shared_probe (id INTEGER PRIMARY KEY)"))
         await session.execute(text("INSERT INTO shared_probe (id) VALUES (7)"))
 
-    async with app.state.session_factory() as session:
+    async with app.state.session_factory() as session, read_transaction(session):
         assert await session.scalar(text("SELECT id FROM shared_probe")) == 7
 
 

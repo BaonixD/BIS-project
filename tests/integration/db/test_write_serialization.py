@@ -8,7 +8,7 @@ import asyncio
 import pytest
 from sqlalchemy import text
 
-from taxi_service.database.session import SessionFactory
+from taxi_service.database.session import SessionFactory, read_transaction
 
 OVERLAP_SECONDS = 0.1
 
@@ -49,7 +49,7 @@ async def accept_after_reading(session_factory: SessionFactory, driver: str) -> 
 
 
 async def accepted_driver(session_factory: SessionFactory) -> str | None:
-    async with session_factory() as session:
+    async with session_factory() as session, read_transaction(session):
         driver: str | None = await session.scalar(
             text("SELECT driver FROM offer WHERE id = 1 AND status = 'accepted'")
         )

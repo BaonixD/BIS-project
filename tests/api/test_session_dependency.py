@@ -9,7 +9,7 @@ from fastapi import APIRouter, FastAPI
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from taxi_service.database.session import SessionDep, SessionFactory
+from taxi_service.database.session import SessionDep, SessionFactory, read_transaction
 
 seen_sessions: list[AsyncSession] = []
 
@@ -54,7 +54,7 @@ async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
 
 
 async def stored_values(session_factory: SessionFactory) -> list[int]:
-    async with session_factory() as session:
+    async with session_factory() as session, read_transaction(session):
         return list(await session.scalars(text("SELECT value FROM probe ORDER BY value")))
 
 

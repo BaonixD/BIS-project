@@ -5,7 +5,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import make_url
 
 from taxi_service.database.migrations import current_revisions, expected_heads
-from taxi_service.database.session import SessionFactory
+from taxi_service.database.session import SessionFactory, read_transaction
 
 
 @pytest.mark.parametrize("marker", ["first", "second"])
@@ -26,6 +26,6 @@ def test_database_file_belongs_to_this_test(database_url: str, tmp_path: Path) -
 
 
 async def test_database_is_migrated_to_head(session_factory: SessionFactory) -> None:
-    async with session_factory() as session:
+    async with session_factory() as session, read_transaction(session):
         connection = await session.connection()
         assert await current_revisions(connection) == expected_heads()
