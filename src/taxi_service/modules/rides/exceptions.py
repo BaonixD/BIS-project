@@ -30,3 +30,15 @@ class InvalidRideTransitionError(AppError):
             message="The ride command is not allowed in the current ride status.",
             details={"current_status": current_status, "command": command},
         )
+
+
+class InvalidOfferTransitionError(AppError):
+    """The offer was already decided; only a pending offer changes status."""
+
+    def __init__(self, *, current_status: str, command: str) -> None:
+        super().__init__(
+            status_code=409,
+            code="invalid_offer_transition",
+            message="The offer is no longer pending.",
+            details={"current_status": current_status, "command": command},
+        )

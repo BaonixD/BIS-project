@@ -1,5 +1,6 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 from typing import Final
 
@@ -110,3 +111,43 @@ def next_status(current: RideStatus, command: RideCommand, actor: Actor) -> Ride
     if target is None:
         raise InvalidRideTransitionError(current_status=current.value, command=command.value)
     return target
+
+
+IDEMPOTENT_RIDE_COMMANDS: Final[frozenset[RideCommand]] = frozenset()
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class CommandOutcome:
+    status: RideStatus
+    changed: bool
+
+
+def is_already_applied(current: RideStatus, command: RideCommand) -> bool:
+    return False
+
+
+def resolve_command(current: RideStatus, command: RideCommand, actor: Actor) -> CommandOutcome:
+    return CommandOutcome(status=current, changed=False)
+
+
+class OfferCommand(StrEnum):
+    ACCEPT = "accept"
+    REJECT = "reject"
+    EXPIRE = "expire"
+    REVOKE = "revoke"
+
+
+def next_offer_status(current: OfferStatus, command: OfferCommand) -> OfferStatus:
+    return current
+
+
+def is_offer_expired(*, now: datetime, expires_at: datetime) -> bool:
+    return False
+
+
+def can_accept_offer(status: OfferStatus, *, now: datetime, expires_at: datetime) -> bool:
+    return True
+
+
+def is_offer_command_already_applied(current: OfferStatus, command: OfferCommand) -> bool:
+    return False
