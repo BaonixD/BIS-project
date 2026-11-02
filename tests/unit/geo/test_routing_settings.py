@@ -22,7 +22,8 @@ def test_defaults_without_environment_have_no_key() -> None:
 
     assert settings.api_key is None
     assert str(settings.base_url) == "https://api.openrouteservice.org/"
-    assert settings.max_retries == 2
+    assert settings.max_retries == 1
+    assert settings.total_timeout_s == 10.0
 
 
 def test_blank_key_from_env_example_means_not_configured() -> None:
@@ -72,6 +73,8 @@ def test_key_is_read_from_prefixed_environment_and_hidden(
         ("ROUTING_MAX_RETRIES", "-1"),
         ("ROUTING_MAX_RETRIES", "50"),
         ("ROUTING_READ_TIMEOUT_S", "0"),
+        ("ROUTING_TOTAL_TIMEOUT_S", "0"),
+        ("ROUTING_TOTAL_TIMEOUT_S", "600"),
         ("ROUTING_BASE_URL", "not a url"),
     ],
 )

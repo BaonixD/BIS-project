@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 from collections.abc import AsyncIterator
@@ -31,23 +32,43 @@ def _isolate_routing_environment(monkeypatch: pytest.MonkeyPatch) -> None:
             monkeypatch.delenv(name)
 
 
-class FakeProvider:
-    """Scripted openrouteservice: replays replies in order and records requests and sleeps."""
+HANG = "hang"
 
-    def __init__(self, *replies: Reply) -> None:
+
+class FakeProvider:
+    """Scripted openrouteservice on a fake clock.
+
+    Replays replies in order, records requests and sleeps; each request costs
+    ``latency_s`` and each sleep advances the clock, so no real time passes.
+    ``HANG`` blocks the request for 1 s of real time unless a deadline cancels it.
+    """
+
+    def __init__(self, *replies: Reply | str, latency_s: float = 0.0) -> None:
         self._replies = list(replies)
+        self._latency_s = latency_s
+        self.now = 0.0
         self.requests: list[httpx.Request] = []
         self.sleeps: list[float] = []
 
-    def handle(self, request: httpx.Request) -> httpx.Response:
+    async def handle(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
+        self.now += self._latency_s
         reply = self._replies.pop(0)
         if isinstance(reply, httpx.Response):
             return reply
+        if reply == HANG:
+            # A slow provider that only gives up after 1 s of real time.
+            await asyncio.sleep(1.0)
+            raise httpx.ReadTimeout("scripted slow provider", request=request)
+        assert not isinstance(reply, str)
         raise reply("scripted transport failure", request=request)
+
+    def clock(self) -> float:
+        return self.now
 
     async def sleep(self, seconds: float) -> None:
         self.sleeps.append(seconds)
+        self.now += seconds
 
 
 def ors_payload(
@@ -83,7 +104,9 @@ async def ors_client(
     settings = RoutingSettings(_env_file=None, api_key=api_key, **overrides)
     transport = httpx.MockTransport(provider.handle)
     async with create_routing_http_client(settings, transport=transport) as http:
-        yield OpenRouteServiceClient.from_settings(settings, http, sleep=provider.sleep)
+        yield OpenRouteServiceClient.from_settings(
+            settings, http, sleep=provider.sleep, clock=provider.clock
+        )
 
 
 async def test_successful_route_is_normalized_to_route_result() -> None:
@@ -339,7 +362,7 @@ async def test_retries_are_bounded_and_end_in_provider_error(
 ) -> None:
     provider = FakeProvider(failure, failure, failure, ok())
 
-    async with ors_client(provider) as client:
+    async with ors_client(provider, max_retries=2) as client:
         with pytest.raises(RoutingProviderError) as caught:
             await client.get_route(ORIGIN, DESTINATION)
 
@@ -398,6 +421,46 @@ async def test_retry_after_seconds_are_honoured_up_to_the_cap(
         await client.get_route(ORIGIN, DESTINATION)
 
     assert provider.sleeps == [expected_sleep]
+
+
+async def test_pause_past_the_total_deadline_fails_now() -> None:
+    rate_limited = httpx.Response(429, headers={"Retry-After": "5"})
+    provider = FakeProvider(rate_limited, ok())
+
+    async with ors_client(provider, max_retries=3, total_timeout_s=3.0) as client:
+        with pytest.raises(RoutingProviderError) as caught:
+            await client.get_route(ORIGIN, DESTINATION)
+
+    assert caught.value.details == {"reason": "rate_limited", "provider_status": 429}
+    assert len(provider.requests) == 1
+    assert provider.sleeps == []
+
+
+async def test_slow_attempts_and_pauses_share_one_total_budget() -> None:
+    failure = httpx.Response(503)
+    provider = FakeProvider(*[failure] * 6, latency_s=4.0)
+
+    async with ors_client(provider, max_retries=5, total_timeout_s=10.0) as client:
+        with pytest.raises(RoutingProviderError) as caught:
+            await client.get_route(ORIGIN, DESTINATION)
+
+    # t=4 fail, pause to 4.5, t=8.5 fail, pause to 9.5, t=13.5 fail; a 2 s pause is over budget.
+    assert len(provider.requests) == 3
+    assert provider.sleeps == [0.5, 1.0]
+    assert caught.value.details == {"reason": "provider_unavailable", "provider_status": 503}
+
+
+async def test_total_deadline_interrupts_a_hanging_request() -> None:
+    provider = FakeProvider(HANG, ok())
+
+    async with ors_client(provider, total_timeout_s=0.05) as client:
+        with pytest.raises(RoutingProviderError) as caught:
+            await client.get_route(ORIGIN, DESTINATION)
+
+    assert caught.value.details == {"reason": "timeout", "provider_status": None}
+    assert caught.value.__cause__ is None
+    assert len(provider.requests) == 1
+    assert provider.sleeps == []
 
 
 async def test_client_repr_does_not_expose_key() -> None:

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
@@ -20,6 +21,7 @@ from taxi_service.modules.geo.schemas import Coordinates, RouteGeometry, RouteRe
 logger = logging.getLogger(__name__)
 
 Sleep = Callable[[float], Awaitable[None]]
+Clock = Callable[[], float]
 
 PROVIDER_NAME = "openrouteservice"
 DIRECTIONS_PATH = "/v2/directions/driving-car/geojson"
@@ -96,6 +98,7 @@ class OpenRouteServiceClient:
         http_client: httpx.AsyncClient,
         *,
         sleep: Sleep = asyncio.sleep,
+        clock: Clock = time.monotonic,
     ) -> "OpenRouteServiceClient":
         return cls(
             http_client,
