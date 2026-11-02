@@ -13,11 +13,11 @@
 | [T02](tasks/T02-auth.md) | Регистрация, сессии и права | T01 | `task/t02-auth` | integrated (`2446e6f`, [отчёт](reports/T02.md)) |
 | [T03](tasks/T03-drivers.md) | Профили, автомобиль и координаты | T02 | `task/t03-drivers` | integrated (`70e2160` + `fix/t03-review` `90656de`, [отчёт](reports/T03.md)) |
 | [T04](tasks/T04-routing-pricing.md) | Дорожный маршрут и учебная цена | T02 | `task/t04-routing-pricing` | часть A integrated (`36f25bb`, [отчёт](reports/T04.md)); часть B integrated (`a484235`); реальный маршрут external_pending |
-| [T05](tasks/T05-ride-creation.md) | Quote и идемпотентное создание заказа | T03, T04 | `task/t05-ride-creation` | in_progress |
-| [T06](tasks/T06-dispatch.md) | Поиск и предложения водителям | T05 | `task/t06-dispatch` | queued |
+| [T05](tasks/T05-ride-creation.md) | Quote и идемпотентное создание заказа | T03, T04 | `task/t05-ride-creation` | integrated (`9582b47`, [отчёт](reports/T05.md)) |
+| [T06](tasks/T06-dispatch.md) | Поиск и предложения водителям | T05 | `task/t06-dispatch` | in_progress |
 | [T07](tasks/T07-ride-lifecycle.md) | Жизненный цикл и отмена поездки | T06 | `task/t07-ride-lifecycle` | часть A integrated (`f8686ab`, [отчёт](reports/T07.md)); часть B queued после T06 |
 | [T08](tasks/T08-payments.md) | Наличные и Kaspi-ссылка | T07 | `task/t08-payments` | часть A integrated (`8a56b31`, [отчёт](reports/T08.md)); часть B queued после T07 |
-| [T09](tasks/T09-history-admin.md) | История и административное чтение | T07 | `task/t09-history-admin` | queued |
+| [T09](tasks/T09-history-admin.md) | История и административное чтение | T07 | `task/t09-history-admin` | in_progress (чтение по моделям T05; payment-поля после T08) |
 | [T10](tasks/T10-acceptance.md) | Seed, E2E, документация и передача | T08, T09 | `task/t10-acceptance` | queued |
 | [T11](tasks/T11-google.md) | Google-вход | T10 + отдельный запуск | `task/t11-google` | deferred |
 
@@ -27,6 +27,7 @@
 
 - По запросу владельца 3 ноября 2026 (до четырёх исполнителей одновременно): параллельно T03 и T04 часть B выполняются T07 часть A (`modules/rides/states.py`: статусы поездки и предложения, таблица переходов, права команд) и T08 часть A (`modules/payments/`: статусы и переходы оплаты, права подтверждения, проверка `KASPI_PAYMENT_URL`, инструкции). Только чистые модули и unit-тесты, без БД, миграций и общих файлов.
 - После T02: T03 и T04. T03 владеет изменениями схемы; T04 не вводит миграций и не редактирует общие auth/DB файлы.
+- После T05 (решение главной сессии): T09 запускается параллельно T06 — история и admin-чтение используют только модели T05, без миграций; T06 владеет схемой.
 - После T07: T08 и T09. T08 владеет payment-схемой; T09 — чтением истории и административными read-only маршрутами, без изменения payment-контрактов.
 - T05/T06/T07 выполняются последовательно: общий жизненный цикл и ограничения данных.
 - T00/T01 выполняются последовательно, общая инфраструктура имеет одного владельца.
