@@ -15,6 +15,7 @@ from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from support.clock import ManualClock
+from support.drivers import DriverFactory
 from taxi_service.core.config import Settings
 from taxi_service.database.migrations import alembic_config
 from taxi_service.database.safety import remove_sqlite_database, replace_sqlite_database
@@ -24,6 +25,7 @@ from taxi_service.database.session import (
     create_session_factory,
 )
 from taxi_service.main import create_app
+from taxi_service.modules.auth.passwords import PasswordHasher
 
 
 def sqlite_url(path: Path) -> str:
@@ -124,3 +126,11 @@ async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url=TEST_BASE_URL) as client:
             yield client
+
+
+@pytest.fixture
+def driver_factory(
+    session_factory: SessionFactory, clock: ManualClock, settings: Settings
+) -> DriverFactory:
+    """Drivers (and their approving admin) created directly through the services."""
+    return DriverFactory(session_factory, clock, PasswordHasher.from_settings(settings))

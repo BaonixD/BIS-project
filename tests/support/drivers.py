@@ -7,9 +7,12 @@ Usage in an API test with the ``app``, ``client``, ``session_factory`` and ``clo
     # the client is now logged in as driver_1
 
 The client keeps one session cookie, so each helper logs in as the user it acts for.
+For many drivers without HTTP (search, dispatch) use ``DriverFactory`` (fixture
+``driver_factory``).
 """
 
 import uuid
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
@@ -18,6 +21,10 @@ from fastapi import FastAPI
 from support.auth import PASSWORD, LoggedInUser, current_session, login, register_and_login
 from support.clock import ManualClock
 from taxi_service.database.session import SessionFactory
+from taxi_service.modules.auth.passwords import PasswordHasher
+from taxi_service.modules.drivers.schemas import DriverProfileUpdate
+from taxi_service.modules.drivers.service import DriverAdminService, DriverService
+from taxi_service.modules.geo.schemas import Coordinates
 from taxi_service.modules.users.models import UserRole
 from taxi_service.modules.users.service import UserService
 
@@ -117,3 +124,64 @@ async def approved_driver(
         )
         assert response.status_code == 200, response.text
     return driver
+
+
+@dataclass
+class DriverFactory:
+    """Drivers created through the services, without HTTP: for search and dispatch tests.
+
+    Fixture ``driver_factory``. Accounts get the shared test ``PASSWORD``, so
+    they can still log in through the API. Locations are stamped with the
+    test clock at the time of the call; move ``clock`` to make them stale.
+    """
+
+    session_factory: SessionFactory
+    clock: ManualClock
+    hasher: PasswordHasher
+    _admin_id: uuid.UUID | None = None
+    _plates: int = 0
+
+    async def admin_id(self) -> uuid.UUID:
+        if self._admin_id is None:
+            self._admin_id = await self._create_user(ADMIN_USERNAME, UserRole.ADMIN)
+        return self._admin_id
+
+    async def driver(
+        self,
+        username: str,
+        *,
+        location: Coordinates | None = None,
+        approved: bool = True,
+        online: bool = True,
+    ) -> uuid.UUID:
+        """A complete driver with a unique plate; approved and online unless told otherwise."""
+        driver_id = await self._create_user(username, UserRole.DRIVER)
+        self._plates += 1
+        profile = DriverProfileUpdate.model_validate(complete_profile(f"{self._plates:03d}TST02"))
+        async with self.session_factory() as session:
+            await DriverService(session, self.clock).update_profile(driver_id, profile)
+        if approved:
+            admin_id = await self.admin_id()
+            async with self.session_factory() as session:
+                await DriverAdminService(session, self.clock).approve(driver_id, admin_id=admin_id)
+        if location is not None:
+            await self.move(driver_id, location)
+        if approved and online:
+            async with self.session_factory() as session:
+                await DriverService(session, self.clock).set_availability(driver_id, online=True)
+        return driver_id
+
+    async def go_offline(self, driver_id: uuid.UUID) -> None:
+        async with self.session_factory() as session:
+            await DriverService(session, self.clock).set_availability(driver_id, online=False)
+
+    async def move(self, driver_id: uuid.UUID, location: Coordinates) -> None:
+        """New location stamped with the current test clock."""
+        async with self.session_factory() as session:
+            await DriverService(session, self.clock).update_location(driver_id, location)
+
+    async def _create_user(self, username: str, role: UserRole) -> uuid.UUID:
+        async with self.session_factory() as session:
+            service = UserService(session, self.clock, self.hasher)
+            user = await service.create_user(username=username, password=PASSWORD, role=role)
+        return user.id
