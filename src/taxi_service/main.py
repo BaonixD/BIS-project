@@ -11,6 +11,7 @@ from taxi_service.modules.auth.dependencies import CSRF_HEADER_NAME
 from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.auth.rate_limit import LoginAttemptLimiter
 from taxi_service.modules.geo.client import RoutingProvider
+from taxi_service.modules.rides.idempotency import IDEMPOTENCY_HEADER, REPLAYED_HEADER
 
 API_DESCRIPTION = """\
 Backend MVP of a taxi service in Almaty (KZT).
@@ -57,8 +58,8 @@ def create_app(
         allow_origins=settings.cors_allowed_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-        allow_headers=["Content-Type", CSRF_HEADER_NAME, REQUEST_ID_HEADER],
-        expose_headers=[REQUEST_ID_HEADER],
+        allow_headers=["Content-Type", CSRF_HEADER_NAME, REQUEST_ID_HEADER, IDEMPOTENCY_HEADER],
+        expose_headers=[REQUEST_ID_HEADER, REPLAYED_HEADER],
     )
     app.add_middleware(RequestIdMiddleware)
     register_exception_handlers(app)

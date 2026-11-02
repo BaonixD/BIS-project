@@ -17,12 +17,14 @@ from taxi_service.modules.rides.exceptions import (
     QuoteAlreadyUsedError,
     QuoteExpiredError,
     QuoteNotFoundError,
+    RideNotFoundError,
 )
 from taxi_service.modules.rides.idempotency import request_fingerprint
 from taxi_service.modules.rides.models import IdempotencyRecord, Ride, RideQuote
 from taxi_service.modules.rides.pricing import Fare, calculate_fare
 from taxi_service.modules.rides.repository import RideRepository
 from taxi_service.modules.rides.schemas import QuoteRequest, RideCreateRequest
+from taxi_service.modules.users.models import UserRole
 
 QUOTE_TTL: Final = timedelta(minutes=5)
 CREATE_RIDE_OPERATION: Final = "create_ride"
@@ -98,6 +100,16 @@ class RideService:
             return await self._after_conflict(passenger_id, request, key, fingerprint, error)
         return RideCreation(ride, replayed=False)
 
+    async def get_ride(
+        self, ride_id: uuid.UUID, *, viewer_id: uuid.UUID, viewer_role: UserRole
+    ) -> Ride:
+        """The ride for its passenger, its assigned driver or an admin; else 404."""
+        async with read_transaction(self._session):
+            ride = await self._rides.get_ride(ride_id)
+        if ride is None or not can_view_ride(ride, viewer_id, viewer_role):
+            raise RideNotFoundError
+        return ride
+
     async def _replay(self, user_id: uuid.UUID, key: str, fingerprint: str) -> Ride | None:
         record = await self._rides.get_idempotency_record(user_id, CREATE_RIDE_OPERATION, key)
         if record is None:
@@ -142,6 +154,11 @@ class RideService:
             if await self._rides.has_active_ride(passenger_id):
                 raise ActiveRideExistsError from error
         raise error
+
+
+def can_view_ride(ride: Ride, viewer_id: uuid.UUID, viewer_role: UserRole) -> bool:
+    """Admins, the ride's passenger and the driver assigned now (not a released one)."""
+    return viewer_role is UserRole.ADMIN or viewer_id in (ride.passenger_id, ride.driver_id)
 
 
 def route_snapshot(

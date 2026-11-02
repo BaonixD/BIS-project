@@ -1,10 +1,11 @@
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response, status
 
 from taxi_service.core.clock import ClockDep
 from taxi_service.database.session import SessionDep
-from taxi_service.modules.auth.dependencies import require_roles
+from taxi_service.modules.auth.dependencies import CurrentUser, require_roles
 from taxi_service.modules.auth.service import AuthenticatedUser
 from taxi_service.modules.geo.dependencies import RoutingProviderDep
 from taxi_service.modules.rides.idempotency import REPLAYED_HEADER, IdempotencyKeyDep
@@ -75,3 +76,15 @@ async def create_ride(
     if creation.replayed:
         response.headers[REPLAYED_HEADER] = "true"
     return RideResponse.build(creation.ride)
+
+
+@router.get("/{ride_id}", responses=error_responses(401, 404))
+async def read_ride(ride_id: uuid.UUID, user: CurrentUser, rides: RideServiceDep) -> RideResponse:
+    """A ride with its status, driver (if assigned), route and fixed price.
+
+    Visible to its passenger, the driver assigned to it and admins. Anyone
+    else gets `404 ride_not_found`, as for an id that does not exist.
+    """
+    return RideResponse.build(
+        await rides.get_ride(ride_id, viewer_id=user.id, viewer_role=user.role)
+    )
