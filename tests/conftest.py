@@ -42,6 +42,13 @@ def _no_ambient_database_url(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("DATABASE_URL", raising=False)
 
 
+@pytest.fixture(autouse=True)
+def _no_dispatch_loop(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Applications built in tests run no background dispatch loop unless a test
+    # enables it (tests/api/test_dispatch_loop.py); tests call dispatch directly.
+    monkeypatch.setenv("DISPATCH_LOOP_ENABLED", "false")
+
+
 @pytest.fixture(scope="session")
 def temp_root(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """Only files below this directory may be deleted or overwritten by fixtures."""
