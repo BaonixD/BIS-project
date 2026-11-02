@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -461,6 +462,26 @@ async def test_total_deadline_interrupts_a_hanging_request() -> None:
     assert caught.value.__cause__ is None
     assert len(provider.requests) == 1
     assert provider.sleeps == []
+
+
+async def test_key_never_reaches_logs_across_retries_and_final_error(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.DEBUG)
+    echo = httpx.Response(503, json={"error": f"bad key {TEST_KEY}"})
+    provider = FakeProvider(echo, httpx.ReadTimeout, httpx.Response(429))
+
+    async with ors_client(provider, max_retries=2) as client:
+        with pytest.raises(RoutingProviderError) as caught:
+            await client.get_route(ORIGIN, DESTINATION)
+
+    adapter_records = [r for r in caplog.records if r.name == "taxi_service.modules.geo.client"]
+    assert len(adapter_records) == 3
+    assert TEST_KEY not in caplog.text
+    assert all(TEST_KEY not in repr(vars(record)) for record in caplog.records)
+    error = caught.value
+    exposed = [str(error), repr(error), error.message, json.dumps(error.details)]
+    assert all(TEST_KEY not in text for text in exposed)
 
 
 async def test_client_repr_does_not_expose_key() -> None:
