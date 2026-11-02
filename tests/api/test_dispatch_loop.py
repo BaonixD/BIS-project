@@ -52,6 +52,15 @@ async def running(
             yield app, client
 
 
+class RecordingHandler(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.records: list[logging.LogRecord] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append(record)
+
+
 async def eventually(check: Callable[[], Awaitable[bool]]) -> None:
     """Poll ``check`` every 10 ms for at most ``WAIT_S`` seconds."""
     for _ in range(int(WAIT_S / POLL_S)):
@@ -99,7 +108,6 @@ async def test_loop_keeps_running_after_a_failed_pass(
     settings: Settings,
     clock: ManualClock,
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
     calls: list[int] = []
 
@@ -111,15 +119,22 @@ async def test_loop_keeps_running_after_a_failed_pass(
 
     monkeypatch.setattr(DispatchService, "process_due", flaky)
 
-    with caplog.at_level(logging.ERROR, logger="taxi_service"):
+    handler = RecordingHandler()
+    loop_logger = logging.getLogger("taxi_service.modules.rides.dispatch_loop")
+    loop_logger.addHandler(handler)
+    try:
         async with running(settings, clock, **LOOP):
 
             async def retried() -> bool:
                 return len(calls) >= 3
 
             await eventually(retried)
+    finally:
+        loop_logger.removeHandler(handler)
 
-    assert "Dispatch pass failed" in caplog.text
+    [failure] = [record for record in handler.records if record.levelno == logging.ERROR]
+    assert failure.getMessage().startswith("Dispatch pass failed")
+    assert failure.exc_info is not None
     stopped_at = len(calls)
     await asyncio.sleep(0.05)
     assert len(calls) == stopped_at
