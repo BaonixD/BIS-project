@@ -90,15 +90,37 @@ def clock() -> ManualClock:
     return ManualClock()
 
 
+TEST_BASE_URL = "https://testserver"
+
+
 @pytest.fixture
-def app(database_url: str, clock: ManualClock) -> FastAPI:
-    return create_app(Settings(_env_file=None, database_url=database_url), clock=clock)
+def settings(database_url: str) -> Settings:
+    """Secure defaults (Secure cookie, empty CORS allowlist) except hashing cost.
+
+    Argon2id runs at its minimum cost: hashing stays real but takes microseconds.
+    """
+    return Settings(
+        _env_file=None,
+        database_url=database_url,
+        password_hash_time_cost=1,
+        password_hash_memory_kib=8,
+        password_hash_parallelism=1,
+    )
+
+
+@pytest.fixture
+def app(settings: Settings, clock: ManualClock) -> FastAPI:
+    return create_app(settings, clock=clock)
 
 
 @pytest.fixture
 async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
-    """HTTP client for ``app`` with its lifespan (engine startup and disposal) running."""
+    """HTTP client for ``app`` with its lifespan (engine startup and disposal) running.
+
+    The base URL is HTTPS so the cookie jar returns the ``Secure`` session cookie,
+    as a browser would; ``support.auth`` has helpers to register and log in.
+    """
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with httpx.AsyncClient(transport=transport, base_url=TEST_BASE_URL) as client:
             yield client
