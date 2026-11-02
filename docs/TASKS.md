@@ -8,11 +8,11 @@
 
 | ID | Задача | Зависимости | Плановая ветка | Статус |
 | --- | --- | --- | --- | --- |
-| [T00](tasks/T00-foundation.md) | Основа, запуск и проверки | — | `task/t00-foundation` | in_progress (base 4435b71) |
-| [T01](tasks/T01-database.md) | БД (SQLite), Alembic, изоляция тестов | T00 | `task/t01-database` | queued |
+| [T00](tasks/T00-foundation.md) | Основа, запуск и проверки | — | `task/t00-foundation` | integrated (`c6da39d`, [отчёт](reports/T00.md)) |
+| [T01](tasks/T01-database.md) | БД (SQLite), Alembic, изоляция тестов | T00 | `task/t01-database` | in_progress (base 560c1d2) |
 | [T02](tasks/T02-auth.md) | Регистрация, сессии и права | T01 | `task/t02-auth` | queued |
 | [T03](tasks/T03-drivers.md) | Профили, автомобиль и координаты | T02 | `task/t03-drivers` | queued |
-| [T04](tasks/T04-routing-pricing.md) | Дорожный маршрут и учебная цена | T02 | `task/t04-routing-pricing` | queued |
+| [T04](tasks/T04-routing-pricing.md) | Дорожный маршрут и учебная цена | T02 | `task/t04-routing-pricing` | in_progress: часть A — тариф и адаптер (base 560c1d2) |
 | [T05](tasks/T05-ride-creation.md) | Quote и идемпотентное создание заказа | T03, T04 | `task/t05-ride-creation` | queued |
 | [T06](tasks/T06-dispatch.md) | Поиск и предложения водителям | T05 | `task/t06-dispatch` | queued |
 | [T07](tasks/T07-ride-lifecycle.md) | Жизненный цикл и отмена поездки | T06 | `task/t07-ride-lifecycle` | queued |
@@ -22,6 +22,8 @@
 | [T11](tasks/T11-google.md) | Google-вход | T10 + отдельный запуск | `task/t11-google` | deferred |
 
 ## Что может идти параллельно
+
+- После T00: T01 и часть A задачи T04 — чистый тариф `edu-v1` и адаптер openrouteservice без HTTP-роутера, БД и auth. Часть B (`POST /geo/route` с авторизацией) — после T02, параллельно T03.
 
 - После T02: T03 и T04. T03 владеет изменениями схемы; T04 не вводит миграций и не редактирует общие auth/DB файлы.
 - После T07: T08 и T09. T08 владеет payment-схемой; T09 — чтением истории и административными read-only маршрутами, без изменения payment-контрактов.
