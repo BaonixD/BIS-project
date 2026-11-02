@@ -1,9 +1,16 @@
 """The application owns one routing provider: openrouteservice, or one injected by tests."""
 
-from support.routing import FakeRoutingProvider
+import pytest
+
+from support.routing import FakeRoutingProvider, isolate_routing_environment
 from taxi_service.core.config import Settings
 from taxi_service.main import create_app
 from taxi_service.modules.geo.client import OpenRouteServiceClient
+
+
+@pytest.fixture(autouse=True)
+def _no_routing_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    isolate_routing_environment(monkeypatch)
 
 
 async def test_app_starts_without_routing_key_and_uses_openrouteservice(

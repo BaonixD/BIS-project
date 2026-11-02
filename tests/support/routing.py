@@ -7,12 +7,25 @@ Usage with ``create_app(settings, routing_provider=provider)``::
     assert provider.calls == [(origin, destination)]
 """
 
+import os
+
+import pytest
+
 from taxi_service.core.errors import AppError
 from taxi_service.modules.geo.schemas import Coordinates, RouteGeometry, RouteResult
 
 FAKE_PROVIDER_NAME = "fake"
 FAKE_DISTANCE_M = 10_000
 FAKE_DURATION_S = 1_500
+
+
+def isolate_routing_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No ``ROUTING_*`` value, above all no real key, reaches ``RoutingSettings()``."""
+    for name in list(os.environ):
+        if name.startswith("ROUTING_"):
+            monkeypatch.delenv(name)
+    # An empty variable outranks a key in a developer's local .env file.
+    monkeypatch.setenv("ROUTING_API_KEY", "")
 
 
 def fake_route(origin: Coordinates, destination: Coordinates) -> RouteResult:

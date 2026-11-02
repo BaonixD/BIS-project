@@ -10,6 +10,7 @@ from taxi_service.core.request_id import REQUEST_ID_HEADER, RequestIdMiddleware
 from taxi_service.modules.auth.dependencies import CSRF_HEADER_NAME
 from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.auth.rate_limit import LoginAttemptLimiter
+from taxi_service.modules.geo.client import RoutingProvider
 
 API_DESCRIPTION = """\
 Backend MVP of a taxi service in Almaty (KZT).
@@ -26,7 +27,17 @@ Errors always use the `ErrorResponse` envelope.
 """
 
 
-def create_app(settings: Settings | None = None, *, clock: Clock | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    clock: Clock | None = None,
+    routing_provider: RoutingProvider | None = None,
+) -> FastAPI:
+    """Assemble the application; resources are acquired by :func:`lifespan`.
+
+    ``routing_provider`` replaces openrouteservice (tests); the lifespan then
+    creates no routing HTTP client.
+    """
     app = FastAPI(
         title="Mini Taxi Service",
         version="0.1.0",
@@ -37,6 +48,7 @@ def create_app(settings: Settings | None = None, *, clock: Clock | None = None) 
     clock = clock or SystemClock()
     app.state.settings = settings
     app.state.clock = clock
+    app.state.routing_provider_override = routing_provider
     app.state.password_hasher = PasswordHasher.from_settings(settings)
     app.state.login_limiter = LoginAttemptLimiter.from_settings(settings, clock)
     # Added first, so RequestIdMiddleware wraps it: preflight answers get an ID too.
