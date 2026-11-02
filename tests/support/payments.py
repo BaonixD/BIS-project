@@ -19,6 +19,7 @@ from datetime import datetime
 from typing import Any, Final
 
 import httpx
+import pytest
 from sqlalchemy import literal_column, select
 
 from support.drivers import login_as
@@ -30,6 +31,12 @@ from taxi_service.modules.payments.models import Payment, PaymentEvent
 TEST_KASPI_URL: Final = "https://pay.kaspi.kz/pay/test123"
 ADMIN: Final = "admin"
 REFERENCE: Final = "POS receipt 0042"
+
+
+def isolate_payment_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The owner's ``KASPI_PAYMENT_URL`` from a shell or local ``.env`` never reaches a test."""
+    # An empty variable outranks the link in a developer's local .env file.
+    monkeypatch.setenv("KASPI_PAYMENT_URL", "")
 
 
 def kaspi_on() -> PaymentSettings:

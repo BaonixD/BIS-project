@@ -11,6 +11,7 @@ from taxi_service.modules.auth.dependencies import CSRF_HEADER_NAME
 from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.auth.rate_limit import LoginAttemptLimiter
 from taxi_service.modules.geo.client import RoutingProvider
+from taxi_service.modules.payments.config import PaymentSettings
 from taxi_service.modules.rides.completion import on_ride_completed
 from taxi_service.modules.rides.idempotency import IDEMPOTENCY_HEADER, REPLAYED_HEADER
 from taxi_service.modules.rides.policy import DispatchPolicy
@@ -35,11 +36,13 @@ def create_app(
     *,
     clock: Clock | None = None,
     routing_provider: RoutingProvider | None = None,
+    payment_settings: PaymentSettings | None = None,
 ) -> FastAPI:
     """Assemble the application; resources are acquired by :func:`lifespan`.
 
     ``routing_provider`` replaces openrouteservice (tests); the lifespan then
-    creates no routing HTTP client.
+    creates no routing HTTP client. ``payment_settings`` defaults to
+    ``KASPI_PAYMENT_URL`` from the environment or ``.env``, read once here.
     """
     app = FastAPI(
         title="Mini Taxi Service",
@@ -56,6 +59,7 @@ def create_app(
     app.state.login_limiter = LoginAttemptLimiter.from_settings(settings, clock)
     app.state.dispatch_policy = DispatchPolicy.from_settings(settings)
     app.state.ride_completion_hook = on_ride_completed
+    app.state.payment_settings = payment_settings or PaymentSettings()
     # Added first, so RequestIdMiddleware wraps it: preflight answers get an ID too.
     app.add_middleware(
         CORSMiddleware,
