@@ -151,6 +151,17 @@ async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
 
 
 @pytest.fixture
+async def other_client(app: FastAPI, client: httpx.AsyncClient) -> AsyncIterator[httpx.AsyncClient]:
+    """A second browser on the application ``client`` runs: its own cookies, same lifespan.
+
+    Two users can then send requests at the same time (``asyncio.gather``).
+    """
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url=TEST_BASE_URL) as other:
+        yield other
+
+
+@pytest.fixture
 def driver_factory(
     session_factory: SessionFactory, clock: ManualClock, settings: Settings
 ) -> DriverFactory:
