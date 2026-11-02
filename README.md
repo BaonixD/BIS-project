@@ -291,7 +291,8 @@ uv run python scripts/routing_smoke.py
 - У водителя два телефона с разным назначением, они не синхронизируются. `phone` из `/drivers/me` (`driver_profiles.phone`) обязателен для допуска и показывается пассажиру в карточке водителя вместе с именем и машиной. `phone` из `/users/me` (`user_profiles.phone`) — необязательный контакт аккаунта, одинаковый для всех ролей; пассажиру водителя он не показывается.
 - Новый водитель — `pending`. Admin допускает только полный профиль с машиной (`409 driver_profile_incomplete`, `details.missing_fields`); повторный допуск возвращает первый (`approved_at`, `approved_by` не меняются).
 - Изменение `full_name`, `license_number` или машины у допущенного водителя возвращает его в `pending` и offline до нового допуска; телефон меняется без этого, повтор тех же значений ничего не сбрасывает.
-- `online: true` — только допущенному водителю (`409 driver_not_approved`); offline разрешён всегда. Это ограничение есть и в БД (CHECK).
+- `online: true` — только допущенному водителю (`409 driver_not_approved`); offline разрешён всегда, кроме времени активной поездки. Это ограничение есть и в БД (CHECK).
+- Во время своей поездки (`assigned/arrived/in_progress`) водитель не уходит offline и не меняет профиль и машину: `409 driver_on_active_ride` (раздел «Жизненный цикл поездки»); координаты обновляются как обычно.
 - Координата одна текущая: `longitude` −180…180, `latitude` −90…90 включительно, числа JSON (не строки, не массив). Время `location_updated_at` ставит сервер; координаты пишет и не допущенный водитель.
 - Список admin упорядочен по регистрации: `created_at DESC, id DESC`; водитель, ещё не заполнявший профиль, тоже в списке как `pending`.
 
@@ -307,7 +308,7 @@ uv run python scripts/routing_smoke.py
 | --- | --- | --- |
 | `POST /rides/quotes` | passenger | `{"pickup": {...}, "dropoff": {...}}` → `201`: `quote_id`, `route`, `amount_kzt`, `currency`, `tariff_version`, `expires_at` |
 | `POST /rides` | passenger | `{"quote_id": "..."}` + заголовок `Idempotency-Key` → `201` поездка в `searching` без водителя |
-| `GET /rides/{id}` | пассажир поездки, назначенный водитель, admin | поездка; остальным `404 ride_not_found` |
+| `GET /rides/{id}` | пассажир поездки, назначенный водитель, admin | поездка; участникам активной поездки — и карточка водителя `driver`; остальным `404 ride_not_found` |
 
 Пример (после входа пассажиром, как в разделе «Аутентификация»: `$API`, `jar.txt`, `$CSRF`; нужен ключ маршрутизации):
 
@@ -408,3 +409,43 @@ curl -s -b jar.txt -X POST "$API/ride-offers/$OFFER_ID/accept" -H "X-CSRF-Token:
 ```
 
 В тестах цикл выключен (`DISPATCH_LOOP_ENABLED=false` в `tests/conftest.py`); фикстура `dispatcher` вызывает сервис напрямую (`process`, `process_due`, `accept`, `reject`, `offers`), время двигает `clock.advance(...)`. Фикстура `available_driver` — один свободный водитель у pickup по умолчанию, чтобы поездка из API оставалась `searching`.
+
+## Жизненный цикл поездки
+
+Команды назначенного водителя и пассажира, история переходов и защита от гонок. Подробности — [ADR 0007](docs/decisions/0007-ride-lifecycle.md).
+
+```text
+searching → assigned → arrived → in_progress → completed
+searching → no_driver
+searching / assigned / arrived → cancelled
+assigned / arrived → searching  (release)
+```
+
+| Маршрут (POST, `X-CSRF-Token`) | Кто | Переход | Тело |
+| --- | --- | --- | --- |
+| `/rides/{id}/arrive` | назначенный водитель | assigned → arrived | — |
+| `/rides/{id}/start` | назначенный водитель | arrived → in_progress | — |
+| `/rides/{id}/complete` | назначенный водитель | in_progress → completed | — |
+| `/rides/{id}/cancel` | пассажир поездки | searching / assigned / arrived → cancelled | необязательно `{"reason": "..."}` |
+| `/rides/{id}/release` | назначенный водитель | assigned / arrived → searching | обязательно `{"reason": "..."}` |
+
+- Ответ — поездка (`RideResponse`) с временами этапов `assigned_at`, `arrived_at`, `started_at`, `completed_at`, `cancelled_at` и `cancel_reason`.
+- Ошибки: чужая или несуществующая поездка — `404 ride_not_found`; участник или admin без права на команду — `403 ride_command_forbidden` (admin поездками не управляет); команда не по таблице — `409 invalid_ride_transition` с `details.current_status`; причина не 1–200 символов или с управляющими символами — `422 validation_error`.
+- Повтор уже применённой команды (второй `complete`, `cancel` отменённой и т. п.) — `200` с текущим состоянием, без второго события и без повторных эффектов. Завершённые, отменённые и `no_driver` поездки не оживают.
+- Cancel отзывает открытое предложение (поиск больше не идёт) либо сразу освобождает назначенного водителя; `driver_id` отменённой поездки сохраняется как история. Во время `in_progress` отмены нет.
+- Release: `driver_id` очищается, начинается новый 180-секундный поиск; освободивший водитель эту поездку больше не получает и не видит (`404`). Ответ — поездка после первого шага поиска (`searching` с предложением другому водителю или `no_driver`); если шаг не удался, ответ всё равно `200 searching`, поиск продолжит цикл.
+- Accept предложения по отменённой поездке — `409 invalid_ride_transition`.
+- История: каждый переход — строка `ride_events` (`from_status`, `to_status`, `command`, `actor_id`, `reason`, `created_at`) в той же транзакции, что и смена статуса, включая системные `assign` (accept) и `mark_no_driver` (`actor_id = null`). Координат и секретов там нет.
+- `GET /rides/{id}` для пассажира и назначенного водителя активной поездки (`assigned/arrived/in_progress`) содержит `driver`: `full_name`, `phone`, `vehicle` (`make`, `model`, `color`, `plate_number`), последнюю `location` и `location_updated_at`. Admin и другие статусы — `driver: null`. Устаревшая координата поездку не завершает и не отменяет — клиент показывает время последнего обновления.
+- Водитель во время поездки не уходит offline и не меняет профиль и машину (`409 driver_on_active_ride`).
+- Завершение вызывает в той же транзакции точку расширения оплаты `modules/rides/completion.py::on_ride_completed` (T08 создаёт там запись неоплаченной стоимости); сейчас она ничего не делает — платежей нет.
+
+Пример (водитель вошёл, `$RIDE_ID` — его поездка):
+
+```bash
+curl -s -b jar.txt -X POST "$API/rides/$RIDE_ID/arrive" -H "X-CSRF-Token: $CSRF"
+curl -s -b jar.txt -X POST "$API/rides/$RIDE_ID/release" -H "X-CSRF-Token: $CSRF" \
+  -H "Content-Type: application/json" -d '{"reason": "flat tyre"}'
+```
+
+В тестах: `support.lifecycle` — `trip_in("arrived", client, driver_factory, dispatcher)` (пассажир `pat`, водитель `dana`), `send(client, ride_id, "start", "dana")`, `ride_events(session_factory, ride_id)`; фикстура `other_client` — второй браузер на том же приложении для конкурентных запросов; хук завершения подменяется через `app.state.ride_completion_hook`.
