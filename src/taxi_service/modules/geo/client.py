@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Annotated, Protocol
 
@@ -124,7 +124,7 @@ class OpenRouteServiceClient:
             attempt += 1
 
     async def _attempt(
-        self, body: dict[str, object], headers: dict[str, str]
+        self, body: Mapping[str, object], headers: Mapping[str, str]
     ) -> RouteResult | RoutingProviderError:
         """One provider call: a route, a retryable failure, or a raised final error."""
         try:

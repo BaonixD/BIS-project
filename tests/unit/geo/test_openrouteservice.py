@@ -112,9 +112,7 @@ async def test_request_follows_directions_geojson_contract() -> None:
     assert request.method == "POST"
     assert request.url == "https://api.openrouteservice.org/v2/directions/driving-car/geojson"
     assert request.headers["Authorization"] == TEST_KEY
-    assert json.loads(request.content) == {
-        "coordinates": [[76.9572, 43.2389], [76.9286, 43.2187]]
-    }
+    assert json.loads(request.content) == {"coordinates": [[76.9572, 43.2389], [76.9286, 43.2187]]}
 
 
 async def test_fractional_metrics_round_half_up() -> None:
@@ -235,7 +233,13 @@ async def test_unreachable_points_are_route_not_found(reply: httpx.Response) -> 
         httpx.Response(404, text="Not Found"),
         httpx.Response(301, headers={"Location": "https://elsewhere.test"}),
     ],
-    ids=["limits_exceeded", "unauthorized", "forbidden_or_daily_quota", "not_found_html", "redirect"],
+    ids=[
+        "limits_exceeded",
+        "unauthorized",
+        "forbidden_or_daily_quota",
+        "not_found_html",
+        "redirect",
+    ],
 )
 async def test_other_refusals_are_not_retried(reply: httpx.Response) -> None:
     provider = FakeProvider(reply)
