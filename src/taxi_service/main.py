@@ -7,14 +7,17 @@ from taxi_service.core.config import Settings
 from taxi_service.core.lifespan import lifespan
 from taxi_service.core.request_id import RequestIdMiddleware
 from taxi_service.modules.auth.passwords import PasswordHasher
+from taxi_service.modules.auth.rate_limit import LoginAttemptLimiter
 
 
 def create_app(settings: Settings | None = None, *, clock: Clock | None = None) -> FastAPI:
     app = FastAPI(title="Mini Taxi Service", version="0.1.0", lifespan=lifespan)
     settings = settings or Settings()
+    clock = clock or SystemClock()
     app.state.settings = settings
-    app.state.clock = clock or SystemClock()
+    app.state.clock = clock
     app.state.password_hasher = PasswordHasher.from_settings(settings)
+    app.state.login_limiter = LoginAttemptLimiter.from_settings(settings, clock)
     app.add_middleware(RequestIdMiddleware)
     register_exception_handlers(app)
     app.include_router(api_router)

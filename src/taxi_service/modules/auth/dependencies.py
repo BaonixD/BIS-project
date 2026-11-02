@@ -16,6 +16,7 @@ from taxi_service.modules.auth.exceptions import (
     OriginNotAllowedError,
 )
 from taxi_service.modules.auth.passwords import PasswordHasher
+from taxi_service.modules.auth.rate_limit import LoginAttemptLimiter
 from taxi_service.modules.auth.service import AuthenticatedUser, AuthService
 from taxi_service.modules.users.models import UserRole
 from taxi_service.modules.users.service import UserService
@@ -48,6 +49,14 @@ def get_password_hasher(request: Request) -> PasswordHasher:
 PasswordHasherDep = Annotated[PasswordHasher, Depends(get_password_hasher)]
 
 
+def get_login_limiter(request: Request) -> LoginAttemptLimiter:
+    limiter: LoginAttemptLimiter = request.app.state.login_limiter
+    return limiter
+
+
+LoginLimiterDep = Annotated[LoginAttemptLimiter, Depends(get_login_limiter)]
+
+
 def get_user_service(
     session: SessionDep, clock: ClockDep, hasher: PasswordHasherDep
 ) -> UserService:
@@ -58,9 +67,9 @@ UserServiceDep = Annotated[UserService, Depends(get_user_service)]
 
 
 def get_auth_service(
-    session: SessionDep, clock: ClockDep, hasher: PasswordHasherDep
+    session: SessionDep, clock: ClockDep, hasher: PasswordHasherDep, limiter: LoginLimiterDep
 ) -> AuthService:
-    return AuthService(session, clock, hasher)
+    return AuthService(session, clock, hasher, limiter)
 
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]

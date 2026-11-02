@@ -3,6 +3,7 @@ from collections import OrderedDict, deque
 from datetime import datetime, timedelta
 
 from taxi_service.core.clock import Clock
+from taxi_service.core.config import Settings
 from taxi_service.modules.auth.exceptions import TooManyLoginAttemptsError
 
 
@@ -24,6 +25,15 @@ class LoginAttemptLimiter:
         self._window = window
         self._max_keys = max_keys
         self._attempts: OrderedDict[str, deque[datetime]] = OrderedDict()
+
+    @classmethod
+    def from_settings(cls, settings: Settings, clock: Clock) -> "LoginAttemptLimiter":
+        return cls(
+            clock=clock,
+            max_attempts=settings.login_max_attempts,
+            window=timedelta(seconds=settings.login_attempt_window_seconds),
+            max_keys=settings.login_limiter_max_keys,
+        )
 
     def acquire(self, key: str) -> None:
         """Record an attempt, or raise ``TooManyLoginAttemptsError`` without recording."""

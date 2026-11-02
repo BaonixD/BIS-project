@@ -12,9 +12,10 @@ from taxi_service.database.session import read_transaction
 from taxi_service.modules.auth.exceptions import InvalidCredentialsError, NotAuthenticatedError
 from taxi_service.modules.auth.models import AuthSession
 from taxi_service.modules.auth.passwords import PasswordHasher
+from taxi_service.modules.auth.rate_limit import LoginAttemptLimiter
 from taxi_service.modules.auth.repository import AuthSessionRepository
 from taxi_service.modules.users.models import User, UserRole
-from taxi_service.modules.users.repository import UserRepository
+from taxi_service.modules.users.repository import UserRepository, normalize_username
 
 logger = logging.getLogger(__name__)
 
@@ -60,10 +61,17 @@ def hash_token(token: str) -> str:
 
 
 class AuthService:
-    def __init__(self, session: AsyncSession, clock: Clock, hasher: PasswordHasher) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        clock: Clock,
+        hasher: PasswordHasher,
+        limiter: LoginAttemptLimiter,
+    ) -> None:
         self._session = session
         self._clock = clock
         self._hasher = hasher
+        self._limiter = limiter
         self._users = UserRepository(session)
         self._sessions = AuthSessionRepository(session)
 
@@ -73,13 +81,18 @@ class AuthService:
         The Argon2 check runs outside any transaction, so the SQLite write lock
         is held only for the INSERT. An unknown username costs the same check
         and gets the same ``InvalidCredentialsError`` as a wrong password.
+        Every attempt counts against the username's limit (429 once used up);
+        a successful login resets it.
         """
+        limiter_key = normalize_username(username)
+        self._limiter.acquire(limiter_key)
         async with read_transaction(self._session):
             user = await self._users.get_by_username(username)
         verified = await self._hasher.verify(user.password_hash if user else None, password)
         if user is None or not verified:
             logger.info("Login failed")
             raise InvalidCredentialsError
+        self._limiter.reset(limiter_key)
         token = secrets.token_urlsafe(_TOKEN_BYTES)
         now = self._clock.now()
         auth_session = AuthSession(
