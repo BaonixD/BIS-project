@@ -15,6 +15,8 @@ from taxi_service.database.migrations import alembic_config, current_revisions, 
 from taxi_service.database.session import create_database_engine
 
 BASELINE_REVISION = "dea9719c6061"  # T01: empty starting point of the history
+T03_HEAD = "e87ec15b6147"  # driver_profiles and vehicles; the revision before ride tables
+RIDE_TABLES = {"ride_quotes", "rides", "idempotency_records"}
 
 
 @pytest.fixture
@@ -38,6 +40,19 @@ def database_state(config: Config) -> tuple[frozenset[str], list[str]]:
             await engine.dispose()
 
     return asyncio.run(read())
+
+
+def execute(config: Config, sql: str) -> list[tuple[object, ...]]:
+    async def run() -> list[tuple[object, ...]]:
+        engine = create_database_engine(config.attributes["database_url"])
+        try:
+            async with engine.begin() as connection:
+                result = await connection.execute(text(sql))
+                return [tuple(row) for row in result] if result.returns_rows else []
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(run())
 
 
 def test_history_has_single_head() -> None:
@@ -100,3 +115,26 @@ def test_downgrade_one_step_and_upgrade_again(config: Config) -> None:
 
     command.upgrade(config, "head")
     assert database_state(config) == (expected_heads(), head_tables)
+
+
+def test_ride_tables_upgrade_and_downgrade_keep_existing_users(config: Config) -> None:
+    command.upgrade(config, T03_HEAD)
+    execute(
+        config,
+        "INSERT INTO users (id, username, username_normalized, password_hash, role, created_at)"
+        " VALUES ('0f1e2d3c4b5a69788796a5b4c3d2e1f0', 'pat', 'pat', 'hash', 'passenger',"
+        " '2026-11-03 09:00:00.000000')",
+    )
+
+    command.upgrade(config, "head")
+
+    _, tables = database_state(config)
+    assert set(tables) >= RIDE_TABLES
+    assert execute(config, "SELECT username FROM users") == [("pat",)]
+    command.check(config)
+
+    command.downgrade(config, T03_HEAD)
+
+    _, tables = database_state(config)
+    assert not set(tables) & RIDE_TABLES
+    assert execute(config, "SELECT username FROM users") == [("pat",)]
