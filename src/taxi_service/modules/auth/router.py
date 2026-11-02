@@ -42,6 +42,21 @@ async def read_session(user: CurrentUser) -> SessionResponse:
     return SessionResponse.from_user(user)
 
 
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(user: CurrentUser, auth: AuthServiceDep, settings: SettingsDep) -> Response:
+    """Revoke the current session and clear its cookie. Needs the X-CSRF-Token header."""
+    await auth.logout(user.session_id)
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    response.delete_cookie(
+        SESSION_COOKIE_NAME,
+        path="/",
+        secure=settings.session_cookie_secure,
+        httponly=True,
+        samesite="lax",
+    )
+    return response
+
+
 def _set_session_cookie(response: Response, token: str, settings: Settings) -> None:
     response.set_cookie(
         SESSION_COOKIE_NAME,

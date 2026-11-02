@@ -102,3 +102,9 @@ class AuthService:
             raise NotAuthenticatedError
         auth_session, user = found
         return AuthenticatedUser.from_rows(user, auth_session)
+
+    async def logout(self, session_id: uuid.UUID) -> None:
+        """Revoke the session; its cookie and CSRF token stop working at once."""
+        async with self._session.begin():
+            await self._sessions.revoke(session_id, self._clock.now())
+        logger.info("Logged out")
