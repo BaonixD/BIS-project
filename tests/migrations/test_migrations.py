@@ -90,12 +90,13 @@ def test_upgrade_from_t01_baseline_creates_auth_tables(config: Config) -> None:
 
 def test_downgrade_one_step_and_upgrade_again(config: Config) -> None:
     command.upgrade(config, "head")
+    _, head_tables = database_state(config)
 
     command.downgrade(config, "-1")
     revisions, tables = database_state(config)
     assert revisions != expected_heads()
-    assert "auth_sessions" not in tables
     assert "users" in tables
+    assert set(tables) < set(head_tables)
 
     command.upgrade(config, "head")
-    assert database_state(config)[0] == expected_heads()
+    assert database_state(config) == (expected_heads(), head_tables)
