@@ -15,7 +15,6 @@ from support.auth import CSRF_HEADER, LoggedInUser, register_and_login
 from support.clock import ManualClock
 from support.drivers import create_admin, login_as
 from support.rides import (
-    IDEMPOTENCY_HEADER,
     RIDES_URL,
     count_rows,
     order_ride,
@@ -24,6 +23,7 @@ from support.rides import (
 )
 from taxi_service.database.session import SessionFactory, read_transaction
 from taxi_service.modules.rides import service
+from taxi_service.modules.rides.idempotency import IDEMPOTENCY_HEADER
 from taxi_service.modules.rides.models import IdempotencyRecord, Ride
 from taxi_service.modules.rides.pricing import Fare
 from taxi_service.modules.rides.repository import RideRepository
