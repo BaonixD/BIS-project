@@ -34,6 +34,6 @@ async def test_statement_outside_explicit_transaction_is_refused(
 ) -> None:
     # No autobegin: nothing can hold the SQLite lock until the session closes.
     async with session_factory() as session:
-        with pytest.raises(InvalidRequestError, match="[Aa]utobegin"):
+        with pytest.raises(InvalidRequestError, match=r"[Aa]utobegin"):
             await session.execute(text("SELECT 1"))
         assert not session.in_transaction()

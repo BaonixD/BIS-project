@@ -52,7 +52,7 @@ async def test_busy_timeout_waits_for_locks(session_factory: SessionFactory) -> 
 async def test_isolation_level_option_is_rejected(engine: AsyncEngine, level: str) -> None:
     # Transactions are started by our own BEGIN statements; a driver-level
     # isolation level would silently be ignored or break that.
-    with pytest.raises(ValueError, match="isolation_level"):
-        async with engine.connect() as connection:
-            configured = await connection.execution_options(isolation_level=level)
+    async with engine.connect() as connection:
+        configured = await connection.execution_options(isolation_level=level)
+        with pytest.raises(ValueError, match="isolation_level"):
             await configured.execute(text("SELECT 1"))
