@@ -2,8 +2,10 @@
 
 import httpx
 import pytest
+from fastapi import FastAPI
 
 from support.auth import register_and_login
+from support.clock import ManualClock
 from support.routing import FakeRoutingProvider, isolate_routing_environment
 from taxi_service.core.config import Settings
 from taxi_service.main import create_app
@@ -13,6 +15,12 @@ from taxi_service.modules.geo.client import OpenRouteServiceClient
 @pytest.fixture(autouse=True)
 def _no_routing_key(monkeypatch: pytest.MonkeyPatch) -> None:
     isolate_routing_environment(monkeypatch)
+
+
+@pytest.fixture
+def app(settings: Settings, clock: ManualClock) -> FastAPI:
+    """The real openrouteservice wiring, unlike the shared fixture's fake provider."""
+    return create_app(settings, clock=clock)
 
 
 async def test_app_starts_without_routing_key_and_uses_openrouteservice(

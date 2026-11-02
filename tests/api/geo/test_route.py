@@ -9,14 +9,10 @@ import pytest
 from fastapi import FastAPI
 
 from support.auth import CSRF_HEADER, register_and_login
-from support.clock import ManualClock
 from support.routing import FakeRoutingProvider, fake_route
-from taxi_service.core.config import Settings
 from taxi_service.core.errors import AppError
-from taxi_service.main import create_app
 from taxi_service.modules.geo.client import (
     OpenRouteServiceClient,
-    RoutingProvider,
     create_routing_http_client,
 )
 from taxi_service.modules.geo.config import RoutingSettings
@@ -32,16 +28,6 @@ ABAY_DOSTYK = {"longitude": 76.9572, "latitude": 43.2389}
 AL_FARABI = {"longitude": 76.9286, "latitude": 43.2187}
 ROUTE_BODY = {"origin": ABAY_DOSTYK, "destination": AL_FARABI}
 SECRET_KEY = "eyJ-secret-routing-key-91c4"
-
-
-@pytest.fixture
-def routing_provider() -> FakeRoutingProvider:
-    return FakeRoutingProvider()
-
-
-@pytest.fixture
-def app(settings: Settings, clock: ManualClock, routing_provider: RoutingProvider) -> FastAPI:
-    return create_app(settings, clock=clock, routing_provider=routing_provider)
 
 
 def error_of(response: httpx.Response) -> dict[str, Any]:

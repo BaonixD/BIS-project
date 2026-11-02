@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from support.clock import ManualClock
 from support.drivers import DriverFactory
+from support.routing import FakeRoutingProvider, isolate_routing_environment
 from taxi_service.core.config import Settings
 from taxi_service.database.migrations import alembic_config
 from taxi_service.database.safety import remove_sqlite_database, replace_sqlite_database
@@ -110,9 +111,20 @@ def settings(database_url: str) -> Settings:
     )
 
 
+@pytest.fixture(autouse=True)
+def _isolated_routing_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    isolate_routing_environment(monkeypatch)
+
+
 @pytest.fixture
-def app(settings: Settings, clock: ManualClock) -> FastAPI:
-    return create_app(settings, clock=clock)
+def routing_provider() -> FakeRoutingProvider:
+    """Deterministic routes; tests inspect ``calls`` or use ``fail_with``."""
+    return FakeRoutingProvider()
+
+
+@pytest.fixture
+def app(settings: Settings, clock: ManualClock, routing_provider: FakeRoutingProvider) -> FastAPI:
+    return create_app(settings, clock=clock, routing_provider=routing_provider)
 
 
 @pytest.fixture
