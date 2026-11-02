@@ -346,6 +346,30 @@ async def test_backoff_grows_exponentially_up_to_the_cap() -> None:
     assert provider.sleeps == [2.0, 3.0, 3.0]
 
 
+@pytest.mark.parametrize(
+    ("status", "retry_after", "expected_sleep"),
+    [
+        (429, "2", 2.0),
+        (503, "1", 1.0),
+        (429, "0", 0.0),
+        (429, "120", 5.0),
+        (429, "soon", 0.5),
+        (429, "-3", 0.5),
+        (503, "Wed, 21 Oct 2015 07:28:00 GMT", 0.5),
+    ],
+    ids=["seconds", "seconds_on_503", "zero", "capped", "garbage", "negative", "http_date"],
+)
+async def test_retry_after_seconds_are_honoured_up_to_the_cap(
+    status: int, retry_after: str, expected_sleep: float
+) -> None:
+    provider = FakeProvider(httpx.Response(status, headers={"Retry-After": retry_after}), ok())
+
+    async with ors_client(provider) as client:
+        await client.get_route(ORIGIN, DESTINATION)
+
+    assert provider.sleeps == [expected_sleep]
+
+
 async def test_client_repr_does_not_expose_key() -> None:
     async with ors_client(FakeProvider()) as client:
         assert TEST_KEY not in repr(client)
