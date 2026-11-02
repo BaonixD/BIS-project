@@ -30,6 +30,9 @@ def configure_sqlite_engine(engine: Engine, *, enforce_foreign_keys: bool = True
     fails. ``query_only`` is switched off again when the connection returns to
     the pool and before any later write transaction on it.
 
+    The ``isolation_level`` execution option (AUTOCOMMIT included) is not
+    supported with this recipe and is rejected when a transaction begins.
+
     Consequence for callers: every transaction, even a read-only one, holds the
     database write lock until it ends. Keep transactions short, never await
     external services inside one, and never open a second session while the
@@ -66,7 +69,15 @@ def _on_connect(
 
 
 def _on_begin(connection: Connection) -> None:
-    if connection.get_execution_options().get(READ_ONLY_OPTION):
+    options = connection.get_execution_options()
+    if "isolation_level" in options:
+        # The driver's own transaction handling is off; an isolation level
+        # (including AUTOCOMMIT) would be ignored by the BEGIN statements below.
+        raise ValueError(
+            "isolation_level execution options are not supported on SQLite here; "
+            "use session.begin() or read_transaction()"
+        )
+    if options.get(READ_ONLY_OPTION):
         connection.info[_QUERY_ONLY_KEY] = True
         connection.exec_driver_sql("PRAGMA query_only=ON")
         connection.exec_driver_sql("BEGIN DEFERRED")
