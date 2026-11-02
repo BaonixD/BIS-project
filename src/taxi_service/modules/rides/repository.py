@@ -2,7 +2,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from taxi_service.modules.rides.models import RideQuote
+from taxi_service.modules.rides.models import IdempotencyRecord, RideQuote
 
 
 class RideRepository:
@@ -17,3 +17,14 @@ class RideRepository:
 
     async def get_quote(self, quote_id: uuid.UUID) -> RideQuote | None:
         return await self._session.get(RideQuote, quote_id)
+
+    async def quote_is_used(self, quote_id: uuid.UUID) -> bool:
+        raise NotImplementedError
+
+    async def has_active_ride(self, passenger_id: uuid.UUID) -> bool:
+        raise NotImplementedError
+
+    async def get_idempotency_record(
+        self, user_id: uuid.UUID, operation: str, key: str
+    ) -> IdempotencyRecord | None:
+        raise NotImplementedError
