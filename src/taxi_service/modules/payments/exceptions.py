@@ -48,3 +48,25 @@ class KaspiUnavailableError(AppError):
             code="kaspi_unavailable",
             message="Kaspi payment is not available.",
         )
+
+
+class ConfirmationReferenceRequiredError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=422,
+            code="confirmation_reference_required",
+            message="Kaspi confirmation requires a reconciliation note or POS reference.",
+        )
+
+
+class InvalidConfirmationReferenceError(AppError):
+    def __init__(self, *, max_length: int) -> None:
+        super().__init__(
+            status_code=422,
+            code="invalid_confirmation_reference",
+            message=(
+                "The confirmation note must be plain text without control characters "
+                f"and at most {max_length} characters."
+            ),
+            details={"max_length": max_length},
+        )
