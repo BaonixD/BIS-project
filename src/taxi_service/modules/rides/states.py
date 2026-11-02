@@ -49,6 +49,10 @@ class Actor:
     is_ride_passenger: bool = False
     is_assigned_driver: bool = False
 
+    @property
+    def is_system(self) -> bool:
+        return False
+
 
 SYSTEM_ACTOR: Final = Actor(role=None)
 
