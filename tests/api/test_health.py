@@ -84,6 +84,20 @@ async def test_not_ready_when_database_is_unreachable(tmp_path: Path) -> None:
     assert "sqlite" not in response.text.lower()
 
 
+@pytest.fixture
+def corrupt_database_url(tmp_path: Path) -> str:
+    path = tmp_path / "corrupt-test.db"
+    path.write_bytes(b"this is not an SQLite database file" * 4)
+    return f"sqlite+aiosqlite:///{path}"
+
+
+async def test_not_ready_when_database_file_is_not_a_database(corrupt_database_url: str) -> None:
+    response = await get_ready(corrupt_database_url)
+
+    assert_not_ready(response, "database_unavailable")
+    assert "corrupt-test" not in response.text
+
+
 async def test_not_ready_when_database_file_is_missing(tmp_path: Path) -> None:
     missing = tmp_path / "missing-test.db"
 
