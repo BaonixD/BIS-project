@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Annotated, Protocol
 
@@ -60,6 +61,12 @@ class _OrsFeatureCollection(BaseModel):
     features: list[_OrsFeature] = Field(min_length=1)
 
 
+@dataclass(frozen=True, slots=True)
+class _TransientFailure:
+    error: RoutingProviderError
+    retry_after_s: float | None = None
+
+
 class OpenRouteServiceClient:
     """openrouteservice Directions adapter for the ``driving-car`` profile."""
 
@@ -117,33 +124,37 @@ class OpenRouteServiceClient:
             outcome = await self._attempt(body, headers)
             if isinstance(outcome, RouteResult):
                 return outcome
-            logger.warning("Routing attempt %d failed: %s", attempt + 1, outcome.reason)
+            logger.warning("Routing attempt %d failed: %s", attempt + 1, outcome.error.reason)
             if attempt >= self._max_retries:
-                raise outcome
-            await self._sleep(self._retry_delay(attempt))
+                raise outcome.error
+            await self._sleep(self._retry_delay(attempt, outcome.retry_after_s))
             attempt += 1
 
     async def _attempt(
         self, body: Mapping[str, object], headers: Mapping[str, str]
-    ) -> RouteResult | RoutingProviderError:
+    ) -> RouteResult | _TransientFailure:
         """One provider call: a route, a retryable failure, or a raised final error."""
         try:
             response = await self._http.post(DIRECTIONS_PATH, json=body, headers=headers)
         except httpx.TimeoutException:
-            return RoutingProviderError("timeout")
+            return _TransientFailure(RoutingProviderError("timeout"))
         except httpx.TransportError:
-            return RoutingProviderError("connection_error")
+            return _TransientFailure(RoutingProviderError("connection_error"))
         status = response.status_code
         if status == httpx.codes.OK:
             return self._parse_route(response)
+        retry_after_s = _retry_after_seconds(response)
         if status == httpx.codes.TOO_MANY_REQUESTS:
-            return RoutingProviderError("rate_limited", provider_status=status)
+            error = RoutingProviderError("rate_limited", provider_status=status)
+            return _TransientFailure(error, retry_after_s)
         if status >= httpx.codes.INTERNAL_SERVER_ERROR:
-            return RoutingProviderError("provider_unavailable", provider_status=status)
+            error = RoutingProviderError("provider_unavailable", provider_status=status)
+            return _TransientFailure(error, retry_after_s)
         raise _refusal(response)
 
-    def _retry_delay(self, attempt: int) -> float:
-        return float(min(self._max_retry_delay_s, self._retry_backoff_s * 2**attempt))
+    def _retry_delay(self, attempt: int, retry_after_s: float | None) -> float:
+        delay = self._retry_backoff_s * 2**attempt if retry_after_s is None else retry_after_s
+        return float(min(self._max_retry_delay_s, delay))
 
     def _parse_route(self, response: httpx.Response) -> RouteResult:
         try:
@@ -160,6 +171,12 @@ class OpenRouteServiceClient:
             route_geometry=feature.geometry,
             provider=self.PROVIDER,
         )
+
+
+def _retry_after_seconds(response: httpx.Response) -> float | None:
+    """Delay-seconds form of ``Retry-After``; the HTTP-date form falls back to backoff."""
+    value = response.headers.get("Retry-After", "").strip()
+    return float(value) if value.isdecimal() else None
 
 
 def _refusal(response: httpx.Response) -> RouteNotFoundError | RoutingProviderError:
