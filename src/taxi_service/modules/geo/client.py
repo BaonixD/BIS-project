@@ -79,17 +79,21 @@ class OpenRouteServiceClient:
         http_client: httpx.AsyncClient,
         *,
         api_key: SecretStr | None,
-        max_retries: int = 2,
+        max_retries: int = 1,
         retry_backoff_s: float = 0.5,
         max_retry_delay_s: float = 5.0,
+        total_timeout_s: float = 10.0,
         sleep: Sleep = asyncio.sleep,
+        clock: Clock = time.monotonic,
     ) -> None:
         self._http = http_client
         self._api_key = api_key
         self._max_retries = max_retries
         self._retry_backoff_s = retry_backoff_s
         self._max_retry_delay_s = max_retry_delay_s
+        self._total_timeout_s = total_timeout_s
         self._sleep = sleep
+        self._clock = clock
 
     @classmethod
     def from_settings(
@@ -106,7 +110,9 @@ class OpenRouteServiceClient:
             max_retries=settings.max_retries,
             retry_backoff_s=settings.retry_backoff_s,
             max_retry_delay_s=settings.max_retry_delay_s,
+            total_timeout_s=settings.total_timeout_s,
             sleep=sleep,
+            clock=clock,
         )
 
     async def get_route(self, origin: Coordinates, destination: Coordinates) -> RouteResult:
@@ -114,6 +120,8 @@ class OpenRouteServiceClient:
 
         Only timeouts, connection errors, 429 and 5xx are retried, at most
         ``max_retries`` times; directions requests have no side effects.
+        Attempts and pauses share one ``total_timeout_s`` budget: a pause that
+        would reach the deadline is not taken, and the last error is raised.
         """
         if self._api_key is None:
             raise RoutingUnavailableError
@@ -122,22 +130,27 @@ class OpenRouteServiceClient:
             "Authorization": self._api_key.get_secret_value(),
             "Accept": "application/geo+json, application/json",
         }
+        deadline = self._clock() + self._total_timeout_s
         attempt = 0
         while True:
-            outcome = await self._attempt(body, headers)
+            outcome = await self._attempt(body, headers, remaining_s=deadline - self._clock())
             if isinstance(outcome, RouteResult):
                 return outcome
             logger.warning("Routing attempt %d failed: %s", attempt + 1, outcome.error.reason)
-            if attempt >= self._max_retries:
+            delay = self._retry_delay(attempt, outcome.retry_after_s)
+            if attempt >= self._max_retries or self._clock() + delay >= deadline:
                 raise outcome.error
-            await self._sleep(self._retry_delay(attempt, outcome.retry_after_s))
+            await self._sleep(delay)
             attempt += 1
 
     async def _attempt(
-        self, body: Mapping[str, object], headers: Mapping[str, str]
+        self, body: Mapping[str, object], headers: Mapping[str, str], *, remaining_s: float
     ) -> RouteResult | _TransientFailure:
         try:
-            response = await self._http.post(DIRECTIONS_PATH, json=body, headers=headers)
+            async with asyncio.timeout(remaining_s):
+                response = await self._http.post(DIRECTIONS_PATH, json=body, headers=headers)
+        except TimeoutError:
+            raise RoutingProviderError("timeout") from None
         except httpx.TimeoutException:
             return _TransientFailure(RoutingProviderError("timeout"))
         except httpx.TransportError:
