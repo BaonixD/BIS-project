@@ -1,6 +1,6 @@
 # BIS-project — Mini Taxi Service
 
-Учебный проект по Basics of Information Systems. На текущем этапе подготовлены спецификация и пакет реализации бэкенда для Claude Code; реализованы основа приложения (T00: запуск API, health endpoints, единый формат ошибок, локальные проверки) и слой БД (T01: SQLite, Alembic, тестовая изоляция). Предметных таблиц и функциональности ещё нет.
+Учебный проект по Basics of Information Systems. На текущем этапе подготовлены спецификация и пакет реализации бэкенда для Claude Code; реализованы основа приложения (T00: запуск API, health endpoints, единый формат ошибок, локальные проверки), слой БД (T01: SQLite, Alembic, тестовая изоляция) и вход (T02: регистрация, серверные сессии, CSRF, роли — раздел [Аутентификация](#аутентификация)). Профили, поездки и оплата появятся в следующих задачах.
 
 Стек: Python, FastAPI, SQLAlchemy; на текущем этапе SQLite без Docker ([ADR 0001](docs/decisions/0001-sqlite-without-docker.md)). Локальный модульный монолит, без CI и микросервисов. React-интерфейс — следующий этап.
 
@@ -44,6 +44,11 @@ cp .env.example .env  # локальные настройки; .env не ком�
 | `DATABASE_URL` | — (обязательна) | URL БД для приложения и Alembic; локально `sqlite+aiosqlite:///./taxi.db` |
 | `KASPI_PAYMENT_URL` | пусто | Ссылка Kaspi владельца (хост `pay.kaspi.kz`); используется с T08, только в локальном `.env` |
 | `ROUTING_API_KEY` | пусто | Ключ сервиса дорожных маршрутов; используется с T04, только в локальном `.env` |
+| `SESSION_COOKIE_SECURE` | `true` | Флаг `Secure` cookie сессии; для локального `http://` — `false` (так в `.env.example`) |
+| `CORS_ALLOWED_ORIGINS` | пусто | Origin браузерных клиентов через запятую, без `*`: CORS с credentials и проверка `Origin` у login/register |
+| `PASSWORD_HASH_TIME_COST`, `PASSWORD_HASH_MEMORY_KIB`, `PASSWORD_HASH_PARALLELISM` | `3`, `65536`, `4` | Параметры Argon2id (RFC 9106 low-memory); уменьшаются только в тестах |
+| `LOGIN_MAX_ATTEMPTS`, `LOGIN_ATTEMPT_WINDOW_SECONDS`, `LOGIN_LIMITER_MAX_KEYS` | `5`, `900`, `10000` | Ограничитель попыток входа на username |
+| `ADMIN_PASSWORD` | — | Только для `scripts/create_admin.py`; в `.env` не хранить |
 
 Значения берутся из окружения процесса и из `.env` в текущем каталоге. Переменные последующих задач, которые приложение ещё не читает, игнорируются. Файлы `*.db`, `*.db-wal`, `*.db-shm` не попадают в Git.
 
@@ -117,6 +122,63 @@ uv run uvicorn --factory taxi_service.main:create_app --port 8000
 
 Миграции и seed при запуске не выполняются; это отдельные команды. Engine создаётся в lifespan и закрывается при остановке.
 
+### Аутентификация
+
+Серверные сессии по username/password, решение — [ADR 0003](docs/decisions/0003-auth-sessions-csrf.md). Маршруты под `/api/v1/auth`:
+
+| Маршрут | Что делает | Ошибки |
+| --- | --- | --- |
+| `POST /register` | `{username, password, role}` → `201` пользователь без пароля; `role` — `passenger` или `driver` | `422` (формат, `role=admin`), `409 username_taken`, `403 origin_not_allowed` |
+| `POST /login` | `{username, password}` → `200 {user, csrf_token, expires_at}` и cookie `taxi_session` | `401 invalid_credentials` (одинаково для неверного пароля и неизвестного username), `429 too_many_attempts`, `403 origin_not_allowed` |
+| `GET /session` | текущий пользователь и `csrf_token` сессии | `401 not_authenticated` |
+| `POST /logout` | отзывает сессию в БД и удаляет cookie → `204` | `401 not_authenticated`, `403 csrf_failed` |
+
+- Username: 3–32 символа `[A-Za-z0-9_]`, уникален без учёта регистра; вход тоже без учёта регистра, написание сохраняется. Пароль: 10–128 символов, хранится только как Argon2id-хеш.
+- Cookie `taxi_session`: `HttpOnly`, `SameSite=Lax`, `Path=/`, 7 дней. `Secure` управляется `SESSION_COOKIE_SECURE`: по умолчанию включён; для локального HTTP в `.env` — `false`, иначе браузер не вернёт cookie. В БД хранится только SHA-256 токена. Срок — 7 дней по серверным часам; новый вход в том же клиенте отзывает прежнюю сессию.
+- CSRF: каждый `POST/PUT/PATCH/DELETE` с cookie сессии требует заголовок `X-CSRF-Token` со значением `csrf_token` именно этой сессии, иначе `403 csrf_failed`. GET его не требует.
+- Origin: login и register с заголовком `Origin` принимаются, только если он есть в `CORS_ALLOWED_ORIGINS` или совпадает с origin самого API (Swagger UI); иначе `403 origin_not_allowed`. Запросы без `Origin` (curl, HTTPX) допускаются.
+- Перебор: не больше 5 попыток входа на username за 15 минут (`429`, `details.retry_after_seconds`); счётчики в памяти процесса и сбрасываются при перезапуске.
+- В коде: зависимости `CurrentUser` и `require_roles(...)` из `taxi_service.modules.auth.dependencies` (`401 not_authenticated`, `403 forbidden`).
+
+Пример через curl с cookie jar (сервер запущен с `SESSION_COOKIE_SECURE=false`, т. к. адрес `http://`):
+
+```bash
+API=http://127.0.0.1:8000/api/v1
+curl -s -X POST "$API/auth/register" -H 'Content-Type: application/json' \
+  -d '{"username":"alice_01","password":"correct-horse-battery","role":"passenger"}'
+curl -s -c jar.txt -X POST "$API/auth/login" -H 'Content-Type: application/json' \
+  -d '{"username":"alice_01","password":"correct-horse-battery"}'
+CSRF=$(curl -s -b jar.txt "$API/auth/session" | python3 -c 'import json,sys; print(json.load(sys.stdin)["csrf_token"])')
+curl -s -b jar.txt -c jar.txt -X POST "$API/auth/logout" -H "X-CSRF-Token: $CSRF"  # 204
+curl -s -b jar.txt "$API/auth/session"                                               # 401
+```
+
+То же через HTTPX (клиент сам хранит cookie):
+
+```python
+import httpx
+
+with httpx.Client(base_url="http://127.0.0.1:8000/api/v1") as client:
+    credentials = {"username": "alice_01", "password": "correct-horse-battery"}
+    client.post("/auth/register", json={**credentials, "role": "passenger"})
+    client.post("/auth/login", json=credentials).raise_for_status()
+    csrf = client.get("/auth/session").json()["csrf_token"]
+    # любой изменяющий защищённый запрос — с заголовком X-CSRF-Token
+    client.post("/auth/logout", headers={"X-CSRF-Token": csrf}).raise_for_status()
+    assert client.get("/auth/session").status_code == 401
+```
+
+В Swagger UI (`/docs`): выполнить register и login (cookie сохранит браузер), затем скопировать `csrf_token` из `GET /auth/session` в **Authorize → CsrfToken**.
+
+Администратор создаётся только локальной командой, не через API; постоянный пароль в репозиторий не попадает:
+
+```bash
+uv run python scripts/create_admin.py --username admin   # пароль спросит дважды (getpass)
+ADMIN_PASSWORD='...' uv run python scripts/create_admin.py --username admin   # без запроса
+```
+
+Коды выхода: `0` — создан; `1` — username уже существует в любом регистре (ничего не меняется) либо БД отсутствует или не мигрирована; `2` — некорректные username или пароль.
+
 ### Ошибки, request_id и логи
 
 Любой ответ с ошибкой, включая неизвестный маршрут (404), неверный метод (405), ошибку валидации (422) и непредвиденную ошибку (500), имеет формат из [MVP_SPEC §3](docs/MVP_SPEC.md#3-общий-контракт-api):
@@ -133,11 +195,11 @@ uv run uvicorn --factory taxi_service.main:create_app --port 8000
 
 ```bash
 uv run python scripts/lint.py        # ruff check + ruff format --check, файлы не меняет
-uv run mypy src/taxi_service tests   # strict
+uv run mypy src/taxi_service tests scripts   # strict
 uv run pytest                        # unit, API, интеграция с БД и миграции; без внешних сервисов
 ```
 
-Тесты не используют `DATABASE_URL` и `taxi.db`: переменная удаляется из окружения теста. Шаблонная БД один раз мигрируется через Alembic во временном каталоге pytest, каждый тест получает собственную копию файла (`tests/conftest.py`: фикстуры `database_url`, `engine`, `session_factory`, `app`, `client`, `empty_database_url`). Удалять и перезаписывать файлы БД фикстуры могут только внутри временного каталога pytest, независимо от имени файла (`taxi_service.database.safety`). `:memory:` не используется: конкурентным тестам нужны независимые соединения к одному файлу.
+Тесты не используют `DATABASE_URL` и `taxi.db`: переменная удаляется из окружения теста. Шаблонная БД один раз мигрируется через Alembic во временном каталоге pytest, каждый тест получает собственную копию файла (`tests/conftest.py`: фикстуры `database_url`, `engine`, `session_factory`, `settings`, `clock`, `app`, `client`, `empty_database_url`). Фикстура `settings` сохраняет безопасные значения по умолчанию и снижает только стоимость Argon2id; `clock` — `ManualClock`, время двигается через `clock.advance(...)` без ожидания; `client` работает с `https://testserver`, поэтому cookie с `Secure` возвращается. Общие помощники — пакет `tests/support` (импорт `support.*`): `support.auth.register_and_login(client, username, role=...)` регистрирует и входит, возвращая пользователя с `csrf_headers` для изменяющих запросов. Удалять и перезаписывать файлы БД фикстуры могут только внутри временного каталога pytest, независимо от имени файла (`taxi_service.database.safety`). `:memory:` не используется: конкурентным тестам нужны независимые соединения к одному файлу.
 
 Явное исправление стиля — отдельными командами:
 
