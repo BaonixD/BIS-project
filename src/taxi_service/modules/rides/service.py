@@ -21,6 +21,7 @@ from taxi_service.modules.rides.exceptions import (
 )
 from taxi_service.modules.rides.idempotency import request_fingerprint
 from taxi_service.modules.rides.models import IdempotencyRecord, Ride, RideQuote
+from taxi_service.modules.rides.policy import DEFAULT_DISPATCH_POLICY, DispatchPolicy
 from taxi_service.modules.rides.pricing import Fare, calculate_fare
 from taxi_service.modules.rides.repository import RideRepository
 from taxi_service.modules.rides.schemas import QuoteRequest, RideCreateRequest
@@ -41,9 +42,15 @@ class RideCreation:
 class RideService:
     """Quotes and ride creation of a passenger; callers pass the passenger's user id."""
 
-    def __init__(self, session: AsyncSession, clock: Clock) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        clock: Clock,
+        policy: DispatchPolicy = DEFAULT_DISPATCH_POLICY,
+    ) -> None:
         self._session = session
         self._clock = clock
+        self._policy = policy
         self._rides = RideRepository(session)
 
     async def create_quote(
@@ -132,7 +139,7 @@ class RideService:
             raise QuoteExpiredError
         if await self._rides.has_active_ride(passenger_id):
             raise ActiveRideExistsError
-        ride = Ride.from_quote(quote, now)
+        ride = Ride.from_quote(quote, now, search_budget=self._policy.search_budget)
         await self._rides.add_ride(ride)
         return ride
 
