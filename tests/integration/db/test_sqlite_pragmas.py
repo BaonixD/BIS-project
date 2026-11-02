@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
@@ -23,9 +25,17 @@ async def test_foreign_keys_are_enforced(session_factory: SessionFactory) -> Non
 
 
 async def test_every_connection_has_foreign_keys_enabled(session_factory: SessionFactory) -> None:
-    async with session_factory() as first, session_factory() as second:
-        assert await first.scalar(text("PRAGMA foreign_keys")) == 1
-        assert await second.scalar(text("PRAGMA foreign_keys")) == 1
+    async def foreign_keys_on_own_connection() -> object:
+        async with session_factory() as session:
+            value = await session.scalar(text("PRAGMA foreign_keys"))
+            await asyncio.sleep(0.05)  # keep this connection checked out
+            return value
+
+    # Overlapping sessions cannot share a pooled connection.
+    values = await asyncio.gather(
+        foreign_keys_on_own_connection(), foreign_keys_on_own_connection()
+    )
+    assert list(values) == [1, 1]
 
 
 async def test_journal_mode_is_wal(session_factory: SessionFactory) -> None:
