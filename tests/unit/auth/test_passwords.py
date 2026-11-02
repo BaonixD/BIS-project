@@ -3,6 +3,7 @@
 import asyncio
 import threading
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -71,7 +72,7 @@ async def test_hashing_runs_at_most_max_concurrency_at_once(
             running -= 1
         return password
 
-    monkeypatch.setattr(hasher._hasher, "hash", slow_hash)
+    monkeypatch.setattr(hasher, "_hasher", SimpleNamespace(hash=slow_hash))
 
     await asyncio.gather(*(hasher.hash(f"password-{index}") for index in range(6)))
 
