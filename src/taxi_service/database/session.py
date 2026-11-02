@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends, Request
@@ -44,3 +45,9 @@ async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
 
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+
+
+@asynccontextmanager
+async def read_transaction(session: AsyncSession) -> AsyncIterator[AsyncSession]:
+    async with session.begin():
+        yield session
