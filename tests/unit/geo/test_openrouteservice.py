@@ -21,7 +21,7 @@ ORIGIN = Coordinates(longitude=76.9572, latitude=43.2389)
 DESTINATION = Coordinates(longitude=76.9286, latitude=43.2187)
 LINE = [[76.957247, 43.238911], [76.941002, 43.229514], [76.928612, 43.218701]]
 
-Reply = httpx.Response | type[httpx.TransportError]
+Reply = httpx.Response | type[httpx.RequestError]
 
 
 @pytest.fixture(autouse=True)
@@ -264,6 +264,36 @@ async def test_provider_error_never_echoes_the_key() -> None:
     exposed.append(json.dumps(caught.value.details))
     assert all(TEST_KEY not in text for text in exposed)
     assert caught.value.__cause__ is None
+
+
+@pytest.mark.parametrize(
+    ("reply", "reason"),
+    [
+        (
+            httpx.Response(
+                200, headers={"Content-Encoding": "gzip"}, stream=httpx.ByteStream(b"not gzip")
+            ),
+            "invalid_response",
+        ),
+        (httpx.DecodingError, "invalid_response"),
+        (httpx.TooManyRedirects, "rejected"),
+        (httpx.RequestError, "rejected"),
+    ],
+    ids=["corrupt_gzip_body", "decoding_error", "too_many_redirects", "other_request_error"],
+)
+async def test_non_transport_request_errors_are_provider_errors_without_retry(
+    reply: Reply, reason: str
+) -> None:
+    provider = FakeProvider(reply, ok())
+
+    async with ors_client(provider) as client:
+        with pytest.raises(RoutingProviderError) as caught:
+            await client.get_route(ORIGIN, DESTINATION)
+
+    assert caught.value.details == {"reason": reason, "provider_status": None}
+    assert caught.value.__cause__ is None
+    assert len(provider.requests) == 1
+    assert provider.sleeps == []
 
 
 @pytest.mark.parametrize(
