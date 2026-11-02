@@ -164,9 +164,9 @@ class Ride(RouteSnapshot, Base):
             postgresql_where=_status_in(ACCEPTED_ACTIVE_RIDE_STATUSES),
         ),
         CheckConstraint("search_deadline > search_started_at", name="search_deadline_after_start"),
-        # Ride history of a passenger or a driver, newest first (T09).
-        Index(PASSENGER_HISTORY_INDEX, "passenger_id", "created_at"),
-        Index(DRIVER_HISTORY_INDEX, "driver_id", "created_at"),
+        # History of a passenger or a driver: ORDER BY created_at DESC, id DESC (T09).
+        Index(PASSENGER_HISTORY_INDEX, "passenger_id", "created_at", "id"),
+        Index(DRIVER_HISTORY_INDEX, "driver_id", "created_at", "id"),
         # The dispatch loop looks for searching rides only.
         Index(
             SEARCHING_DEADLINE_INDEX,

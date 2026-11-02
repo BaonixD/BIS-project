@@ -51,8 +51,10 @@ def upgrade() -> None:
         batch_op.create_check_constraint(
             op.f("ck_rides_search_deadline_after_start"), "search_deadline > search_started_at"
         )
-    op.create_index("ix_rides_passenger_id_created_at", "rides", ["passenger_id", "created_at"])
-    op.create_index("ix_rides_driver_id_created_at", "rides", ["driver_id", "created_at"])
+    op.create_index(
+        "ix_rides_passenger_id_created_at", "rides", ["passenger_id", "created_at", "id"]
+    )
+    op.create_index("ix_rides_driver_id_created_at", "rides", ["driver_id", "created_at", "id"])
     op.create_index(
         "ix_rides_searching_search_deadline",
         "rides",
