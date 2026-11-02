@@ -19,7 +19,7 @@ class RoutingSettings(BaseSettings):
 
     @field_validator("api_key", mode="before")
     @classmethod
-    def blank_key_means_unset(cls, value: object) -> object:
-        if isinstance(value, str) and not value.strip():
-            return None
+    def strip_key(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip() or None
         return value
