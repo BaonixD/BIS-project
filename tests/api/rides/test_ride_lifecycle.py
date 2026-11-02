@@ -34,11 +34,11 @@ from support.lifecycle import (
     trip_in,
 )
 from support.rides import order_ride, ride_url
-from taxi_service.database.session import SessionFactory
+from taxi_service.database.session import SessionFactory, read_transaction
 from taxi_service.modules.geo.schemas import Coordinates
 from taxi_service.modules.rides.dispatch import DispatchService
-from taxi_service.modules.rides.models import Ride
-from taxi_service.modules.rides.states import OfferStatus
+from taxi_service.modules.rides.models import Ride, RideEvent
+from taxi_service.modules.rides.states import OfferStatus, RideCommand, RideStatus
 
 STEP = timedelta(seconds=5)
 OTHER_SPOT = Coordinates(longitude=76.9590, latitude=43.2389)
@@ -618,16 +618,34 @@ async def test_spent_search_budget_records_no_driver_once(
 
 
 class CompletionRecorder:
-    """Stands in for the completion hook; T08 creates the payment record there."""
+    """Stands in for the completion hook; T08 creates the payment record there.
+
+    With ``fail`` it first writes and flushes a row of its own, as a payment
+    record would be written, then raises: that row must vanish with the rollback.
+    """
 
     def __init__(self) -> None:
         self.calls: list[tuple[uuid.UUID, str, datetime]] = []
         self.fail = False
+        self.written: uuid.UUID | None = None
 
     async def __call__(self, session: AsyncSession, ride: Ride, now: datetime) -> None:
         assert session.in_transaction()
         self.calls.append((ride.id, ride.status.value, now))
         if self.fail:
+            row = RideEvent(
+                id=uuid.uuid4(),
+                ride_id=ride.id,
+                from_status=RideStatus.IN_PROGRESS,
+                to_status=RideStatus.COMPLETED,
+                command=RideCommand.COMPLETE,
+                actor_id=None,
+                reason="written by the completion hook",
+                created_at=now,
+            )
+            session.add(row)
+            await session.flush()
+            self.written = row.id
             raise RuntimeError("payment record failed")
 
 
@@ -670,3 +688,6 @@ async def test_failing_completion_hook_rolls_the_completion_back(
     ride = await dispatcher.ride(trip.ride_id)
     assert (ride.status.value, ride.completed_at) == ("in_progress", None)
     assert "complete" not in await commands_of(session_factory, trip.ride_id)
+    assert completion.written is not None
+    async with session_factory() as session, read_transaction(session):
+        assert await session.get(RideEvent, completion.written) is None
