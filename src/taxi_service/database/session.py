@@ -22,7 +22,8 @@ def create_database_engine(url: str, *, enforce_foreign_keys: bool = True) -> As
     SQLite engines get the connection setup described in
     :func:`taxi_service.database.sqlite.configure_sqlite_engine`.
     """
-    engine = create_async_engine(url)
+    # Parameters may hold password hashes; keep them out of exception text and logs.
+    engine = create_async_engine(url, hide_parameters=True)
     if engine.dialect.name == "sqlite":
         configure_sqlite_engine(engine.sync_engine, enforce_foreign_keys=enforce_foreign_keys)
     return engine

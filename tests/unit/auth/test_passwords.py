@@ -1,5 +1,10 @@
 """Argon2id password hashing through argon2-cffi, with light parameters for speed."""
 
+import asyncio
+import threading
+import time
+from types import SimpleNamespace
+
 import pytest
 
 from taxi_service.core.config import Settings
@@ -47,3 +52,28 @@ def test_settings_defaults_give_rfc_9106_parameters() -> None:
     hasher = PasswordHasher.from_settings(settings)
 
     assert (hasher.time_cost, hasher.memory_kib, hasher.parallelism) == (3, 65536, 4)
+
+
+async def test_hashing_runs_at_most_max_concurrency_at_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    hasher = PasswordHasher(time_cost=1, memory_kib=8, parallelism=1, max_concurrency=2)
+    running = 0
+    peak = 0
+    lock = threading.Lock()
+
+    def slow_hash(password: str) -> str:
+        nonlocal running, peak
+        with lock:
+            running += 1
+            peak = max(peak, running)
+        time.sleep(0.02)
+        with lock:
+            running -= 1
+        return password
+
+    monkeypatch.setattr(hasher, "_hasher", SimpleNamespace(hash=slow_hash))
+
+    await asyncio.gather(*(hasher.hash(f"password-{index}") for index in range(6)))
+
+    assert peak == 2

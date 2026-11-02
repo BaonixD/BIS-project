@@ -39,6 +39,14 @@ def _probe_router() -> APIRouter:
     async def delete_protected(user: CurrentUser) -> dict[str, str]:
         return {"user_id": str(user.id)}
 
+    @router.put(PROTECTED_URL)
+    async def replace_protected(user: CurrentUser) -> dict[str, str]:
+        return {"user_id": str(user.id)}
+
+    @router.patch(PROTECTED_URL)
+    async def update_protected(user: CurrentUser) -> dict[str, str]:
+        return {"user_id": str(user.id)}
+
     return router
 
 
@@ -109,7 +117,7 @@ async def test_safe_methods_do_not_need_csrf_token(client: httpx.AsyncClient) ->
     assert (await client.get(PROTECTED_URL)).status_code == 200
 
 
-@pytest.mark.parametrize("method", ["POST", "DELETE"])
+@pytest.mark.parametrize("method", ["POST", "PUT", "PATCH", "DELETE"])
 async def test_state_change_without_csrf_token_is_refused(
     client: httpx.AsyncClient, method: str
 ) -> None:
@@ -155,3 +163,16 @@ async def test_csrf_token_of_a_logged_out_session_stops_working(
     assert new.csrf_token != old.csrf_token
     assert_error(await client.post(PROTECTED_URL, headers=old.csrf_headers), 403, "csrf_failed")
     assert (await client.post(PROTECTED_URL, headers=new.csrf_headers)).status_code == 200
+
+
+async def test_logout_keeps_sessions_of_other_browsers(client: httpx.AsyncClient) -> None:
+    await register_and_login(client, "alice")
+    first_token = client.cookies[SESSION_COOKIE]
+    client.cookies.clear()
+    assert (await login(client, "alice")).status_code == 200
+    second = await current_session(client)
+
+    assert (await client.post(LOGOUT_URL, headers=second.csrf_headers)).status_code == 204
+
+    use_session_token(client, first_token)
+    assert (await client.get(SESSION_URL)).status_code == 200
