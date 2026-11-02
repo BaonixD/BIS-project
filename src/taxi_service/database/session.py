@@ -4,6 +4,7 @@ from typing import Annotated
 
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import (
+    AsyncConnection,
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
@@ -67,3 +68,12 @@ async def read_transaction(session: AsyncSession) -> AsyncIterator[AsyncSession]
     async with session.begin():
         await session.connection(execution_options={READ_ONLY_OPTION: True})
         yield session
+
+
+@asynccontextmanager
+async def read_connection(engine: AsyncEngine) -> AsyncIterator[AsyncConnection]:
+    """Core counterpart of :func:`read_transaction` for code without a session."""
+    async with engine.connect() as connection:
+        reader = await connection.execution_options(**{READ_ONLY_OPTION: True})
+        async with reader.begin():
+            yield reader
