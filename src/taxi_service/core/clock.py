@@ -5,7 +5,9 @@ Session expiry, rate limiting and later offer deadlines read the time through a
 """
 
 from datetime import UTC, datetime
-from typing import Protocol
+from typing import Annotated, Protocol
+
+from fastapi import Depends, Request
 
 
 class Clock(Protocol):
@@ -19,3 +21,12 @@ class SystemClock:
 
     def now(self) -> datetime:
         return datetime.now(UTC)
+
+
+def get_clock(request: Request) -> Clock:
+    """FastAPI dependency: the application's clock from ``app.state.clock``."""
+    clock: Clock = request.app.state.clock
+    return clock
+
+
+ClockDep = Annotated[Clock, Depends(get_clock)]

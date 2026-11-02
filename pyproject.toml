@@ -48,6 +48,8 @@ plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Shared test helpers: tests/support is importable as ``support``.
+pythonpath = ["tests"]
 addopts = ["--strict-markers", "--strict-config", "--import-mode=importlib"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
