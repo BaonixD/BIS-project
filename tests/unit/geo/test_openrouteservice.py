@@ -254,6 +254,86 @@ async def test_provider_error_never_echoes_the_key() -> None:
     assert caught.value.__cause__ is None
 
 
+@pytest.mark.parametrize(
+    "first_failure",
+    [
+        httpx.Response(429, json={"error": "Rate Limit Exceeded"}),
+        httpx.Response(500, json={"error": {"code": 2099, "message": "Unknown internal error"}}),
+        httpx.Response(502, text="Bad Gateway"),
+        httpx.Response(503, text="Service Unavailable"),
+        httpx.ReadTimeout,
+        httpx.ConnectError,
+    ],
+    ids=["429", "500", "502", "503", "read_timeout", "connect_error"],
+)
+async def test_transient_failure_is_retried_then_succeeds(first_failure: Reply) -> None:
+    provider = FakeProvider(first_failure, ok())
+
+    async with ors_client(provider) as client:
+        route = await client.get_route(ORIGIN, DESTINATION)
+
+    assert route.distance_m == 4120
+    assert len(provider.requests) == 2
+    assert provider.sleeps == [0.5]
+    first, second = provider.requests
+    assert first.content == second.content
+    assert second.headers["Authorization"] == TEST_KEY
+
+
+@pytest.mark.parametrize(
+    ("failure", "reason", "provider_status"),
+    [
+        (httpx.Response(429, json={"error": "Rate Limit Exceeded"}), "rate_limited", 429),
+        (httpx.Response(500, text="Internal Server Error"), "provider_unavailable", 500),
+        (httpx.Response(503, text="Service Unavailable"), "provider_unavailable", 503),
+        (httpx.ReadTimeout, "timeout", None),
+        (httpx.ConnectTimeout, "timeout", None),
+        (httpx.ConnectError, "connection_error", None),
+    ],
+    ids=["429", "500", "503", "read_timeout", "connect_timeout", "connect_error"],
+)
+async def test_retries_are_bounded_and_end_in_provider_error(
+    failure: Reply, reason: str, provider_status: int | None
+) -> None:
+    provider = FakeProvider(failure, failure, failure, ok())
+
+    async with ors_client(provider) as client:
+        with pytest.raises(RoutingProviderError) as caught:
+            await client.get_route(ORIGIN, DESTINATION)
+
+    assert len(provider.requests) == 3
+    assert provider.sleeps == [0.5, 1.0]
+    assert caught.value.status_code == 503
+    assert caught.value.details == {"reason": reason, "provider_status": provider_status}
+    assert TEST_KEY not in str(caught.value)
+    assert caught.value.__cause__ is None
+
+
+async def test_zero_retries_means_a_single_attempt() -> None:
+    provider = FakeProvider(httpx.Response(503), ok())
+
+    async with ors_client(provider, max_retries=0) as client:
+        with pytest.raises(RoutingProviderError):
+            await client.get_route(ORIGIN, DESTINATION)
+
+    assert len(provider.requests) == 1
+    assert provider.sleeps == []
+
+
+async def test_backoff_grows_exponentially_up_to_the_cap() -> None:
+    failure = httpx.Response(503)
+    provider = FakeProvider(failure, failure, failure, failure)
+
+    async with ors_client(
+        provider, max_retries=3, retry_backoff_s=2.0, max_retry_delay_s=3.0
+    ) as client:
+        with pytest.raises(RoutingProviderError):
+            await client.get_route(ORIGIN, DESTINATION)
+
+    assert len(provider.requests) == 4
+    assert provider.sleeps == [2.0, 3.0, 3.0]
+
+
 async def test_client_repr_does_not_expose_key() -> None:
     async with ors_client(FakeProvider()) as client:
         assert TEST_KEY not in repr(client)
