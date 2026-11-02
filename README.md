@@ -1,6 +1,6 @@
 # BIS-project — Mini Taxi Service
 
-Учебный проект по Basics of Information Systems. На текущем этапе подготовлены спецификация и пакет реализации бэкенда для Claude Code; реализована основа приложения (T00): запуск API, health endpoints, единый формат ошибок и локальные проверки. Предметной функциональности и подключения БД ещё нет.
+Учебный проект по Basics of Information Systems. На текущем этапе подготовлены спецификация и пакет реализации бэкенда для Claude Code; реализованы основа приложения (T00: запуск API, health endpoints, единый формат ошибок, локальные проверки) и слой БД (T01: SQLite, Alembic, тестовая изоляция). Предметных таблиц и функциональности ещё нет.
 
 Стек: Python, FastAPI, SQLAlchemy; на текущем этапе SQLite без Docker ([ADR 0001](docs/decisions/0001-sqlite-without-docker.md)). Локальный модульный монолит, без CI и микросервисов. React-интерфейс — следующий этап.
 
@@ -19,7 +19,7 @@
 
 Два профиля для Claude Code находятся в [.claude/agents](.claude/agents): изолированный исполнитель и независимый ревьюер. Главная сессия использует их правила при делегировании задач.
 
-Реализация собирается в `integration/backend-mvp` для итогового ревью Astra. Команды установки, запуска и проверок — в разделе [Локальная разработка](#локальная-разработка); миграции и seed добавит T01.
+Реализация собирается в `integration/backend-mvp` для итогового ревью Astra. Команды установки, миграций, запуска и проверок — в разделе [Локальная разработка](#локальная-разработка); seed появится в последующих задачах.
 
 ## Локальная разработка
 
@@ -41,24 +41,81 @@ cp .env.example .env  # локальные настройки; .env не ком�
 | Переменная | Значение по умолчанию | Назначение |
 | --- | --- | --- |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` или `CRITICAL`, без учёта регистра |
-| `DATABASE_URL` | — | Локальная SQLite-БД, например `sqlite+aiosqlite:///./taxi.db`; читается приложением с T01 |
+| `DATABASE_URL` | — (обязательна) | URL БД для приложения и Alembic; локально `sqlite+aiosqlite:///./taxi.db` |
 | `KASPI_PAYMENT_URL` | пусто | Ссылка Kaspi владельца (хост `pay.kaspi.kz`); используется с T08, только в локальном `.env` |
 | `ROUTING_API_KEY` | пусто | Ключ сервиса дорожных маршрутов; используется с T04, только в локальном `.env` |
 
 Значения берутся из окружения процесса и из `.env` в текущем каталоге. Переменные последующих задач, которые приложение ещё не читает, игнорируются. Файлы `*.db`, `*.db-wal`, `*.db-shm` не попадают в Git.
 
+### База данных и миграции
+
+Локальная БД — файл SQLite ([ADR 0001](docs/decisions/0001-sqlite-without-docker.md)). В `sqlite+aiosqlite:///./taxi.db` путь относителен текущего каталога: команды запускаются из корня репозитория, файл — `./taxi.db` (рядом с ним при работе появляются `taxi.db-wal` и `taxi.db-shm`). Абсолютный путь пишется с четырьмя слешами: `sqlite+aiosqlite:////abs/path/taxi.db`.
+
+Схема создаётся и обновляется только миграциями Alembic, отдельной командой до запуска API:
+
+```bash
+uv run alembic upgrade head   # создать/обновить схему; повторный запуск ничего не меняет
+uv run alembic check          # модели и схема БД совпадают (нет операций для autogenerate)
+uv run alembic current        # ревизия БД;  uv run alembic heads — ожидаемая (одна)
+```
+
+Alembic берёт URL из `DATABASE_URL` (окружение или `.env`); в `alembic.ini` URL не хранится. Чтобы проверить миграции на одноразовой БД, а не на рабочей, задайте URL явно: `DATABASE_URL=sqlite+aiosqlite:///./scratch-test.db uv run alembic upgrade head`.
+
+Соединения SQLite открываются с `foreign_keys=ON`, WAL и `busy_timeout=5000` (подробности — `src/taxi_service/database/sqlite.py`). У сессий отключён autobegin: запрос вне явной транзакции вызывает ошибку. Есть два пути:
+
+| Путь | Код | SQLite |
+| --- | --- | --- |
+| Запись, а также чтение, от которого зависит запись | `async with session.begin():` | `BEGIN IMMEDIATE`: пишущие транзакции выполняются по очереди |
+| Только чтение | `async with read_transaction(session):` (`taxi_service.database.session`); без сессии — `read_connection(engine)` | `BEGIN DEFERRED` + `PRAGMA query_only`: не ждёт писателей, любая запись падает с ошибкой |
+
+Правило: роутер или auth-зависимость — короткий `read_transaction`; сервис — один `async with session.begin()` на операцию; внутри транзакции никогда не ждать внешний HTTP (маршруты) и другой медленный ввод-вывод. `SessionDep` сам ничего не открывает и не коммитит. Опция выполнения `isolation_level` (включая `AUTOCOMMIT`) с этой схемой не поддерживается и отклоняется.
+
+Миграции работают с отключённой на время проверкой внешних ключей (пересоздание таблицы в batch-режиме иначе каскадно удалило бы связанные строки) и перед commit выполняют `PRAGMA foreign_key_check`; при нарушении вся ревизия откатывается.
+
+Новая модель: класс от `taxi_service.database.base.Base` (время — `UtcDateTime`), импорт её модуля в `src/taxi_service/database/metadata.py`, затем `uv run alembic revision --autogenerate -m "..."`, ручная проверка ревизии, `upgrade head` и `check` на одноразовой БД. История ревизий линейная, с одной head; первая ревизия `baseline` пустая.
+
+Ограничение: путь к `alembic.ini` и `alembic/` вычисляется от расположения исходников (`taxi_service/database/migrations.py`, `parents[3]` — корень репозитория). Это работает при запуске из репозитория (editable-установка `uv sync`); из собранного wheel без репозитория readiness и `alembic_config()` каталог миграций не найдут.
+
+### Резервная копия и восстановление локальной БД
+
+Делайте копию перед потенциально разрушительными изменениями (новые миграции, ручные правки). Каталог `backups/` создаётся вручную; файлы `*.db` в Git не попадают.
+
+Копия при остановленном приложении — просто файл. После корректной остановки содержимое WAL уже перенесено в основной файл; если `taxi.db-wal` непустой, скопируйте его вместе с `taxi.db`:
+
+```bash
+mkdir -p backups
+cp taxi.db "backups/taxi-$(date +%Y%m%d-%H%M%S).db"
+```
+
+Согласованная копия без остановки приложения — встроенной командой SQLite (`sqlite3` есть в macOS):
+
+```bash
+sqlite3 taxi.db ".backup 'backups/taxi-$(date +%Y%m%d-%H%M%S).db'"
+```
+
+Восстановление — только при остановленном приложении:
+
+```bash
+rm -f taxi.db-wal taxi.db-shm             # служебные файлы WAL текущей БД
+cp backups/taxi-YYYYMMDD-HHMMSS.db taxi.db
+sqlite3 taxi.db "PRAGMA integrity_check"  # ожидается: ok
+uv run alembic upgrade head               # если копия старше текущих миграций
+```
+
 ### Запуск API
 
 ```bash
+uv run alembic upgrade head
+
 uv run uvicorn --factory taxi_service.main:create_app --port 8000
 # для разработки: добавить --reload
 ```
 
 - `GET /health/live` — `200 {"status": "ok"}`, процесс отвечает.
-- `GET /health/ready` — до T01 всегда `503` с кодом `database_not_configured`: БД ещё не подключена, и готовность не сообщается без реальной проверки. T01 заменит это проверкой соединения с БД.
+- `GET /health/ready` — `200 {"status": "ready"}`, только если БД отвечает на `SELECT 1` и её ревизия Alembic совпадает с head; иначе `503` с кодом `database_unavailable` (БД недоступна, файла SQLite нет или проверка не уложилась в 2 с) или `database_not_migrated` (нужно `alembic upgrade head`). Проверка идёт по пути чтения и не ждёт пишущих транзакций; отсутствующий файл не создаётся. URL БД в ответ не попадает.
 - `GET /docs` — Swagger UI, `GET /openapi.json` — схема.
 
-Миграции и seed при запуске не выполняются; это отдельные команды (с T01).
+Миграции и seed при запуске не выполняются; это отдельные команды. Engine создаётся в lifespan и закрывается при остановке.
 
 ### Ошибки, request_id и логи
 
@@ -75,10 +132,12 @@ uv run uvicorn --factory taxi_service.main:create_app --port 8000
 ### Проверки
 
 ```bash
-uv run python scripts/lint.py   # ruff check + ruff format --check, файлы не меняет
-uv run mypy src/taxi_service    # strict
-uv run pytest                   # тесты API и unit, без внешних сервисов
+uv run python scripts/lint.py        # ruff check + ruff format --check, файлы не меняет
+uv run mypy src/taxi_service tests   # strict
+uv run pytest                        # unit, API, интеграция с БД и миграции; без внешних сервисов
 ```
+
+Тесты не используют `DATABASE_URL` и `taxi.db`: переменная удаляется из окружения теста. Шаблонная БД один раз мигрируется через Alembic во временном каталоге pytest, каждый тест получает собственную копию файла (`tests/conftest.py`: фикстуры `database_url`, `engine`, `session_factory`, `app`, `client`, `empty_database_url`). Удалять и перезаписывать файлы БД фикстуры могут только внутри временного каталога pytest, независимо от имени файла (`taxi_service.database.safety`). `:memory:` не используется: конкурентным тестам нужны независимые соединения к одному файлу.
 
 Явное исправление стиля — отдельными командами:
 
