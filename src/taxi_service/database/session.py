@@ -1,3 +1,7 @@
+from collections.abc import AsyncIterator
+from typing import Annotated
+
+from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -25,3 +29,11 @@ def create_database_engine(url: str, *, enforce_foreign_keys: bool = True) -> As
 def create_session_factory(engine: AsyncEngine) -> SessionFactory:
     """Sessions keep loaded attributes after commit so responses need no extra SQL."""
     return async_sessionmaker(engine, expire_on_commit=False)
+
+
+async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
+    raise NotImplementedError
+    yield  # pragma: no cover
+
+
+SessionDep = Annotated[AsyncSession, Depends(get_session)]
