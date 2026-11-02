@@ -39,6 +39,7 @@ from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.users.exceptions import UsernameTakenError
 from taxi_service.modules.users.schemas import NewPassword
 from taxi_service.seeds.demo import (
+    DEMO_PICKUP,
     DemoPlan,
     DemoSeedConflictError,
     SeedReport,
@@ -159,7 +160,8 @@ def _validated_password(value: str) -> str:
 
 
 def _print_report(url: URL, report: SeedReport) -> None:
-    print(f"Demo seed: {Path(url.database or '').name}")
+    pickup = f"latitude {DEMO_PICKUP.latitude}, longitude {DEMO_PICKUP.longitude}"
+    print(f"Demo seed: {Path(url.database or '').name} (demo pickup: {pickup})")
     for entry in report.entries:
         line = f"  {entry.action:<9} {entry.role.value:<9} {entry.username:<16} {entry.detail}"
         print(line.rstrip())
