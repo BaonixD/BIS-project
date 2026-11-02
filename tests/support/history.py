@@ -41,6 +41,8 @@ RIDE_SUMMARY_FIELDS = frozenset(
         "currency",
         "created_at",
         "updated_at",
+        "payment_status",
+        "payment_method",
     }
 )
 
