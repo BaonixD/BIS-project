@@ -10,6 +10,7 @@ from taxi_service.core.config import Settings
 from taxi_service.database.metadata import target_metadata
 from taxi_service.database.migrations import render_item
 from taxi_service.database.session import create_database_engine
+from taxi_service.database.sqlite import check_foreign_keys
 
 config = context.config
 
@@ -46,10 +47,14 @@ def do_run_migrations(connection: Connection) -> None:
     )
     with context.begin_transaction():
         context.run_migrations()
+        if connection.dialect.name == "sqlite":
+            check_foreign_keys(connection)
 
 
 async def run_async_migrations() -> None:
-    engine = create_database_engine(database_url())
+    # SQLite batch rebuilds DROP tables; enforced foreign keys would cascade the
+    # DROP to related rows. Integrity is checked before commit instead.
+    engine = create_database_engine(database_url(), enforce_foreign_keys=False)
     try:
         async with engine.connect() as connection:
             await connection.run_sync(do_run_migrations)
