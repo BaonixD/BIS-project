@@ -10,6 +10,8 @@ from alembic.script import ScriptDirectory
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from taxi_service.database.base import UtcDateTime
+
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 ALEMBIC_INI = PROJECT_ROOT / "alembic.ini"
 
@@ -33,6 +35,13 @@ def expected_heads(config: Config | None = None) -> frozenset[str]:
 
 
 def render_item(type_: str, obj: object, autogen_context: AutogenContext) -> str | Literal[False]:
+    """Autogenerate hook: render project column types as plain SQLAlchemy types.
+
+    Migration scripts stay independent of application code; the type decorator
+    only adds Python-side conversion, the stored column type is the same.
+    """
+    if type_ == "type" and isinstance(obj, UtcDateTime):
+        return "sa.DateTime(timezone=True)"
     return False
 
 

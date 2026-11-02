@@ -8,6 +8,7 @@ from sqlalchemy.engine import Connection
 
 from taxi_service.core.config import Settings
 from taxi_service.database.metadata import target_metadata
+from taxi_service.database.migrations import render_item
 from taxi_service.database.session import create_database_engine
 
 config = context.config
@@ -28,6 +29,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         render_as_batch=True,
+        render_item=render_item,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -38,6 +40,7 @@ def do_run_migrations(connection: Connection) -> None:
         connection=connection,
         target_metadata=target_metadata,
         render_as_batch=True,
+        render_item=render_item,
         # BEGIN IMMEDIATE makes SQLite DDL transactional: a failed upgrade rolls back.
         transactional_ddl=True,
     )
