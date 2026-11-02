@@ -34,17 +34,10 @@ def test_file_inside_temp_root_is_disposable(temp_root: Path) -> None:
     assert disposable_sqlite_path(sqlite_url(path), temp_root=temp_root) == path.resolve()
 
 
-@pytest.mark.parametrize("name", ["test.db", "t01-test.db", "test_t01.db", "Migrations.Test.db"])
-def test_file_named_as_test_database_is_disposable(
-    temp_root: Path, outside: Path, name: str
-) -> None:
-    path = outside / name
-
-    assert disposable_sqlite_path(sqlite_url(path), temp_root=temp_root) == path.resolve()
-
-
-@pytest.mark.parametrize("name", ["taxi.db", "latest.db", "contest.db", "demo.db"])
-def test_other_files_outside_temp_root_are_refused(
+@pytest.mark.parametrize(
+    "name", ["taxi.db", "demo.db", "test.db", "t01-test.db", "test_t01.db", "Migrations.Test.db"]
+)
+def test_files_outside_temp_root_are_refused_whatever_their_name(
     temp_root: Path, outside: Path, name: str
 ) -> None:
     with pytest.raises(UnsafeDatabaseError):
