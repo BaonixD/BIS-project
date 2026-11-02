@@ -17,10 +17,13 @@ class PasswordHasher:
     worker thread instead of blocking other requests.
     """
 
-    def __init__(self, *, time_cost: int, memory_kib: int, parallelism: int) -> None:
+    def __init__(
+        self, *, time_cost: int, memory_kib: int, parallelism: int, max_concurrency: int = 2
+    ) -> None:
         self.time_cost = time_cost
         self.memory_kib = memory_kib
         self.parallelism = parallelism
+        self.max_concurrency = max_concurrency
         self._hasher = argon2.PasswordHasher(
             time_cost=time_cost,
             memory_cost=memory_kib,
