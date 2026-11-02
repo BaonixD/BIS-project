@@ -48,6 +48,16 @@ def test_malformed_database_url_is_rejected() -> None:
         Settings(_env_file=None, database_url="not a database url")
 
 
+def test_rejected_database_url_is_not_echoed_in_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    secret_value = "not-a-url-with-s3cr3t-password"
+    monkeypatch.setenv("DATABASE_URL", secret_value)
+
+    with pytest.raises(ValidationError, match="database_url") as error:
+        Settings(_env_file=None)
+
+    assert secret_value not in str(error.value)
+
+
 def test_database_url_is_hidden_from_repr() -> None:
     settings = Settings(_env_file=None, database_url=DATABASE_URL)
 
