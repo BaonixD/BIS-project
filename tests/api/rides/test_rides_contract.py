@@ -33,6 +33,10 @@ def error_statuses(operation: dict[str, Any]) -> set[str]:
         ("post", "/rides/quotes", "201", {"401", "403", "422", "503"}),
         ("post", "/rides", "201", {"401", "403", "404", "409", "422"}),
         ("get", "/rides/{ride_id}", "200", {"401", "404", "422"}),
+        *(
+            ("post", f"/rides/{{ride_id}}/{command}", "200", {"401", "403", "404", "409", "422"})
+            for command in ("arrive", "start", "complete", "cancel", "release")
+        ),
     ],
 )
 def test_ride_operations_document_their_responses(
