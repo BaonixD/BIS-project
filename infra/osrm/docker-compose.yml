@@ -1,0 +1,15 @@
+# Local OSRM route server for the Almaty agglomeration (ADR 0014).
+# Build the map first: scripts/osrm_prepare.sh
+name: bis-osrm
+
+services:
+  osrm:
+    # Official Project OSRM image, multi-arch: runs natively on Apple Silicon.
+    image: ghcr.io/project-osrm/osrm-backend:v6.0.0
+    command: ["osrm-routed", "--algorithm", "mld", "/data/almaty.osrm"]
+    ports:
+      - "127.0.0.1:5001:5000"
+    volumes:
+      - ./data:/data:ro
+    restart: unless-stopped
+    mem_limit: 1g

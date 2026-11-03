@@ -19,7 +19,7 @@
 - **Модульный монолит** на FastAPI: один процесс, один пакет `taxi_service` (`src/`), предметные модули в `modules/`. Без микросервисов, брокеров, Redis и Celery.
 - **БД — файловая SQLite** через SQLAlchemy 2 async и `aiosqlite` ([ADR 0001](decisions/0001-sqlite-without-docker.md)). Типы и ограничения переносимы на PostgreSQL: `Uuid`, целые KZT, `UtcDateTime`, `CHECK`, частичные индексы с `sqlite_where` и `postgresql_where`.
 - **Схема — только миграциями Alembic** (`render_as_batch=True`), отдельной командой до запуска API. Seed и создание admin — отдельные скрипты в `scripts/`; приложение их не вызывает.
-- **Внешние сервисы**: openrouteservice для дорожного маршрута ([ADR 0002](decisions/0002-routing-provider.md)); Kaspi — только ссылка из настроек, без обращений к Kaspi ([ADR 0010](decisions/0010-pay-before-order.md)).
+- **Внешние сервисы**: дорожный маршрут — свой OSRM в Docker по умолчанию ([ADR 0014](decisions/0014-osrm-in-docker.md)) или openrouteservice ([ADR 0002](decisions/0002-routing-provider.md)); Kaspi — только ссылка из настроек, без обращений к Kaspi ([ADR 0010](decisions/0010-pay-before-order.md)).
 - **Время** — внедряемый `Clock`; **назначение водителя** — фоновый цикл внутри процесса, всё его состояние в БД ([ADR 0006](decisions/0006-dispatch.md)).
 
 ```text
@@ -32,7 +32,7 @@ src/taxi_service/
 │   ├── auth/          сессии, CSRF, Origin, Argon2id, ограничитель входа, CurrentUser/require_roles
 │   ├── users/         users, user_profiles, /users/me
 │   ├── drivers/       driver_profiles, vehicles, допуск, доступность, координаты, поиск кандидатов
-│   ├── geo/           Coordinates, RouteResult, клиент openrouteservice, /geo/route
+│   ├── geo/           Coordinates, RouteResult, клиенты OSRM и openrouteservice, /geo/route
 │   ├── rides/         quote, поездка, идемпотентность, тариф, состояния, dispatch, жизненный цикл, история
 │   ├── payments/      правила оплаты, Kaspi-ссылка, payments, API оплаты
 │   ├── ratings/       оценки после поездки, теги, средний рейтинг
@@ -500,12 +500,13 @@ economy 500/120/20/800, comfort 700/160/25/1100, comfort_plus 900/200/30/1500, b
 | [0010](decisions/0010-pay-before-order.md) | способ оплаты при заказе, Kaspi `paid` при назначении водителя, `refunded` при отмене или `no_driver` после списания, наличные подтверждает водитель | `modules/payments/`, `rides/service.py`, `rides/dispatch.py` |
 | [0012](decisions/0012-tariffs-and-car-classes.md) | четыре тарифа `edu-v2`, `tariff` поездки, класс машины от admin, кандидат класса не ниже тарифа | `rides/tariffs.py`, `rides/pricing.py`, `drivers/candidates.py`, `drivers/service.py` |
 | [0013](decisions/0013-ride-ratings.md) | оценки после поездки, теги в отдельной таблице, средний рейтинг одним сгруппированным запросом | `modules/ratings/` |
+| [0014](decisions/0014-osrm-in-docker.md) | OSRM по умолчанию (`ROUTING_PROVIDER`), Docker только для сервера маршрутов, карта агломерации Алматы | `modules/geo/osrm.py`, `infra/osrm/` |
 
 ## Ограничения
 
 - **SQLite вместо PostgreSQL/PostGIS.** Запись сериализована на уровне всей БД, пространственного индекса нет, `SELECT ... FOR UPDATE` опускается. Конкурентные тесты доказывают инварианты при сериализованной записи, а не при пересечении транзакций; PostgreSQL проверен только компиляцией DDL и блокирующих запросов. Переход — отдельная задача (asyncpg, geography, повтор тестов).
 - **Один процесс.** Ограничитель входа хранится в памяти и сбрасывается при перезапуске; несколько воркеров ослабят лимит. Фоновый цикл безопасен и при двух процессах (состояние в БД, индексы), но рассчитан на один.
-- **Маршрутизация — `external_pending`.** Без `ROUTING_API_KEY` quote и `/geo/route` отвечают `503 routing_unavailable`; подставного маршрута нет. Реальный маршрут по Алматы не запрашивался (`scripts/routing_smoke.py`).
+- **Маршрутизация — свой OSRM.** Без запущенного контейнера (`infra/osrm/`) quote и `/geo/route` отвечают `503 routing_unavailable`; подставного маршрута нет. Карта Алматы обновляется вручную (`scripts/osrm_prepare.sh`), пробки не учитываются ([ADR 0014](decisions/0014-osrm-in-docker.md)).
 - **Оплата без проверки.** Kaspi даёт `paid` при назначении водителя, отмена после этого — `refunded`; это имитация, сервер не получает статусов от Kaspi и не проверяет движение денег. Реальная оплата по ссылке не проверялась (`external_pending`). Эквайринга и webhook нет.
 - **Polling без WebSocket/SSE.** Клиент опрашивает `GET /rides/{id}` и `GET /drivers/me/offers`; движение водителя видно по последней координате и её времени.
 - **Нет фоновой очистки** истёкших сессий, quote, записей идемпотентности, старых предложений и событий.

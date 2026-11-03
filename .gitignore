@@ -30,3 +30,6 @@ dist/
 # curl cookie jars from README examples
 jar.txt
 *.jar.txt
+
+# OSRM map data built by scripts/osrm_prepare.sh
+infra/osrm/data/

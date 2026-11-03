@@ -34,7 +34,9 @@
 
 ```bash
 uv sync --locked                       # окружение .venv по uv.lock
-cp .env.example .env                   # затем при необходимости вписать ROUTING_API_KEY, KASPI_PAYMENT_URL, DEMO_PASSWORD
+cp .env.example .env                   # затем при необходимости вписать KASPI_PAYMENT_URL, DEMO_PASSWORD
+scripts/osrm_prepare.sh               # карта Алматы для сервера маршрутов OSRM (нужен Docker Desktop)
+docker compose -f infra/osrm/docker-compose.yml up -d   # OSRM на 127.0.0.1:5001
 uv run alembic upgrade head            # создать ./taxi.db и схему
 uv run python scripts/seed.py          # демо-аккаунты (пароль — DEMO_PASSWORD или запрос в терминале)
 uv run python scripts/create_admin.py --username admin   # свой admin, по желанию (seed создаёт demo_admin)
@@ -45,7 +47,7 @@ uv run uvicorn --factory taxi_service.main:create_app --port 8000
 
 ## Локальная разработка
 
-Docker не используется ([ADR 0001](docs/decisions/0001-sqlite-without-docker.md)); всё запускается через `uv` из корня репозитория.
+Приложение, миграции и тесты работают без Docker ([ADR 0001](docs/decisions/0001-sqlite-without-docker.md)) и запускаются через `uv` из корня репозитория. Docker нужен только серверу маршрутов OSRM ([ADR 0014](docs/decisions/0014-osrm-in-docker.md), раздел «Маршруты»).
 
 ### Установка
 
@@ -66,7 +68,9 @@ cp .env.example .env  # локальные настройки; .env не ком�
 | `DATABASE_URL` | — (обязательна) | URL БД для приложения и Alembic; локально `sqlite+aiosqlite:///./taxi.db` |
 | `GOOGLE_CLIENT_ID` | пусто | OAuth Client ID (тип Web) для входа пассажиров через Google, в локальном `.env`; пусто — Google-вход выключен (`503 google_login_unavailable`, см. «Вход через Google») |
 | `KASPI_PAYMENT_URL` | пусто | Ссылка Kaspi владельца `https://pay.kaspi.kz/pay/<id>`, только в локальном `.env`; пусто — Kaspi выключен, наличные работают (см. «Оплата») |
-| `ROUTING_API_KEY` | пусто | Персональный ключ openrouteservice, только в локальном `.env`; пусто — маршрут и quote отвечают `503 routing_unavailable` (см. «Маршруты») |
+| `ROUTING_PROVIDER` | `osrm` | `osrm` — свой сервер OSRM ([ADR 0014](docs/decisions/0014-osrm-in-docker.md)) или `openrouteservice` ([ADR 0002](docs/decisions/0002-routing-provider.md)) |
+| `OSRM_BASE_URL` | `http://127.0.0.1:5001` | Адрес OSRM из `infra/osrm/docker-compose.yml`; пусто или контейнер не запущен — маршрут и quote отвечают `503 routing_unavailable` (см. «Маршруты») |
+| `ROUTING_API_KEY` | пусто | Только для `openrouteservice`: персональный ключ, только в локальном `.env`; пусто — `503 routing_unavailable` |
 | `ROUTING_BASE_URL`, `ROUTING_CONNECT_TIMEOUT_S`, `ROUTING_READ_TIMEOUT_S`, `ROUTING_MAX_RETRIES`, `ROUTING_RETRY_BACKOFF_S`, `ROUTING_MAX_RETRY_DELAY_S`, `ROUTING_TOTAL_TIMEOUT_S` | `https://api.openrouteservice.org`, `3.0`, `5.0`, `1`, `0.5`, `5.0`, `10.0` | Необязательные параметры запроса маршрута ([ADR 0002](docs/decisions/0002-routing-provider.md)) |
 | `SESSION_COOKIE_SECURE` | `true` | Флаг `Secure` cookie сессии; для локального `http://` — `false` (так в `.env.example`) |
 | `CORS_ALLOWED_ORIGINS` | пусто | Origin браузерных клиентов через запятую, без `*`: CORS с credentials и проверка `Origin` у login/register |
@@ -282,7 +286,7 @@ Dev-сервер Vite проксирует `/api` и `/health` на `http://127.
 
 Сверка с макетом: `npm run test:visual` (Playwright в установленном Google Chrome, свой порт 5199, API подменяется — бэкенд не нужен) проверяет геометрию входа и регистрации по Figma и сохраняет скриншоты `/login`, `/register`, `/dev/kit` при 390 и 1440 px в `frontend/tests/visual/screenshots/`; эталоны из Figma — в `frontend/tests/visual/figma/`.
 
-Сквозной прогон поездки в настоящем браузере на настоящем бэкенде: `npm run test:e2e` (Playwright, Google Chrome, один воркер, два контекста 390×844 — пассажир и водитель). Нужны `uv` и ключ маршрутов: `ROUTING_API_KEY` и `ROUTING_BASE_URL` в `.env` основного каталога репозитория (маршруты — настоящий openrouteservice; адреса — Nominatim, карта — настоящие, запросов немного), для сценария Kaspi — `KASPI_PAYMENT_URL`. Порты 8000 и 5173 должны быть свободны. Что делает прогон:
+Сквозной прогон поездки в настоящем браузере на настоящем бэкенде: `npm run test:e2e` (Playwright, Google Chrome, один воркер, два контекста 390×844 — пассажир и водитель). Нужны `uv` и запущенный сервер маршрутов OSRM (раздел «Маршруты»; либо `ROUTING_PROVIDER=openrouteservice` с ключом в `.env` основного каталога репозитория). Маршруты, адреса (Nominatim) и карта — настоящие, запросов немного, для сценария Kaspi — `KASPI_PAYMENT_URL`. Порты 8000 и 5173 должны быть свободны. Что делает прогон:
 
 - бэкенд запускается из основного каталога репозитория (родитель общего `.git`; из worktree тоже он, переопределяется `E2E_BACKEND_DIR`) с `SESSION_COOKIE_SECURE=false` на одноразовой SQLite-БД (`E2E_DB_FILE`); перед стартом прежняя БД удаляется, `globalSetup` выполняет `uv run alembic upgrade head`, `scripts/create_admin.py --username admin` и `scripts/seed.py` — демо-водители выходят на линию у демо-точки посадки;
 - `npm run dev` на 5173 с прокси на 8000;
@@ -301,29 +305,45 @@ cd frontend && npm run gen:api
 
 Алматы, KZT. Вход по username/password; пассажиры могут входить через Google (при заданном `GOOGLE_CLIENT_ID`). Поездка предлагается ближайшему доступному водителю; 30 секунд на ответ, затем следующий. Реальный дорожный маршрут, учебный расчёт цены, наличные и Kaspi по ссылке; способ выбирается при заказе, наличные подтверждает водитель, Kaspi засчитывается при назначении водителя (имитация) без проверки. Четыре тарифа (economy, comfort, comfort_plus, business).
 
-Внешние значения хранятся только в локальном `.env` и в Git не попадают: `ROUTING_API_KEY` (без него маршрут и quote — `503 routing_unavailable`), `KASPI_PAYMENT_URL` (без неё доступны только наличные), `DEMO_PASSWORD` (seed). `ADMIN_PASSWORD` задаётся только в окружении команды `create_admin`.
+Маршруты строит свой OSRM в Docker (без запущенного контейнера маршрут и quote — `503 routing_unavailable`). Внешние значения хранятся только в локальном `.env` и в Git не попадают: `ROUTING_API_KEY` (только для `ROUTING_PROVIDER=openrouteservice`), `KASPI_PAYMENT_URL` (без неё доступны только наличные), `DEMO_PASSWORD` (seed). `ADMIN_PASSWORD` задаётся только в окружении команды `create_admin`.
 
 ### Ограничения локального MVP
 
 - SQLite-файл и один процесс uvicorn: запись в БД сериализована, ограничитель входа живёт в памяти процесса и сбрасывается при перезапуске. PostgreSQL/PostGIS не проверялись ([ADR 0001](docs/decisions/0001-sqlite-without-docker.md)).
-- Реальный маршрут по Алматы — **external_pending**: без ключа заказ поездки через API невозможен (quote отвечает `503`), подставного маршрута нет. Тесты используют контролируемый провайдер.
+- Маршруты — свой OSRM на данных OpenStreetMap агломерации Алматы ([ADR 0014](docs/decisions/0014-osrm-in-docker.md)): без запущенного контейнера заказ поездки невозможен (quote отвечает `503`), подставного маршрута нет. Пробки не учитываются; карту нужно обновлять скриптом. Тесты используют контролируемый провайдер.
 - Оплата учебная ([ADR 0010](docs/decisions/0010-pay-before-order.md)): Kaspi становится `paid` при назначении водителя, отмена или `no_driver` после этого — `refunded`; это имитация, сервер не проверяет движение денег и не обращается к Kaspi. Реальная оплата по ссылке не проверялась (**external_pending**). Эквайринга нет.
 - Клиенты опрашивают API (polling), WebSocket/SSE нет. Ближайший водитель — по прямой (haversine), не по дорогам. Адресного поиска (геокодирования) нет: клиент передаёт точки.
 - Нет автоматической очистки истёкших сессий, quote, ключей идемпотентности, предложений и журналов.
-- Нет CI, Docker и деплоя; HTTPS не настроен (локально `SESSION_COOKIE_SECURE=false`).
+- Нет CI и деплоя; Docker — только для сервера маршрутов OSRM. HTTPS не настроен (локально `SESSION_COOKIE_SECURE=false`).
 - Вход через Google с настоящим Client ID — **external_pending**: тесты подменяют проверку токена, реальный вход не выполнялся ([ADR 0011](docs/decisions/0011-google-login.md)).
 
 Подробнее — [docs/architecture.md](docs/architecture.md#ограничения).
 
 ## Маршруты
 
-Дорожный маршрут строит openrouteservice Directions (`driving-car`), решение и контракт ошибок — [ADR 0002](docs/decisions/0002-routing-provider.md). Статус реальной проверки: **external_pending** — ключ в проект не передан, настоящий маршрут по Алматы не запрашивался.
+Дорожный маршрут по умолчанию строит свой сервер OSRM в Docker ([ADR 0014](docs/decisions/0014-osrm-in-docker.md)): openrouteservice не учитывает запреты поворотов OpenStreetMap (например, левый поворот на Райымбека через двойную сплошную). openrouteservice остаётся вариантом `ROUTING_PROVIDER=openrouteservice` ([ADR 0002](docs/decisions/0002-routing-provider.md)). Контракт ответа и ошибок у обоих одинаковый.
+
+### Сервер OSRM
+
+Нужны Docker Desktop (только для этого сервиса — приложение и тесты работают без Docker) и `osmium` (`brew install osmium-tool`).
+
+```bash
+scripts/osrm_prepare.sh                                  # карта и граф в infra/osrm/data (в Git не попадают)
+docker compose -f infra/osrm/docker-compose.yml up -d    # osrm-routed на 127.0.0.1:5001, restart: unless-stopped
+docker compose -f infra/osrm/docker-compose.yml logs osrm   # «running and waiting for requests»
+```
+
+Скрипт скачивает `kazakhstan-latest.osm.pbf` с Geofabrik (≈225 МБ, сверка MD5), вырезает агломерацию Алматы (bbox `76.45,43.05,77.35,43.45`, Каскелен/SDU … Талгар) и строит граф `car.lua` (`osrm-extract`, `osrm-partition`, `osrm-customize`) в одноразовых контейнерах. Первый прогон — около полутора минут, повторный — секунды. **Обновление карты** — тот же скрипт: исходник скачивается заново, только если у Geofabrik он новее, граф пересобирается, запущенный контейнер перезапускается. Сервер занимает около 90 МБ памяти (лимит 1 ГБ).
+
+Настройки (`.env`): `ROUTING_PROVIDER=osrm` (по умолчанию) и `OSRM_BASE_URL=http://127.0.0.1:5001` (по умолчанию). Пустой `OSRM_BASE_URL` или незапущенный контейнер — `503 routing_unavailable`.
 
 ### Ключ openrouteservice
 
+Только для `ROUTING_PROVIDER=openrouteservice`.
+
 1. Зарегистрироваться на [openrouteservice.org](https://openrouteservice.org/) (аккаунт HeiGIT) и в личном кабинете создать бесплатный ключ плана Standard. Платный план не подключается.
 2. Записать ключ только в локальный `.env`: `ROUTING_API_KEY=...`. В `.env.example`, Git, логи и ответы API ключ не попадает. Ключ персональный, на клиенте (React, мобильное приложение) не используется.
-3. Остальные `ROUTING_*` (базовый URL, таймауты, повторы, общий срок одного запроса — 10 с по умолчанию) необязательны; значения по умолчанию перечислены в `.env.example`.
+3. Остальные `ROUTING_*` (базовый URL, таймауты, повторы, общий срок одного запроса — 10 с по умолчанию) необязательны; значения по умолчанию перечислены в `.env.example`. Таймауты, повторы и общий срок действуют и для OSRM.
 
 Без ключа приложение запускается как обычно, а маршрут отвечает `503 routing_unavailable` без обращения к провайдеру; подставной маршрут не выдаётся.
 
@@ -342,7 +362,7 @@ curl -s -b jar.txt -X POST "$API/geo/route" -H "X-CSRF-Token: $CSRF" \
 ```json
 {"distance_m": 4121, "duration_s": 610,
  "route_geometry": {"type": "LineString", "coordinates": [[76.9572, 43.2389], [76.9286, 43.2187]]},
- "provider": "openrouteservice"}
+ "provider": "osrm"}
 ```
 
 | Код | Когда |
@@ -351,7 +371,7 @@ curl -s -b jar.txt -X POST "$API/geo/route" -H "X-CSRF-Token: $CSRF" \
 | `422 validation_error` | координаты вне диапазона, не числа, лишние поля |
 | `422 route_points_identical` | origin и destination совпадают; провайдер не вызывается |
 | `422 route_not_found` | провайдер не нашёл дорожного маршрута между точками |
-| `503 routing_unavailable` | `ROUTING_API_KEY` не задан |
+| `503 routing_unavailable` | OSRM не запущен или `OSRM_BASE_URL` пуст; для openrouteservice — не задан `ROUTING_API_KEY` |
 | `503 routing_provider_error` | сбой провайдера; `details.reason`: `timeout`, `connection_error`, `rate_limited`, `provider_unavailable`, `rejected`, `invalid_response` |
 
 Запрос к провайдеру выполняется вне транзакции БД. В тестах провайдер подменяется через `create_app(settings, routing_provider=...)`; контролируемый `FakeRoutingProvider` — в `tests/support/routing.py`. Pytest к сети не обращается.
@@ -362,11 +382,13 @@ curl -s -b jar.txt -X POST "$API/geo/route" -H "X-CSRF-Token: $CSRF" \
 uv run python scripts/routing_smoke.py
 ```
 
-Один реальный запрос по Алматы (Абая/Достык → Аль-Фараби) с ключом из окружения или `.env`. Коды выхода: `0` — маршрут получен, `1` — ошибка провайдера или неправдоподобная геометрия, `2` — `external_pending` (ключа нет, запрос не выполнялся). Pytest этот скрипт не запускает.
+Два реальных маршрута по Алматы у провайдера из `ROUTING_PROVIDER`: Абая/Достык → Аль-Фараби и Индустриальная → MEGA Alma-Ata (OSRM: правый поворот на Райымбека и разворот, около 10,3 км). Коды выхода: `0` — маршруты получены, `1` — ошибка провайдера или неправдоподобная геометрия, `2` — `external_pending` (провайдер не настроен, запрос не выполнялся). Pytest этот скрипт не запускает.
+
+Шаги манёвров — напрямую у OSRM: `curl -s 'http://127.0.0.1:5001/route/v1/driving/76.922840915814348,43.267596630084;76.8923175,43.2016499?overview=false&steps=true'`.
 
 ### Условия и атрибуция
 
-Действуют [условия HeiGIT](https://account.heigit.org/info/tos) и лимиты бесплатного плана (по FAQ ORS — порядка 2000 запросов Directions в сутки и 40 в минуту; превышение — `429`/`403`, здесь это `routing_provider_error`). Маршруты строятся на данных OpenStreetMap (ODbL): интерфейс, показывающий маршрут, должен выводить атрибуцию, например «© openrouteservice.org by HeiGIT | Map data © OpenStreetMap contributors». Точный текст сверить с условиями при получении ключа.
+Маршруты строятся на данных OpenStreetMap (ODbL): интерфейс выводит атрибуцию по `route.provider` — для `osrm` «Маршрут © OSRM, данные © OpenStreetMap», для `openrouteservice` «Маршрут © openrouteservice.org by HeiGIT». Для openrouteservice действуют [условия HeiGIT](https://account.heigit.org/info/tos) и лимиты бесплатного плана (по FAQ ORS — порядка 2000 запросов Directions в сутки и 40 в минуту; превышение — `429`/`403`, здесь это `routing_provider_error`); у своего OSRM лимитов нет.
 
 ## Водители и профили
 
@@ -409,7 +431,7 @@ uv run python scripts/routing_smoke.py
 | `POST /rides` | passenger | `{"quote_id": "...", "payment_method": "cash", "tariff": "comfort"}` (`cash` по умолчанию или `kaspi_link`; `economy` по умолчанию) + заголовок `Idempotency-Key` → `201` поездка в `searching` без водителя, с `tariff`, `payment_method` и `payment_status` |
 | `GET /rides/{id}` | пассажир поездки, назначенный водитель, admin | поездка; участникам активной поездки — и карточка водителя `driver`; остальным `404 ride_not_found` |
 
-Пример (после входа пассажиром, как в разделе «Аутентификация»: `$API`, `jar.txt`, `$CSRF`; нужен ключ маршрутизации):
+Пример (после входа пассажиром, как в разделе «Аутентификация»: `$API`, `jar.txt`, `$CSRF`; нужен запущенный сервер маршрутов):
 
 ```bash
 QUOTE_ID=$(curl -s -b jar.txt -X POST "$API/rides/quotes" -H "X-CSRF-Token: $CSRF" \
@@ -597,7 +619,7 @@ curl -s -b driver.txt -X POST "$API/rides/$RIDE_ID/payment/cash-received" -H "X-
 
 ## Демонстрационный сценарий
 
-Полный путь заказа через API на демо-данных: пассажир заказывает, ближайший водитель отказывается, следующий принимает и везёт; водитель подтверждает наличные, пассажир видит историю. Нужны мигрированная БД с seed, запущенный API (раздел «Быстрый старт») и **`ROUTING_API_KEY`**: без ключа шаг quote отвечает `503 routing_unavailable` и сценарий останавливается (реальная маршрутизация — `external_pending`). Тот же путь без ключа и без сети проверяют тесты с контролируемым провайдером (`uv run pytest`).
+Полный путь заказа через API на демо-данных: пассажир заказывает, ближайший водитель отказывается, следующий принимает и везёт; водитель подтверждает наличные, пассажир видит историю. Нужны мигрированная БД с seed, запущенный API (раздел «Быстрый старт») и **запущенный OSRM** (раздел «Маршруты»): без него шаг quote отвечает `503 routing_unavailable` и сценарий останавливается. Тот же путь без сервера маршрутов и без сети проверяют тесты с контролируемым провайдером (`uv run pytest`).
 
 Команды для bash/zsh из корня репозитория, во втором терминале при запущенном API. Координата водителя свежа 60 с: выполняйте шаги без пауз или повторите `--refresh-locations` перед заказом.
 

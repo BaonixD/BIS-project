@@ -291,9 +291,9 @@ WebSocket и SSE нет. Сервер обрабатывает истечени�
 - `route.route_geometry` в quote и поездке — GeoJSON `{"type": "LineString", "coordinates": [[lon, lat], ...]}`. MapLibre/OpenLayers принимают его как есть; **Leaflet ждёт `[lat, lon]`** — используйте `L.geoJSON(...)` или переставьте пары.
 - Точки посадки и высадки — `pickup`, `dropoff` (`{longitude, latitude}`); позиция водителя — `driver.location` из `GET /rides/{ride_id}`.
 - `POST /geo/route` строит маршрут без цены (например, для предпросмотра); для заказа используйте `POST /rides/quotes` — там маршрут и цена. Ошибки — как у quote; при совпадающих точках провайдер не вызывается (`422 route_points_identical`).
-- Маршруты строит openrouteservice на данных OpenStreetMap: интерфейс с маршрутом должен показывать атрибуцию, например «© openrouteservice.org by HeiGIT | Map data © OpenStreetMap contributors» (точный текст — по условиям HeiGIT). Подложку карты (тайлы) фронтенд выбирает сам и выводит её атрибуцию; публичные тайлы OSM имеют свою политику использования.
+- Маршруты строит свой OSRM (или openrouteservice) на данных OpenStreetMap: интерфейс с маршрутом показывает атрибуцию по `route.provider` — для `osrm` «Маршрут © OSRM, данные © OpenStreetMap», для `openrouteservice` «Маршрут © openrouteservice.org by HeiGIT». Подложку карты (тайлы) фронтенд выбирает сам и выводит её атрибуцию; публичные тайлы OSM имеют свою политику использования.
 - Ключ маршрутизации есть только на сервере; на клиенте он не нужен и не используется.
-- Пока у сервера нет `ROUTING_API_KEY`, quote отвечает `503 routing_unavailable` — это ожидаемое состояние локального стенда (реальная маршрутизация `external_pending`).
+- Пока на сервере не запущен OSRM (`infra/osrm/`, ADR 0014), quote отвечает `503 routing_unavailable`.
 
 ## Коды ошибок
 
@@ -315,7 +315,7 @@ WebSocket и SSE нет. Сервер обрабатывает истечени�
 | 409 | `plate_number_taken` | PATCH `/drivers/me` | госномер уже у другого водителя |
 | 422 | `route_points_identical` | quote, `/geo/route` | точки совпадают |
 | 422 | `route_not_found` | quote, `/geo/route` | между точками нет дорожного маршрута |
-| 503 | `routing_unavailable` | quote, `/geo/route` | на сервере не задан ключ маршрутов |
+| 503 | `routing_unavailable` | quote, `/geo/route` | сервер маршрутов не запущен или не настроен |
 | 503 | `routing_provider_error` | quote, `/geo/route` | сбой провайдера, `details.reason`: `timeout`, `connection_error`, `rate_limited`, `provider_unavailable`, `rejected`, `invalid_response`; можно повторить позже |
 | 404 | `quote_not_found` | `POST /rides` | новый quote |
 | 409 | `quote_expired`, `quote_already_used` | `POST /rides` | новый quote |
