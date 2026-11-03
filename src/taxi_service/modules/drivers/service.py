@@ -162,38 +162,34 @@ class DriverPage:
     total: int
 
 
-class DriverAdminService:
-    """Admin view of drivers: listing and approval. The caller checks the admin role."""
+async def list_drivers(
+    db: AsyncSession, status: ApprovalStatus | None, *, limit: int, offset: int
+) -> DriverPage:
+    async with read_transaction(db):
+        rows = await _driver_rows(db, status, limit=limit, offset=offset)
+        total = await _count_drivers(db, status)
+    return DriverPage(rows=rows, total=total)
 
-    def __init__(self, session: AsyncSession, clock: Clock) -> None:
-        self._session = session
-        self._clock = clock
 
-    async def list(self, status: ApprovalStatus | None, *, limit: int, offset: int) -> DriverPage:
-        async with read_transaction(self._session):
-            rows = await _list_drivers(self._session, status, limit=limit, offset=offset)
-            total = await _count_drivers(self._session, status)
-        return DriverPage(rows=rows, total=total)
-
-    async def approve(
-        self, driver_id: uuid.UUID, *, admin_id: uuid.UUID
-    ) -> tuple[User, DriverProfile]:
-        """Approve a complete driver; approving again returns the first approval unchanged."""
-        async with self._session.begin():
-            user = await _get_driver_user(self._session, driver_id)
-            if user is None:
-                raise DriverNotFoundError
-            profile = await _get_profile_for_update(self._session, driver_id)
-            missing = missing_fields(profile)
-            if profile is None or missing:
-                raise DriverProfileIncompleteError(missing)
-            if profile.approval_status is not ApprovalStatus.APPROVED:
-                now = self._clock.now()
-                profile.approval_status = ApprovalStatus.APPROVED
-                profile.approved_at = now
-                profile.approved_by = admin_id
-                profile.updated_at = now
-        return user, profile
+async def approve_driver(
+    db: AsyncSession, driver_id: uuid.UUID, admin_id: uuid.UUID, *, clock: Clock
+) -> tuple[User, DriverProfile]:
+    """Approving an approved driver again returns the first approval unchanged."""
+    async with db.begin():
+        user = await _get_driver_user(db, driver_id)
+        if user is None:
+            raise DriverNotFoundError
+        profile = await _get_profile_for_update(db, driver_id)
+        missing = missing_fields(profile)
+        if profile is None or missing:
+            raise DriverProfileIncompleteError(missing)
+        if profile.approval_status is not ApprovalStatus.APPROVED:
+            now = clock.now()
+            profile.approval_status = ApprovalStatus.APPROVED
+            profile.approved_at = now
+            profile.approved_by = admin_id
+            profile.updated_at = now
+    return user, profile
 
 
 def _apply_identity(profile: DriverProfile, update: DriverProfileUpdate) -> bool:
@@ -250,7 +246,7 @@ async def _get_driver_user(db: AsyncSession, user_id: uuid.UUID) -> User | None:
     return await db.scalar(select(User).where(User.id == user_id, User.role == UserRole.DRIVER))
 
 
-async def _list_drivers(
+async def _driver_rows(
     db: AsyncSession, status: ApprovalStatus | None, *, limit: int, offset: int
 ) -> list[tuple[User, DriverProfile | None]]:
     rows = await db.execute(

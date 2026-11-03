@@ -19,7 +19,6 @@ from support.drivers import DriverFactory
 from taxi_service.database.session import SessionFactory
 from taxi_service.modules.drivers import service as driver_service
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate
-from taxi_service.modules.drivers.service import DriverAdminService
 from taxi_service.modules.geo.schemas import Coordinates
 
 WriteCommand = Callable[[AsyncSession, ManualClock, uuid.UUID, uuid.UUID], Awaitable[object]]
@@ -47,7 +46,7 @@ async def move(session: AsyncSession, clock: ManualClock, driver: uuid.UUID, _: 
 async def approve(
     session: AsyncSession, clock: ManualClock, driver: uuid.UUID, admin: uuid.UUID
 ) -> object:
-    return await DriverAdminService(session, clock).approve(driver, admin_id=admin)
+    return await driver_service.approve_driver(session, driver, admin, clock=clock)
 
 
 @pytest.fixture

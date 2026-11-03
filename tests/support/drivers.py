@@ -24,7 +24,6 @@ from taxi_service.database.session import SessionFactory
 from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.drivers import service as driver_service
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate
-from taxi_service.modules.drivers.service import DriverAdminService
 from taxi_service.modules.geo.schemas import Coordinates
 from taxi_service.modules.users.models import UserRole
 from taxi_service.modules.users.service import UserService
@@ -164,7 +163,7 @@ class DriverFactory:
         if approved:
             admin_id = await self.admin_id()
             async with self.session_factory() as session:
-                await DriverAdminService(session, self.clock).approve(driver_id, admin_id=admin_id)
+                await driver_service.approve_driver(session, driver_id, admin_id, clock=self.clock)
         if location is not None:
             await self.move(driver_id, location)
         if approved and online:

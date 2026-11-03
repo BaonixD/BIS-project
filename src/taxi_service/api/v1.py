@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 from taxi_service.modules.admin.router import router as admin_reads_router
 from taxi_service.modules.auth.router import router as auth_router
-from taxi_service.modules.drivers.admin_router import router as admin_drivers_router
+from taxi_service.modules.drivers.router import admin_router as admin_drivers_router
 from taxi_service.modules.drivers.router import router as drivers_router
 from taxi_service.modules.geo.router import router as geo_router
 from taxi_service.modules.payments.router import router as payments_router

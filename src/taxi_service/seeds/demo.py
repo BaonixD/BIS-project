@@ -25,7 +25,6 @@ from taxi_service.modules.drivers.exceptions import (
 from taxi_service.modules.drivers.geodesy import haversine_m
 from taxi_service.modules.drivers.models import Vehicle
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate
-from taxi_service.modules.drivers.service import DriverAdminService
 from taxi_service.modules.geo.schemas import Coordinates
 from taxi_service.modules.users.models import UserRole
 from taxi_service.modules.users.repository import UserRepository
@@ -260,7 +259,7 @@ class _DemoSeeder:
                 session, user_id, _profile(driver), clock=self.clock
             )
         async with self.session_factory() as session:
-            await DriverAdminService(session, self.clock).approve(user_id, admin_id=admin_id)
+            await driver_service.approve_driver(session, user_id, admin_id, clock=self.clock)
         await self._place_online(user_id, driver.location)
 
     async def _place_online(self, driver_id: uuid.UUID, location: Coordinates) -> None:
