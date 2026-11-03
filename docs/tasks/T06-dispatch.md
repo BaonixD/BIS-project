@@ -7,7 +7,7 @@
 - Плановая ветка: `task/t06-dispatch`.
 - База: актуальный проверенный `integration/backend-mvp` после зависимостей.
 - Исполнитель: Opus 5.5 / `bis-implementer`; ревью: `bis-reviewer` либо явно обозначенная самопроверка.
-- При старте заполнить: base SHA, реальная ветка/worktree, владелец, test DB/порты/Compose project.
+- При старте заполнить: base SHA, реальная ветка/worktree, владелец, test DB-файл/порты.
 - При передаче заполнить: result SHA, команды и [отчёт](../reports/README.md).
 - Общие правила: [CLAUDE.md](../../CLAUDE.md), [спецификация](../MVP_SPEC.md), [оркестрация](../../ORCHESTRATION.md).
 
@@ -23,7 +23,7 @@ modules/rides/dispatch.py, offers schemas/router/repository и изменени�
 
 ## Реализация
 
-1. Кандидаты по geodesic distance PostGIS ≤5 км, свежесть ≤60 сек, approval/online и отсутствие busy/reservation; deterministic tie-break.
+1. Кандидаты по geodesic distance (haversine, ADR 0001) ≤5 км, свежесть ≤60 сек, approval/online и отсутствие busy/reservation; deterministic tie-break.
 2. Последовательная offer на 30 сек; общий поиск 180 сек; skip ранее рассмотренных кандидатов, no_driver по условиям MVP_SPEC.
 3. GET own offers; accept/reject с owner check, проверкой deadline/current ride status и atomic assignment.
 4. Сохранить search/offer state в БД; безопасный повторный processing и единственный управляемый фоновый цикл монолита.
@@ -52,7 +52,7 @@ Ride offers/search attempts и ограничения одной pending offer. 
 
 ## Проверки
 
-Lint/types; unit dispatch с контролируемым временем; API offers; PostgreSQL concurrency and restart-state tests; migration upgrade/check.
+Lint/types; unit dispatch с контролируемым временем; API offers; SQLite concurrency (несколько соединений) and restart-state tests; migration upgrade/check.
 
 Указанные каталоги тестов — целевое расположение; при обоснованном уточнении записать реальные команды в отчёте. Команда, которая не запускалась, не отмечается как пройденная.
 

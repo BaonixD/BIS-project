@@ -7,7 +7,7 @@
 - Плановая ветка: `task/t00-foundation`.
 - База: актуальный проверенный `integration/backend-mvp` после зависимостей.
 - Исполнитель: Opus 5.5 / `bis-implementer`; ревью: `bis-reviewer` либо явно обозначенная самопроверка.
-- При старте заполнить: base SHA, реальная ветка/worktree, владелец, test DB/порты/Compose project.
+- При старте заполнить: base SHA, реальная ветка/worktree, владелец, test DB-файл/порты.
 - При передаче заполнить: result SHA, команды и [отчёт](../reports/README.md).
 - Общие правила: [CLAUDE.md](../../CLAUDE.md), [спецификация](../MVP_SPEC.md), [оркестрация](../../ORCHESTRATION.md).
 
@@ -17,16 +17,16 @@
 
 ## Область изменений
 
-Корневой pyproject/lockfile, .python-version, Dockerfile, compose.yaml, .env.example, scripts/lint.py, src/taxi_service/main.py, core/, api/, health endpoints, базовые tests/, README.
+Корневой pyproject/lockfile, .python-version, .env.example, scripts/lint.py, src/taxi_service/main.py, core/, api/, health endpoints, базовые tests/, README.
 
 Общие файлы передаются одному владельцу; не редактировать их конкурентно. Нет права расширять задачу до фронтенда, CI или новой инфраструктуры.
 
 ## Реализация
 
-1. Выбрать поддерживаемые совместимые версии Python, FastAPI/Pydantic, SQLAlchemy, Alembic, GeoAlchemy2, asyncpg, HTTPX, pytest, mypy и Ruff. Создать uv.lock; зависимостей больше согласованного стека не добавлять без причины.
+1. Выбрать поддерживаемые совместимые версии Python, FastAPI/Pydantic, SQLAlchemy, Alembic, aiosqlite, HTTPX, pytest, mypy и Ruff. Создать uv.lock; зависимостей больше согласованного стека не добавлять без причины.
 2. Настроить импортируемый пакет src/taxi_service без sys.path-хаков, typed settings, factory приложения, lifespan, request_id и единый формат ошибок.
 3. Добавить /health/live и /health/ready. Готовность БД окончательно подключается T01; до этого не возвращать фиктивный результат доступности БД.
-4. Compose: приложение и PostgreSQL/PostGIS, healthcheck, именованный volume. Никаких очередей, CI и автоматического seed при старте.
+4. Без Docker и Compose (ADR 0001): запуск через `uv run`. Никаких очередей, CI и автоматического seed при старте.
 5. scripts/lint.py запускает Ruff check и format --check через текущий Python/зафиксированное окружение и возвращает ошибки. Auto-fix — отдельная явная команда.
 6. README описывает установку, локальные переменные и реальные команды. .env.example содержит безопасные placeholder, не ключи.
 
@@ -45,18 +45,18 @@
 
 - [ ] uv sync --locked воспроизводит окружение; приложение импортируется и health/live отвечает.
 - [ ] Линтинг и типизация проходят; тест API запускается без внешних платных сервисов.
-- [ ] Docker Compose configuration валидна; запуск проверен при доступном daemon, либо ограничение записано явно.
+- [ ] Приложение запускается командой из README через `uv run` и отвечает на /health/live.
 - [ ] В репозитории нет CI, secrets, исполнения seed/migrations при импорте.
 
 ## Проверки
 
-uv sync --locked; uv run python scripts/lint.py; uv run mypy src/taxi_service; uv run pytest tests/api/test_health.py; docker compose config --quiet. Проверить запуск контейнеров при доступном Docker.
+uv sync --locked; uv run python scripts/lint.py; uv run mypy src/taxi_service; uv run pytest tests/api/test_health.py; кратковременный запуск uvicorn и запрос /health/live.
 
 Указанные каталоги тестов — целевое расположение; при обоснованном уточнении записать реальные команды в отчёте. Команда, которая не запускалась, не отмечается как пройденная.
 
 ## Внешние зависимости
 
-Docker daemon — локальная предпосылка. Если недоступен, подготовить конфигурацию, проверить доступные команды и не выдавать контейнерный запуск за выполненный.
+Нет. Docker не используется (ADR 0001).
 
 ## Передача
 

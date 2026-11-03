@@ -7,7 +7,7 @@
 - Плановая ветка: `task/t03-drivers`.
 - База: актуальный проверенный `integration/backend-mvp` после зависимостей.
 - Исполнитель: Opus 5.5 / `bis-implementer`; ревью: `bis-reviewer` либо явно обозначенная самопроверка.
-- При старте заполнить: base SHA, реальная ветка/worktree, владелец, test DB/порты/Compose project.
+- При старте заполнить: base SHA, реальная ветка/worktree, владелец, test DB-файл/порты.
 - При передаче заполнить: result SHA, команды и [отчёт](../reports/README.md).
 - Общие правила: [CLAUDE.md](../../CLAUDE.md), [спецификация](../MVP_SPEC.md), [оркестрация](../../ORCHESTRATION.md).
 
@@ -26,7 +26,7 @@ modules/users/ профильные команды, modules/drivers/, admin driv
 1. GET/PATCH users/me без возможности назначать себе роль/чужой id; профиль водителя и одна машина.
 2. Driver pending до допуска admin; отсутствующая машина/обязательные поля препятствуют допуску и получению заказов.
 3. PUT availability для своего водителя; PUT location с проверкой lon/lat и серверным временем получения.
-4. PostGIS geography/geometry со строго выбранной моделью единиц. Spatial index для поиска в метрах; обновление единственной текущей координаты.
+4. longitude/latitude с проверкой диапазонов, расстояние haversine в метрах и индекс под bounding-box предфильтр (ADR 0001); обновление единственной текущей координаты.
 5. Admin listing/approve в ограниченном driver-router; универсальный admin CRUD не добавлять.
 6. Сервисы поиска доступных кандидатов имеют понятный контракт для T06; бизнес-проверки и транзакции остаются в своих слоях.
 
@@ -47,11 +47,11 @@ Driver profile, vehicle, current location; spatial index. В параллель�
 - [ ] Два водителя и пассажир создаются, водитель допущен и передаёт координаты.
 - [ ] Поля роли/approval защищены на уровне API и сервисов.
 - [ ] Запросы по расстоянию используют согласованные метры; stale timestamps можно проверить детерминированно.
-- [ ] Миграции не дублируют spatial index и не затрагивают чужие служебные таблицы.
+- [ ] Миграции не дублируют индексы и не затрагивают чужие таблицы.
 
 ## Проверки
 
-Lint/types; tests/api/users, tests/api/drivers, tests/integration/drivers; upgrade/check и spatial tests на PostgreSQL/PostGIS.
+Lint/types; tests/api/users, tests/api/drivers, tests/integration/drivers; upgrade/check и distance tests на SQLite.
 
 Указанные каталоги тестов — целевое расположение; при обоснованном уточнении записать реальные команды в отчёте. Команда, которая не запускалась, не отмечается как пройденная.
 

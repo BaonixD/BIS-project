@@ -1,6 +1,6 @@
 # Очередь исполнения для Claude
 
-Дата: 2 ноября 2026 года. Карточки подготовлены; код ещё не написан, исполнители не запущены.
+Дата: 2 ноября 2026 года; статусы обновляются главной сессией по мере исполнения (3 ноября 2026 — T00–T10 выполнены, см. [отчёты](reports/README.md)).
 
 ## Порядок
 
@@ -8,22 +8,26 @@
 
 | ID | Задача | Зависимости | Плановая ветка | Статус |
 | --- | --- | --- | --- | --- |
-| [T00](tasks/T00-foundation.md) | Основа, запуск и проверки | — | `task/t00-foundation` | ready |
-| [T01](tasks/T01-database.md) | БД, PostGIS, Alembic, изоляция тестов | T00 | `task/t01-database` | queued |
-| [T02](tasks/T02-auth.md) | Регистрация, сессии и права | T01 | `task/t02-auth` | queued |
-| [T03](tasks/T03-drivers.md) | Профили, автомобиль и координаты | T02 | `task/t03-drivers` | queued |
-| [T04](tasks/T04-routing-pricing.md) | Дорожный маршрут и учебная цена | T02 | `task/t04-routing-pricing` | queued |
-| [T05](tasks/T05-ride-creation.md) | Quote и идемпотентное создание заказа | T03, T04 | `task/t05-ride-creation` | queued |
-| [T06](tasks/T06-dispatch.md) | Поиск и предложения водителям | T05 | `task/t06-dispatch` | queued |
-| [T07](tasks/T07-ride-lifecycle.md) | Жизненный цикл и отмена поездки | T06 | `task/t07-ride-lifecycle` | queued |
-| [T08](tasks/T08-payments.md) | Наличные и Kaspi-ссылка | T07 | `task/t08-payments` | queued |
-| [T09](tasks/T09-history-admin.md) | История и административное чтение | T07 | `task/t09-history-admin` | queued |
-| [T10](tasks/T10-acceptance.md) | Seed, E2E, документация и передача | T08, T09 | `task/t10-acceptance` | queued |
+| [T00](tasks/T00-foundation.md) | Основа, запуск и проверки | — | `task/t00-foundation` | integrated (`45d2178`, [отчёт](reports/T00.md)) |
+| [T01](tasks/T01-database.md) | БД (SQLite), Alembic, изоляция тестов | T00 | `task/t01-database` | integrated (`bc9f610`, [отчёт](reports/T01.md)) |
+| [T02](tasks/T02-auth.md) | Регистрация, сессии и права | T01 | `task/t02-auth` | integrated (`a8b5e71`, [отчёт](reports/T02.md)) |
+| [T03](tasks/T03-drivers.md) | Профили, автомобиль и координаты | T02 | `task/t03-drivers` | integrated (`93cc3f8` + `fix/t03-review` `3fe57a2`, [отчёт](reports/T03.md)) |
+| [T04](tasks/T04-routing-pricing.md) | Дорожный маршрут и учебная цена | T02 | `task/t04-routing-pricing` | часть A integrated (`4805646`, [отчёт](reports/T04.md)); часть B integrated (`5b6bf33`); реальный маршрут external_pending |
+| [T05](tasks/T05-ride-creation.md) | Quote и идемпотентное создание заказа | T03, T04 | `task/t05-ride-creation` | integrated (`714a000`, [отчёт](reports/T05.md)) |
+| [T06](tasks/T06-dispatch.md) | Поиск и предложения водителям | T05 | `task/t06-dispatch` | integrated (`18747e5`, [отчёт](reports/T06.md)) |
+| [T07](tasks/T07-ride-lifecycle.md) | Жизненный цикл и отмена поездки | T06 | `task/t07-ride-lifecycle` | части A и B integrated (`38f002e`, `a5a3d6b` + `fix/t07b-review` `45fb8ff`, [отчёт](reports/T07.md)) |
+| [T08](tasks/T08-payments.md) | Наличные и Kaspi-ссылка | T07 | `task/t08-payments` | части A и B integrated (`0701274`, `96b3777` + `fix/t08b-review` `9056705`, [отчёт](reports/T08.md)) |
+| [T09](tasks/T09-history-admin.md) | История и административное чтение | T07 | `task/t09-history-admin` | integrated (`e0453b1`, [отчёт](reports/T09.md)); payment-поля добавлены в T08 часть B |
+| [T10](tasks/T10-acceptance.md) | Seed, E2E, документация и передача | T08, T09 | `task/t10-acceptance` | integrated (`d85b2b9`, `9c99d7c`, `6e9cc49`, [отчёт](reports/T10.md), [FINAL](reports/FINAL.md)) |
 | [T11](tasks/T11-google.md) | Google-вход | T10 + отдельный запуск | `task/t11-google` | deferred |
 
 ## Что может идти параллельно
 
+- После T00: T01 и часть A задачи T04 — чистый тариф `edu-v1` и адаптер openrouteservice без HTTP-роутера, БД и auth. Часть B (`POST /geo/route` с авторизацией) — после T02, параллельно T03.
+
+- По запросу владельца 3 ноября 2026 (до четырёх исполнителей одновременно): параллельно T03 и T04 часть B выполняются T07 часть A (`modules/rides/states.py`: статусы поездки и предложения, таблица переходов, права команд) и T08 часть A (`modules/payments/`: статусы и переходы оплаты, права подтверждения, проверка `KASPI_PAYMENT_URL`, инструкции). Только чистые модули и unit-тесты, без БД, миграций и общих файлов.
 - После T02: T03 и T04. T03 владеет изменениями схемы; T04 не вводит миграций и не редактирует общие auth/DB файлы.
+- После T05 (решение главной сессии): T09 запускается параллельно T06 — история и admin-чтение используют только модели T05, без миграций; T06 владеет схемой.
 - После T07: T08 и T09. T08 владеет payment-схемой; T09 — чтением истории и административными read-only маршрутами, без изменения payment-контрактов.
 - T05/T06/T07 выполняются последовательно: общий жизненный цикл и ограничения данных.
 - T00/T01 выполняются последовательно, общая инфраструктура имеет одного владельца.
@@ -40,7 +44,7 @@
 ## Владельцы общих файлов
 
 - Главная сессия владеет этой очередью и integration-веткой.
-- T00 устанавливает первоначальные зависимости/lockfile, Docker и конфигурацию.
+- T00 устанавливает первоначальные зависимости/lockfile и конфигурацию (без Docker, ADR 0001).
 - T01 устанавливает Alembic/env.py, metadata и общие DB fixtures.
 - Дальше общий файл передаётся только одному исполнителю на время изменения. Другой исполнитель отправляет главной сессии запрос, не редактирует одновременно.
 - Роутеры модулей регистрируются главной сессией при интеграции или единственным назначенным владельцем.

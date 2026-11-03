@@ -7,7 +7,7 @@
 - Плановая ветка: `task/t07-ride-lifecycle`.
 - База: актуальный проверенный `integration/backend-mvp` после зависимостей.
 - Исполнитель: Opus 5.5 / `bis-implementer`; ревью: `bis-reviewer` либо явно обозначенная самопроверка.
-- При старте заполнить: base SHA, реальная ветка/worktree, владелец, test DB/порты/Compose project.
+- При старте заполнить: base SHA, реальная ветка/worktree, владелец, test DB-файл/порты.
 - При передаче заполнить: result SHA, команды и [отчёт](../reports/README.md).
 - Общие правила: [CLAUDE.md](../../CLAUDE.md), [спецификация](../MVP_SPEC.md), [оркестрация](../../ORCHESTRATION.md).
 
