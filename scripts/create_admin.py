@@ -27,10 +27,10 @@ from taxi_service.core.config import Settings
 from taxi_service.database.session import create_database_engine, create_session_factory
 from taxi_service.database.sqlite import sqlite_file_missing
 from taxi_service.modules.auth.passwords import PasswordHasher
+from taxi_service.modules.users import service as users_service
 from taxi_service.modules.users.exceptions import UsernameTakenError
 from taxi_service.modules.users.models import User, UserRole
 from taxi_service.modules.users.schemas import NewPassword, Username
-from taxi_service.modules.users.service import UserService
 
 PASSWORD_VARIABLE = "ADMIN_PASSWORD"
 NOT_READY = "database is missing or not migrated; run: uv run alembic upgrade head"
@@ -68,10 +68,14 @@ def main(argv: list[str] | None = None) -> int:
 async def _create_admin(settings: Settings, username: str, password: str) -> User:
     engine = create_database_engine(settings.database_url)
     try:
-        async with create_session_factory(engine)() as session:
-            service = UserService(session, SystemClock(), PasswordHasher.from_settings(settings))
-            return await service.create_user(
-                username=username, password=password, role=UserRole.ADMIN
+        async with create_session_factory(engine)() as db:
+            return await users_service.create_user(
+                db,
+                username,
+                password,
+                UserRole.ADMIN,
+                clock=SystemClock(),
+                hasher=PasswordHasher.from_settings(settings),
             )
     finally:
         await engine.dispose()

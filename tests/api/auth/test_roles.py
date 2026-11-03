@@ -11,8 +11,8 @@ from support.clock import ManualClock
 from taxi_service.database.session import SessionFactory
 from taxi_service.modules.auth.dependencies import require_roles
 from taxi_service.modules.auth.service import AuthenticatedUser
+from taxi_service.modules.users import service as users_service
 from taxi_service.modules.users.models import UserRole
-from taxi_service.modules.users.service import UserService
 
 ADMIN_URL = "/_probe/admin"
 DRIVER_URL = "/_probe/driver-work"
@@ -44,9 +44,10 @@ def app(app: FastAPI) -> FastAPI:
 
 
 async def create_admin(app: FastAPI, session_factory: SessionFactory, clock: ManualClock) -> None:
-    async with session_factory() as session:
-        service = UserService(session, clock, app.state.password_hasher)
-        await service.create_user(username="root", password=PASSWORD, role=UserRole.ADMIN)
+    async with session_factory() as db:
+        await users_service.create_user(
+            db, "root", PASSWORD, UserRole.ADMIN, clock=clock, hasher=app.state.password_hasher
+        )
 
 
 def error_code(response: httpx.Response) -> str:

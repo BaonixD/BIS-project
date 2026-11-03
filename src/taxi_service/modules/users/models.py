@@ -19,11 +19,7 @@ class UserRole(StrEnum):
 
 
 class User(Base):
-    """Account with a local password; ``username`` keeps the spelling as registered.
-
-    Uniqueness is case-insensitive through ``username_normalized`` (lower case,
-    enforced by a CHECK), so the database itself rejects ``Alice`` next to ``alice``.
-    """
+    """Case-insensitive uniqueness through ``username_normalized``, enforced by the database."""
 
     __tablename__ = "users"
     __table_args__ = (
@@ -48,11 +44,7 @@ class User(Base):
 
 
 class UserProfile(Base):
-    """Optional contact details of any user, edited through ``/users/me``.
-
-    Kept apart from ``users`` so account columns (role, password) and profile
-    columns never share an update path. A missing row means an empty profile.
-    """
+    """Kept apart from ``users`` so role and password never share its update path."""
 
     __tablename__ = "user_profiles"
     __table_args__ = (

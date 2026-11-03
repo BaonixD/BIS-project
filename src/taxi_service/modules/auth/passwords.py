@@ -12,12 +12,7 @@ _DUMMY_PASSWORD = "dummy-password-for-unknown-users"
 
 
 class PasswordHasher:
-    """Argon2id hashing and verification (argon2-cffi), run off the event loop.
-
-    Argon2 is deliberately slow and memory-hard, so every call is executed in a
-    worker thread instead of blocking other requests, and at most
-    ``max_concurrency`` calls run at once to bound memory use.
-    """
+    """Argon2id in worker threads, at most ``max_concurrency`` at once to bound memory."""
 
     def __init__(
         self, *, time_cost: int, memory_kib: int, parallelism: int, max_concurrency: int = 2
@@ -45,11 +40,7 @@ class PasswordHasher:
         return await self._run(self._hasher.hash, password)
 
     async def verify(self, password_hash: str | None, password: str) -> bool:
-        """Whether ``password`` matches ``password_hash``.
-
-        ``None`` (no such user) is checked against a dummy hash of the same cost
-        and always fails, so the response time does not reveal the username.
-        """
+        """``None`` costs a dummy check, so timing does not reveal unknown usernames."""
         if password_hash is None:
             await self._run(self._verify_dummy, password)
             return False
@@ -64,7 +55,6 @@ class PasswordHasher:
         return self._hasher.hash(_DUMMY_PASSWORD)
 
     def _verify_dummy(self, password: str) -> None:
-        # The first call also computes the dummy hash, still off the event loop.
         self._verify(self._dummy_hash, password)
 
     def _verify(self, password_hash: str, password: str) -> bool:
