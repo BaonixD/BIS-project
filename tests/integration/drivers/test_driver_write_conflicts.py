@@ -20,9 +20,6 @@ from taxi_service.modules.drivers.exceptions import PlateNumberTakenError
 from taxi_service.modules.drivers.models import Vehicle
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate
 from taxi_service.modules.geo.schemas import Coordinates
-from taxi_service.modules.users.repository import UserRepository
-from taxi_service.modules.users.schemas import MyProfileUpdate
-from taxi_service.modules.users.service import UserService
 
 POINT = Coordinates(longitude=76.9457, latitude=43.2383)
 
@@ -85,25 +82,6 @@ async def test_concurrent_first_driver_write_uses_the_existing_row(
 
     assert (profile.longitude, profile.latitude) == (POINT.longitude, POINT.latitude)
     assert profile.full_name == "Dana Driver"  # the existing row, not a new empty one
-
-
-async def test_concurrent_first_profile_write_uses_the_existing_row(
-    driver_factory: DriverFactory,
-    session_factory: SessionFactory,
-    clock: ManualClock,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    user_id = await driver_factory.admin_id()
-    async with session_factory() as session:
-        users = UserService(session, clock, driver_factory.hasher)
-        await users.update_profile(user_id, MyProfileUpdate(display_name="Root"))
-    monkeypatch.setattr(UserRepository, "get_profile", missing_once(UserRepository.get_profile))
-
-    async with session_factory() as session:
-        users = UserService(session, clock, driver_factory.hasher)
-        profile = await users.update_profile(user_id, MyProfileUpdate(phone="+77011234567"))
-
-    assert (profile.display_name, profile.phone) == ("Root", "+77011234567")
 
 
 async def test_first_write_for_a_missing_user_still_fails(

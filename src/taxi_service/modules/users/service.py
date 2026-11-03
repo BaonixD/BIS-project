@@ -132,36 +132,3 @@ async def _get_or_create_profile(db: AsyncSession, user_id: uuid.UUID, clock: Cl
 
 def _role_conditions(role: UserRole | None) -> list[ColumnElement[bool]]:
     return [] if role is None else [User.role == role]
-
-
-class UserRepository:
-    """Temporary adapter for callers not yet moved to these functions."""
-
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
-
-    async def get_by_username(self, username: str) -> User | None:
-        return await get_user_by_username(self._session, username)
-
-    async def get_profile(self, user_id: uuid.UUID) -> UserProfile | None:
-        return await _get_profile(self._session, user_id)
-
-
-class UserService:
-    """Temporary adapter for callers not yet moved to these functions."""
-
-    def __init__(self, session: AsyncSession, clock: Clock, hasher: PasswordHasher) -> None:
-        self._session = session
-        self._clock = clock
-        self._hasher = hasher
-
-    async def create_user(self, *, username: str, password: str, role: UserRole) -> User:
-        return await create_user(
-            self._session, username, password, role, clock=self._clock, hasher=self._hasher
-        )
-
-    async def get_profile(self, user_id: uuid.UUID) -> UserProfile | None:
-        return await get_profile(self._session, user_id)
-
-    async def update_profile(self, user_id: uuid.UUID, update: MyProfileUpdate) -> UserProfile:
-        return await update_profile(self._session, user_id, update, clock=self._clock)
