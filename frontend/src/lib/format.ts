@@ -5,6 +5,7 @@ const TIME_ZONE = 'Asia/Almaty'
 const moneyFormat = new Intl.NumberFormat('ru-RU', {
   style: 'currency',
   currency: 'KZT',
+  currencyDisplay: 'narrowSymbol',
   maximumFractionDigits: 0,
 })
 

@@ -1,12 +1,14 @@
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, unwrap, type Coordinates, type Driver, type DriverProfileUpdate } from '@/api'
+import { api, unwrap, type Coordinates, type DriverProfileUpdate, type Page } from '@/api'
+import type { NextDriver, NextOffer } from '@/api/next-contract-driver'
 import { DRIVER_PENDING_POLL_MS, OFFERS_POLL_MS } from './polling'
 import { queryKeys } from './query-keys'
 
 export function useDriverProfile() {
   return useQuery({
     queryKey: queryKeys.driver.me,
-    queryFn: () => unwrap(api.GET('/api/v1/drivers/me')),
+    queryFn: async () => (await unwrap(api.GET('/api/v1/drivers/me'))) as NextDriver,
     refetchInterval: (query) =>
       query.state.data?.approval_status === 'pending' ? DRIVER_PENDING_POLL_MS : false,
   })
@@ -14,7 +16,7 @@ export function useDriverProfile() {
 
 function useStoreDriver() {
   const queryClient = useQueryClient()
-  return (driver: Driver) => queryClient.setQueryData(queryKeys.driver.me, driver)
+  return (driver: unknown) => queryClient.setQueryData(queryKeys.driver.me, driver as NextDriver)
 }
 
 export function useUpdateDriverProfile() {
@@ -33,6 +35,7 @@ export function useSetAvailability() {
       unwrap(api.PUT('/api/v1/drivers/me/availability', { body: { online } })),
     onSuccess: (driver) => {
       store(driver)
+      rememberOnline(driver.online)
       return queryClient.invalidateQueries({ queryKey: queryKeys.driver.offers })
     },
   })
@@ -50,7 +53,7 @@ export function useSendLocation() {
 export function useDriverOffers(options: { enabled: boolean }) {
   return useQuery({
     queryKey: queryKeys.driver.offers,
-    queryFn: () => unwrap(api.GET('/api/v1/drivers/me/offers')),
+    queryFn: async () => (await unwrap(api.GET('/api/v1/drivers/me/offers'))) as Page<NextOffer>,
     enabled: options.enabled,
     refetchInterval: options.enabled ? OFFERS_POLL_MS : false,
   })
@@ -89,4 +92,42 @@ export function useRejectOffer() {
       ),
     onSettled: invalidate,
   })
+}
+
+const ONLINE_SINCE_KEY = 'bis.driver.onlineSince'
+
+function readOnlineSince(): number | null {
+  const stored = Number(localStorage.getItem(ONLINE_SINCE_KEY))
+  return Number.isFinite(stored) && stored > 0 ? stored : null
+}
+
+/** Remembers when the driver went online (the API does not report it); called on availability changes. */
+function rememberOnline(online: boolean) {
+  if (!online) localStorage.removeItem(ONLINE_SINCE_KEY)
+  else if (readOnlineSince() === null) localStorage.setItem(ONLINE_SINCE_KEY, String(Date.now()))
+}
+
+/** When the current shift started: stored on «ВЫЙТИ», or this page's first render after a reload. */
+export function useOnlineSince(online: boolean): number | null {
+  const [mountedAt] = useState(() => Date.now())
+  return online ? (readOnlineSince() ?? mountedAt) : null
+}
+
+const TRACKED_RIDE_KEY = 'bis.driver.rideId'
+
+/** The ride whose screens the driver still sees (active, or finished but not dismissed); kept across reloads. */
+export function useTrackedRideId(activeRideId: string | null | undefined) {
+  const [rideId, setRideId] = useState<string | null>(() => localStorage.getItem(TRACKED_RIDE_KEY))
+  const [seenActive, setSeenActive] = useState(activeRideId)
+  if (activeRideId !== seenActive) {
+    setSeenActive(activeRideId)
+    if (activeRideId) setRideId(activeRideId)
+  }
+
+  useEffect(() => {
+    if (rideId) localStorage.setItem(TRACKED_RIDE_KEY, rideId)
+    else localStorage.removeItem(TRACKED_RIDE_KEY)
+  }, [rideId])
+
+  return [rideId, setRideId] as const
 }
