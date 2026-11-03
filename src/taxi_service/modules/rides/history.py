@@ -1,10 +1,4 @@
-"""Read side of rides: a participant's history and the admin list (MVP_SPEC §3, §8).
-
-One page costs two statements whatever its size: the rows, each joined with
-the status and method of its payment (none before completion), and the
-total. Rows are loaded without ``route_geometry``; the full route is read
-with ``GET /rides/{id}``.
-"""
+"""Ride lists: two statements a page, rows without ``route_geometry``."""
 
 import dataclasses
 import uuid
@@ -27,10 +21,7 @@ from taxi_service.modules.users.models import UserRole
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class RideFilters:
-    """Conditions combined with AND; empty ``statuses`` means any status.
-
-    ``created_from`` is inclusive and ``created_to`` exclusive: ``[from, to)``.
-    """
+    """AND of the set fields; ``[created_from, created_to)``; empty ``statuses`` is any."""
 
     statuses: frozenset[RideStatus] = frozenset()
     created_from: datetime | None = None
@@ -41,8 +32,6 @@ class RideFilters:
 
 @dataclass(frozen=True, slots=True)
 class RideRow:
-    """A ride of a list with its payment's status and method (``None`` without a payment)."""
-
     ride: Ride
     payment_status: PaymentStatus | None
     payment_method: PaymentMethod | None
@@ -54,48 +43,53 @@ class RidePage:
     total: int
 
 
-class RideQueries:
-    """Read-only ride lists, newest first (``created_at DESC, id DESC``)."""
+async def list_history(
+    db: AsyncSession,
+    viewer_id: uuid.UUID,
+    viewer_role: UserRole,
+    filters: RideFilters,
+    *,
+    limit: int,
+    offset: int,
+) -> RidePage:
+    """A passenger's own rides or a driver's assigned ones; admins use ``list_rides``."""
+    if viewer_role is UserRole.PASSENGER:
+        scoped = dataclasses.replace(filters, passenger_id=viewer_id)
+    elif viewer_role is UserRole.DRIVER:
+        scoped = dataclasses.replace(filters, driver_id=viewer_id)
+    else:
+        raise ForbiddenError
+    return await list_rides(db, scoped, limit=limit, offset=offset)
 
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
 
-    async def history(
-        self,
-        viewer_id: uuid.UUID,
-        viewer_role: UserRole,
-        filters: RideFilters,
-        *,
-        limit: int,
-        offset: int,
-    ) -> RidePage:
-        """A passenger's own rides, or the rides a driver is assigned to now.
+async def list_all_rides(
+    db: AsyncSession,
+    filters: RideFilters,
+    *,
+    passenger_id: uuid.UUID | None,
+    driver_id: uuid.UUID | None,
+    limit: int,
+    offset: int,
+) -> RidePage:
+    scoped = dataclasses.replace(filters, passenger_id=passenger_id, driver_id=driver_id)
+    return await list_rides(db, scoped, limit=limit, offset=offset)
 
-        Admins have no history of their own (403); they use :meth:`list_rides`.
-        """
-        if viewer_role is UserRole.PASSENGER:
-            scoped = dataclasses.replace(filters, passenger_id=viewer_id)
-        elif viewer_role is UserRole.DRIVER:
-            scoped = dataclasses.replace(filters, driver_id=viewer_id)
-        else:
-            raise ForbiddenError
-        return await self.list_rides(scoped, limit=limit, offset=offset)
 
-    async def list_rides(self, filters: RideFilters, *, limit: int, offset: int) -> RidePage:
-        conditions = _conditions(filters)
-        async with read_transaction(self._session):
-            result = await self._session.execute(_page(conditions, limit=limit, offset=offset))
-            rows = [RideRow(ride, status, method) for ride, status, method in result]
-            total = await self._session.scalar(
-                select(func.count()).select_from(Ride).where(*conditions)
-            )
-            return RidePage(rows=rows, total=total or 0)
+async def list_rides(
+    db: AsyncSession, filters: RideFilters, *, limit: int, offset: int
+) -> RidePage:
+    """Newest first (``created_at DESC, id DESC``)."""
+    conditions = _conditions(filters)
+    async with read_transaction(db):
+        result = await db.execute(_page(conditions, limit=limit, offset=offset))
+        rows = [RideRow(ride, status, method) for ride, status, method in result]
+        total = await db.scalar(select(func.count()).select_from(Ride).where(*conditions))
+        return RidePage(rows=rows, total=total or 0)
 
 
 def _page(
     conditions: list[ColumnElement[bool]], *, limit: int, offset: int
 ) -> Select[Ride, PaymentStatus, PaymentMethod]:
-    """Rows of one page; the outer join gives ``None`` payment columns before completion."""
     return (
         select(Ride, Payment.status, Payment.method)
         .outerjoin(Payment, Payment.ride_id == Ride.id)
