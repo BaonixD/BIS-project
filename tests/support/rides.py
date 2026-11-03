@@ -28,8 +28,8 @@ from taxi_service.modules.rides.idempotency import IDEMPOTENCY_HEADER
 from taxi_service.modules.rides.models import Ride
 from taxi_service.modules.rides.schemas import QuoteRequest, RideCreateRequest
 from taxi_service.modules.rides.service import RideService
+from taxi_service.modules.users import service as users_service
 from taxi_service.modules.users.models import UserRole
-from taxi_service.modules.users.service import UserService
 
 RIDES_URL = "/api/v1/rides"
 QUOTES_URL = f"{RIDES_URL}/quotes"
@@ -96,11 +96,14 @@ class RideFactory:
 
     async def passenger(self, username: str | None = None) -> uuid.UUID:
         self._passengers += 1
-        async with self.session_factory() as session:
-            user = await UserService(session, self.clock, self.hasher).create_user(
-                username=username or f"passenger_{self._passengers}",
-                password=PASSWORD,
-                role=UserRole.PASSENGER,
+        async with self.session_factory() as db:
+            user = await users_service.create_user(
+                db,
+                username or f"passenger_{self._passengers}",
+                PASSWORD,
+                UserRole.PASSENGER,
+                clock=self.clock,
+                hasher=self.hasher,
             )
         return user.id
 
