@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test'
 
-const PORT = 5199
+const PORT = Number(process.env.VISUAL_PORT ?? 5199)
 
 /** Screenshots for comparing the app with the Figma frames; not part of `npm test`. */
 export default defineConfig({
