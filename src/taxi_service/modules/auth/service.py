@@ -14,8 +14,8 @@ from taxi_service.modules.auth.models import AuthSession
 from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.auth.rate_limit import LoginAttemptLimiter
 from taxi_service.modules.auth.repository import AuthSessionRepository
+from taxi_service.modules.users import service as users_service
 from taxi_service.modules.users.models import User, UserRole
-from taxi_service.modules.users.repository import UserRepository, normalize_username
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,6 @@ class AuthService:
         self._clock = clock
         self._hasher = hasher
         self._limiter = limiter
-        self._users = UserRepository(session)
         self._sessions = AuthSessionRepository(session)
 
     async def login(
@@ -90,10 +89,10 @@ class AuthService:
         Every attempt counts against the username's limit (429 once used up);
         a successful login resets it.
         """
-        limiter_key = normalize_username(username)
+        limiter_key = users_service.normalize_username(username)
         self._limiter.acquire(limiter_key)
         async with read_transaction(self._session):
-            user = await self._users.get_by_username(username)
+            user = await users_service.get_user_by_username(self._session, username)
         verified = await self._hasher.verify(user.password_hash if user else None, password)
         if user is None or not verified:
             logger.info("Login failed")
