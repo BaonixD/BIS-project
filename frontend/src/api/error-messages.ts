@@ -12,6 +12,8 @@ const MESSAGES: Record<string, string> = {
   invalid_credentials: 'Неверный логин или пароль.',
   too_many_attempts: 'Слишком много попыток входа. Подождите и попробуйте снова.',
   username_taken: 'Это имя пользователя уже занято.',
+  invalid_google_token: 'Google не подтвердил вход. Попробуйте ещё раз.',
+  google_login_unavailable: 'Вход через Google сейчас недоступен.',
   csrf_failed: 'Сессия устарела. Обновите страницу.',
   origin_not_allowed: 'Адрес приложения не разрешён на сервере (CORS_ALLOWED_ORIGINS).',
   forbidden: 'Недостаточно прав для этого действия.',

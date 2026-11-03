@@ -2,7 +2,7 @@ import { useEffect, useMemo, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { onUnauthenticated, type Session } from '@/api'
 import { queryKeys } from '@/hooks/query-keys'
-import { fetchSession, login, logout, register } from './session-api'
+import { fetchSession, login, loginWithGoogle, logout, register } from './session-api'
 import { SessionContext, type SessionContextValue } from './session-context'
 
 function resetUserData(queryClient: QueryClient, session: Session | null): void {
@@ -28,6 +28,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     mutationFn: login,
     onSuccess: (data) => resetUserData(queryClient, data),
   })
+  const googleLoginMutation = useMutation({
+    mutationFn: loginWithGoogle,
+    onSuccess: (data) => resetUserData(queryClient, data),
+  })
   const registerMutation = useMutation({ mutationFn: register })
   const logoutMutation = useMutation({
     mutationFn: logout,
@@ -44,8 +48,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       login: loginMutation,
       register: registerMutation,
       logout: logoutMutation,
+      googleLogin: googleLoginMutation,
     }),
-    [status, user, loginMutation, registerMutation, logoutMutation],
+    [status, user, loginMutation, registerMutation, logoutMutation, googleLoginMutation],
   )
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>

@@ -10,6 +10,8 @@ export interface SessionContextValue {
   login: UseMutationResult<Session, Error, LoginRequest>
   register: UseMutationResult<User, Error, RegisterRequest>
   logout: UseMutationResult<void, Error, void>
+  /** Exchanges a Google Identity Services credential (ID token) for a session. */
+  googleLogin: UseMutationResult<Session, Error, string>
 }
 
 export const SessionContext = createContext<SessionContextValue | null>(null)

@@ -21,6 +21,12 @@ export async function login(body: LoginRequest): Promise<Session> {
   return session
 }
 
+export async function loginWithGoogle(credential: string): Promise<Session> {
+  const session = await unwrap(api.POST('/api/v1/auth/google', { body: { credential } }))
+  setCsrfToken(session.csrf_token)
+  return session
+}
+
 export function register(body: RegisterRequest): Promise<User> {
   return unwrap(api.POST('/api/v1/auth/register', { body }))
 }
@@ -31,4 +37,8 @@ export async function logout(): Promise<void> {
   } finally {
     setCsrfToken(null)
   }
+}
+
+export function fetchAuthProviders() {
+  return unwrap(api.GET('/api/v1/auth/providers'))
 }
