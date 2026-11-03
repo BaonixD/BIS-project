@@ -19,11 +19,10 @@ import uuid
 from dataclasses import dataclass, field
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from support.clock import ManualClock
 from taxi_service.database.session import SessionFactory, read_transaction
-from taxi_service.modules.rides.dispatch import DispatchService
+from taxi_service.modules.rides import dispatch
 from taxi_service.modules.rides.models import Ride, RideOffer
 from taxi_service.modules.rides.policy import DEFAULT_DISPATCH_POLICY, DispatchPolicy
 from taxi_service.modules.rides.states import OfferStatus
@@ -48,19 +47,25 @@ class Dispatcher:
 
     async def process(self, ride_id: uuid.UUID) -> Ride | None:
         async with self.session_factory() as session:
-            return await self._service(session).process_ride(ride_id)
+            return await dispatch.process_ride(
+                session, ride_id, clock=self.clock, policy=self.policy
+            )
 
     async def process_due(self) -> int:
         async with self.session_factory() as session:
-            return await self._service(session).process_due()
+            return await dispatch.process_due(session, clock=self.clock, policy=self.policy)
 
     async def accept(self, offer_id: uuid.UUID, driver_id: uuid.UUID) -> Ride:
         async with self.session_factory() as session:
-            return await self._service(session).accept_offer(offer_id, driver_id)
+            return await dispatch.accept_offer(
+                session, offer_id, driver_id, clock=self.clock, policy=self.policy
+            )
 
     async def reject(self, offer_id: uuid.UUID, driver_id: uuid.UUID) -> RideOffer:
         async with self.session_factory() as session:
-            offer, _ = await self._service(session).reject_offer(offer_id, driver_id)
+            offer, _ = await dispatch.reject_offer(
+                session, offer_id, driver_id, clock=self.clock, policy=self.policy
+            )
         return offer
 
     async def ride(self, ride_id: uuid.UUID) -> Ride:
@@ -88,6 +93,3 @@ class Dispatcher:
         ]
         assert len(pending) <= 1
         return pending[0] if pending else None
-
-    def _service(self, session: AsyncSession) -> DispatchService:
-        return DispatchService(session, self.clock, self.policy)

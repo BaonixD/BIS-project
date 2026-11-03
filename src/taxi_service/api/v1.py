@@ -6,9 +6,7 @@ from taxi_service.modules.drivers.router import admin_router as admin_drivers_ro
 from taxi_service.modules.drivers.router import router as drivers_router
 from taxi_service.modules.geo.router import router as geo_router
 from taxi_service.modules.payments.router import router as payments_router
-from taxi_service.modules.rides.history_router import router as ride_history_router
-from taxi_service.modules.rides.lifecycle_router import router as ride_lifecycle_router
-from taxi_service.modules.rides.offers_router import router as offers_router
+from taxi_service.modules.rides.router import offers_router
 from taxi_service.modules.rides.router import router as rides_router
 from taxi_service.modules.users.router import router as users_router
 from taxi_service.schemas.errors import error_responses
@@ -23,8 +21,6 @@ v1_router.include_router(users_router)
 v1_router.include_router(drivers_router)
 v1_router.include_router(admin_drivers_router)
 v1_router.include_router(rides_router)
-v1_router.include_router(ride_lifecycle_router)
 v1_router.include_router(payments_router)
-v1_router.include_router(ride_history_router)
 v1_router.include_router(admin_reads_router)
 v1_router.include_router(offers_router)

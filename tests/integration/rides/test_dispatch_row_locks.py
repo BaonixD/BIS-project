@@ -18,7 +18,7 @@ from support.drivers import DriverFactory
 from support.rides import PICKUP, RideFactory
 from taxi_service.database.session import SessionFactory
 from taxi_service.modules.drivers.exceptions import DriverOnActiveRideError
-from taxi_service.modules.rides.lifecycle import RideLifecycleService
+from taxi_service.modules.rides import lifecycle
 from taxi_service.modules.rides.states import OfferStatus, RideCommand
 from taxi_service.modules.users.models import UserRole
 
@@ -88,8 +88,13 @@ async def test_cancel_locks_the_ride_before_revoking_its_offer(
     locking_selects.clear()
 
     async with session_factory() as session:
-        await RideLifecycleService(session, dispatcher.clock).execute(
-            ride.id, RideCommand.CANCEL, user_id=ride.passenger_id, role=UserRole.PASSENGER
+        await lifecycle.execute_command(
+            session,
+            ride.id,
+            RideCommand.CANCEL,
+            user_id=ride.passenger_id,
+            role=UserRole.PASSENGER,
+            clock=dispatcher.clock,
         )
 
     assert locking_selects == ["rides"]

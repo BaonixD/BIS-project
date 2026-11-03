@@ -5,11 +5,7 @@ from taxi_service.modules.payments.kaspi import validate_kaspi_payment_url
 
 
 class PaymentSettings(BaseSettings):
-    """Payment settings; ``KASPI_PAYMENT_URL`` keeps its unprefixed name from ``.env``.
-
-    A blank or missing link disables Kaspi while cash keeps working. An invalid
-    link fails at load; the error does not repeat the configured value.
-    """
+    """A blank ``KASPI_PAYMENT_URL`` disables Kaspi; an invalid one fails without echoing it."""
 
     model_config = SettingsConfigDict(
         env_file=".env",

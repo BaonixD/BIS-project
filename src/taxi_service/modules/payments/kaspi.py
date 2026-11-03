@@ -1,8 +1,4 @@
-"""Validation of the owner's Kaspi point-of-sale payment link.
-
-The link is a plain point-of-sale page: the buyer types the amount in the
-Kaspi app. No amount or callback parameters are known, so none are accepted.
-"""
+"""The POS link has no amount or callback parameters, so none are accepted."""
 
 import re
 from typing import Final

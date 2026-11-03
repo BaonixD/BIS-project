@@ -1,11 +1,4 @@
-"""The single background dispatch loop of the monolith (MVP_SPEC §6, ADR 0006).
-
-An asyncio task started and stopped by the application lifespan. Every
-``interval_s`` it runs ``DispatchService.process_due``: a read-only check, then
-a short write transaction only for rides that need a step. The loop keeps no
-state of its own: after a restart its first pass settles what ran out while the
-application was down. No Celery, Redis or separate process.
-"""
+"""The single in-process dispatch loop; it keeps no state, so a restart loses nothing."""
 
 import asyncio
 import contextlib
@@ -17,7 +10,7 @@ from sqlalchemy.engine import URL
 from taxi_service.core.clock import Clock
 from taxi_service.database.session import SessionFactory
 from taxi_service.database.sqlite import sqlite_file_missing
-from taxi_service.modules.rides.dispatch import DispatchService
+from taxi_service.modules.rides import dispatch
 from taxi_service.modules.rides.policy import DispatchPolicy
 
 logger = logging.getLogger(__name__)
@@ -53,7 +46,6 @@ class DispatchLoop:
         self._task = asyncio.create_task(self._run(), name="dispatch-loop")
 
     async def stop(self) -> None:
-        """Cancel the task and wait until it has finished."""
         task, self._task = self._task, None
         if task is None:
             return
@@ -62,12 +54,13 @@ class DispatchLoop:
             await task
 
     async def run_once(self) -> int:
-        """One pass; how many rides needed a step. A missing SQLite file is not created."""
+        """One pass; a missing SQLite file is not created."""
         if sqlite_file_missing(self._database_url):
             return 0
-        async with self._session_factory() as session:
-            service = DispatchService(session, self._clock, self._policy)
-            return await service.process_due(self._failing_rides)
+        async with self._session_factory() as db:
+            return await dispatch.process_due(
+                db, clock=self._clock, policy=self._policy, failing_rides=self._failing_rides
+            )
 
     async def _run(self) -> None:
         failing = False

@@ -1,12 +1,9 @@
-"""``Idempotency-Key`` format and request fingerprints (ADR 0005)."""
-
 import hashlib
 import json
 import re
 from collections.abc import Mapping
-from typing import Annotated, Final
+from typing import Final
 
-from fastapi import Depends, Header
 from pydantic import JsonValue
 
 from taxi_service.modules.rides.exceptions import (
@@ -23,7 +20,6 @@ _KEY_PATTERN: Final = re.compile(rf"[\x21-\x7e]{{1,{IDEMPOTENCY_KEY_MAX_LENGTH}}
 
 
 def parse_idempotency_key(value: str | None) -> str:
-    """The key as sent; 422 ``idempotency_key_required`` / ``idempotency_key_invalid``."""
     if value is None:
         raise IdempotencyKeyRequiredError
     if _KEY_PATTERN.fullmatch(value) is None:
@@ -32,22 +28,6 @@ def parse_idempotency_key(value: str | None) -> str:
 
 
 def request_fingerprint(payload: Mapping[str, JsonValue]) -> str:
-    """SHA-256 (hex) of the payload as canonical JSON: sorted keys, no whitespace, UTF-8."""
+    """SHA-256 of canonical JSON (sorted keys, no whitespace, UTF-8): ADR 0005."""
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(canonical.encode()).hexdigest()
-
-
-def get_idempotency_key(
-    key: Annotated[
-        str | None,
-        Header(
-            alias=IDEMPOTENCY_HEADER,
-            description="Required. 1-128 visible ASCII characters, unique per new order "
-            "(a UUID is a good choice). Repeat it to retry the same request safely.",
-        ),
-    ] = None,
-) -> str:
-    return parse_idempotency_key(key)
-
-
-IdempotencyKeyDep = Annotated[str, Depends(get_idempotency_key)]

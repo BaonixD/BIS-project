@@ -1,6 +1,3 @@
-"""Payment API bodies. Requests are closed (extra fields are 422): amount, link and status
-always come from the server."""
-
 import uuid
 from datetime import datetime
 from typing import Any, Literal, Self
@@ -11,6 +8,7 @@ from taxi_service.modules.payments.config import PaymentSettings
 from taxi_service.modules.payments.instructions import build_payment_instructions
 from taxi_service.modules.payments.models import Payment
 from taxi_service.modules.payments.rules import PaymentMethod, PaymentState, PaymentStatus
+from taxi_service.modules.users.models import UserRole
 
 
 class PaymentMethodRequest(BaseModel):
@@ -20,8 +18,6 @@ class PaymentMethodRequest(BaseModel):
 
 
 class PaymentReportRequest(BaseModel):
-    """Optional empty body of ``report``: the statement carries no amount or proof."""
-
     model_config = ConfigDict(extra="forbid")
 
 
@@ -36,13 +32,7 @@ class PaymentConfirmRequest(BaseModel):
 
 
 class PaymentResponse(BaseModel):
-    """What to pay and the payment's state; ``verification`` is always ``manual``.
-
-    ``payment_url`` is the configured Kaspi link, only for ``kaspi_link``
-    before confirmation; the buyer types the amount in Kaspi. The client may
-    show it as a QR code. ``confirmed_by`` and ``confirmation_reference`` are shown
-    to admins only; others get null (who confirmed is stored and audited).
-    """
+    """``confirmed_by`` and ``confirmation_reference`` are null for everyone but admins."""
 
     ride_id: uuid.UUID
     amount_kzt: int
@@ -60,8 +50,8 @@ class PaymentResponse(BaseModel):
     confirmation_reference: str | None
 
     @classmethod
-    def build(cls, payment: Payment, settings: PaymentSettings, *, for_admin: bool) -> Self:
-        return cls(**_fields(payment, settings, for_admin=for_admin))
+    def build(cls, payment: Payment, settings: PaymentSettings, *, viewer_role: UserRole) -> Self:
+        return cls(**_fields(payment, settings, viewer_role=viewer_role))
 
 
 class PaymentCommandResponse(PaymentResponse):
@@ -71,12 +61,15 @@ class PaymentCommandResponse(PaymentResponse):
 
     @classmethod
     def after(
-        cls, payment: Payment, settings: PaymentSettings, *, changed: bool, for_admin: bool
+        cls, payment: Payment, settings: PaymentSettings, *, changed: bool, viewer_role: UserRole
     ) -> Self:
-        return cls(**_fields(payment, settings, for_admin=for_admin), changed=changed)
+        return cls(**_fields(payment, settings, viewer_role=viewer_role), changed=changed)
 
 
-def _fields(payment: Payment, settings: PaymentSettings, *, for_admin: bool) -> dict[str, Any]:
+def _fields(
+    payment: Payment, settings: PaymentSettings, *, viewer_role: UserRole
+) -> dict[str, Any]:
+    for_admin = viewer_role is UserRole.ADMIN
     instructions = build_payment_instructions(
         ride_id=payment.ride_id,
         amount_kzt=payment.amount_kzt,

@@ -26,8 +26,8 @@ from taxi_service.modules.drivers.models import (
 )
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate, VehicleInput
 from taxi_service.modules.geo.schemas import Coordinates
+from taxi_service.modules.rides import service as rides_service
 from taxi_service.modules.rides.dispatch import revoke_driver_offers
-from taxi_service.modules.rides.repository import driver_has_active_ride
 from taxi_service.modules.users.models import User, UserRole
 
 # Changing these after approval needs a new approval; the phone is only a contact.
@@ -126,7 +126,7 @@ async def _get_or_create_profile(
 
 
 async def _ensure_no_active_ride(db: AsyncSession, driver_id: uuid.UUID) -> None:
-    if await driver_has_active_ride(db, driver_id):
+    if await rides_service.driver_has_active_ride(db, driver_id):
         raise DriverOnActiveRideError
 
 
