@@ -1,12 +1,11 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Query
 
 from taxi_service.database.session import DbSession
 from taxi_service.modules.admin.schemas import AdminUserResponse
-from taxi_service.modules.auth.dependencies import require_roles
-from taxi_service.modules.auth.service import AuthenticatedUser
+from taxi_service.modules.auth.dependencies import AdminUser
 from taxi_service.modules.rides import history
 from taxi_service.modules.rides.dependencies import RideFiltersDep
 from taxi_service.modules.rides.schemas import RideSummary
@@ -16,8 +15,6 @@ from taxi_service.schemas.errors import error_responses
 from taxi_service.schemas.pagination import Page, PageParamsDep
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-
-AdminUser = Annotated[AuthenticatedUser, Depends(require_roles(UserRole.ADMIN))]
 
 
 @router.get("/rides", responses=error_responses(401, 403))

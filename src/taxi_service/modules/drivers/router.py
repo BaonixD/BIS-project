@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query
 
 from taxi_service.core.clock import ClockDep
 from taxi_service.database.session import DbSession
-from taxi_service.modules.auth.dependencies import require_roles
+from taxi_service.modules.auth.dependencies import AdminUser, require_roles
 from taxi_service.modules.auth.service import AuthenticatedUser
 from taxi_service.modules.drivers import service
 from taxi_service.modules.drivers.models import ApprovalStatus
@@ -24,7 +24,6 @@ router = APIRouter(prefix="/drivers", tags=["drivers"])
 admin_router = APIRouter(prefix="/admin/drivers", tags=["admin"])
 
 DriverUser = Annotated[AuthenticatedUser, Depends(require_roles(UserRole.DRIVER))]
-AdminUser = Annotated[AuthenticatedUser, Depends(require_roles(UserRole.ADMIN))]
 
 
 @router.get("/me", responses=error_responses(401, 403))

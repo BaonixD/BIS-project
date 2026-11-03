@@ -87,6 +87,9 @@ def require_roles(*roles: UserRole) -> Callable[..., Awaitable[AuthenticatedUser
     return current_user_with_role
 
 
+AdminUser = Annotated[AuthenticatedUser, Depends(require_roles(UserRole.ADMIN))]
+
+
 def require_allowed_origin(request: Request, settings: SettingsDep) -> None:
     """Login and register have no CSRF token yet; browsers send ``Origin`` cross-site."""
     origin = request.headers.get("origin")
