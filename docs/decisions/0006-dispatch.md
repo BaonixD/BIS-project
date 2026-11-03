@@ -28,7 +28,7 @@ MVP_SPEC §6: ближайший допустимый водитель полу�
 
 Так выполняется MVP_SPEC §6: «в рамках одного поиска уже рассмотренному водителю повторно не предлагаем», а после release — «новый 180-секундный поиск, освободившийся водитель исключается». Водители, отказавшиеся или не ответившие в прошлом поиске, в новом снова кандидаты (иначе демо с 2–3 водителями после release сразу заканчивалось бы `no_driver`). `restart_search` начинает новое окно строго позже прежнего (минимум на 1 мкс), поэтому предложения двух поисков не делят одно `search_started_at`.
 
-### Шаг поиска (`DispatchService.process_ride`)
+### Шаг поиска (`dispatch.process_ride`)
 
 Одна короткая пишущая транзакция на поездку:
 
@@ -72,9 +72,9 @@ MVP_SPEC §6: ближайший допустимый водитель полу�
 
 ### Контракт для T07B
 
-- Модель `RideOffer`, `OfferStatus`; `DispatchService(session, clock, policy)`, `DispatchPolicy.from_settings` / `DispatchPolicyDep`, `DispatchServiceDep`.
+- Модель `RideOffer`, `OfferStatus`; функции `rides/dispatch.py` (`process_ride`, `start_search`, `process_due`, `accept_offer`, `reject_offer` с `clock=`, `policy=`), `DispatchPolicy.from_settings` / `DispatchPolicyDep` (ADR 0008).
 - Cancel: внутри своей транзакции (поездка уже под `FOR UPDATE`) вызвать `revoke_pending_offers(session, ride_id, now)`. Даже если забыть, шаг поиска отзовёт `pending` у поездки не в `searching`.
-- Release: в своей транзакции `status = searching`, `driver_id = NULL` и `restart_search(ride, now, policy)` (новое окно 180 с); после коммита — `DispatchService.process_ride(ride_id)` (или дождаться цикла). Освободившийся водитель исключён автоматически (его `accepted` предложение); отказавшиеся в прошлом поиске снова кандидаты.
+- Release: в своей транзакции `status = searching`, `driver_id = NULL` и `restart_search(ride, now, policy)` (новое окно 180 с); после коммита — `dispatch.process_ride(db, ride_id, clock=..., policy=...)` (или дождаться цикла). Освободившийся водитель исключён автоматически (его `accepted` предложение); отказавшиеся в прошлом поиске снова кандидаты.
 - Принятое предложение остаётся `accepted` после release как история.
 
 ## Ограничения SQLite и PostgreSQL
