@@ -1,6 +1,3 @@
-"""Read-only admin lists (MVP_SPEC §2, §8): no route here changes a user or a ride."""
-
-import dataclasses
 import uuid
 from typing import Annotated
 
@@ -10,8 +7,9 @@ from taxi_service.database.session import DbSession
 from taxi_service.modules.admin.schemas import AdminUserResponse
 from taxi_service.modules.auth.dependencies import require_roles
 from taxi_service.modules.auth.service import AuthenticatedUser
-from taxi_service.modules.rides.history_router import RideQueriesDep
-from taxi_service.modules.rides.history_schemas import RideFiltersDep, RideSummary
+from taxi_service.modules.rides import history
+from taxi_service.modules.rides.dependencies import RideFiltersDep
+from taxi_service.modules.rides.schemas import RideSummary
 from taxi_service.modules.users import service as users_service
 from taxi_service.modules.users.models import UserRole
 from taxi_service.schemas.errors import error_responses
@@ -25,7 +23,7 @@ AdminUser = Annotated[AuthenticatedUser, Depends(require_roles(UserRole.ADMIN))]
 @router.get("/rides", responses=error_responses(401, 403))
 async def list_all_rides(
     _admin: AdminUser,
-    queries: RideQueriesDep,
+    db: DbSession,
     page: PageParamsDep,
     filters: RideFiltersDep,
     passenger_id: Annotated[uuid.UUID | None, Query(description="Only this passenger.")] = None,
@@ -33,15 +31,14 @@ async def list_all_rides(
         uuid.UUID | None, Query(description="Only rides assigned to this driver now.")
     ] = None,
 ) -> Page[RideSummary]:
-    """Every ride, newest first (`created_at DESC, id DESC`); admin only.
-
-    Filters combine with AND, as in `GET /rides`: `status` (repeatable),
-    `created_from` (inclusive), `created_to` (exclusive), plus
-    `passenger_id` and `driver_id`. An unknown id gives an empty page.
-    Errors: `422 validation_error`; `422 invalid_date_range`.
-    """
-    scoped = dataclasses.replace(filters, passenger_id=passenger_id, driver_id=driver_id)
-    result = await queries.list_rides(scoped, limit=page.limit, offset=page.offset)
+    result = await history.list_all_rides(
+        db,
+        filters,
+        passenger_id=passenger_id,
+        driver_id=driver_id,
+        limit=page.limit,
+        offset=page.offset,
+    )
     return RideSummary.page(result, page)
 
 

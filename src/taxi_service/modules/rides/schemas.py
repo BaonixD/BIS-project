@@ -7,13 +7,20 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstra
 
 from taxi_service.modules.drivers.models import DriverProfile
 from taxi_service.modules.geo.schemas import Coordinates, RouteResult
-from taxi_service.modules.rides.models import REASON_MAX_LENGTH, Ride, RideQuote, RouteSnapshot
-from taxi_service.modules.rides.states import RideStatus
+from taxi_service.modules.payments.rules import PaymentMethod, PaymentStatus
+from taxi_service.modules.rides.history import RidePage, RideRow
+from taxi_service.modules.rides.models import (
+    REASON_MAX_LENGTH,
+    Ride,
+    RideOffer,
+    RideQuote,
+    RouteSnapshot,
+)
+from taxi_service.modules.rides.states import OfferStatus, RideStatus
+from taxi_service.schemas.pagination import Page, PageParams
 
 
 class QuoteRequest(BaseModel):
-    """Two different points; the price comes from the server, never from the client."""
-
     model_config = ConfigDict(extra="forbid")
 
     pickup: Coordinates
@@ -47,8 +54,6 @@ class QuoteResponse(BaseModel):
 
 
 class RideCreateRequest(BaseModel):
-    """Only the quote: route, price and status are the server's (extra fields are 422)."""
-
     model_config = ConfigDict(extra="forbid")
 
     quote_id: uuid.UUID
@@ -69,16 +74,12 @@ Reason = Annotated[
 
 
 class CancelRequest(BaseModel):
-    """Optional body of ``cancel``; the reason is stored with the ride and in its history."""
-
     model_config = ConfigDict(extra="forbid")
 
     reason: Reason | None = None
 
 
 class ReleaseRequest(BaseModel):
-    """Body of ``release``: why the driver gives the ride up (kept in the ride history)."""
-
     model_config = ConfigDict(extra="forbid")
 
     reason: Reason
@@ -138,11 +139,7 @@ class VehicleCard(BaseModel):
 
 
 class DriverCard(BaseModel):
-    """The assigned driver as the passenger sees them during the ride.
-
-    ``location`` is the last one the driver sent (no history); a stale
-    ``location_updated_at`` does not end or cancel the ride (MVP_SPEC §6).
-    """
+    """``location`` is the last one sent; a stale one never ends the ride."""
 
     full_name: str | None
     phone: str | None
@@ -173,8 +170,6 @@ class DriverCard(BaseModel):
 
 
 class RideDetailsResponse(RideResponse):
-    """``GET /rides/{id}``: the ride, and its driver for the participants of an active ride."""
-
     driver: DriverCard | None = Field(
         description="Only for the passenger and the driver while the ride is assigned, "
         "arrived or in_progress; otherwise null."
@@ -184,6 +179,84 @@ class RideDetailsResponse(RideResponse):
     def with_driver(cls, ride: Ride, driver: DriverProfile | None) -> "RideDetailsResponse":
         card = None if driver is None else DriverCard.build(driver)
         return cls(**RideResponse.build(ride).model_dump(), driver=card)
+
+
+class OfferResponse(BaseModel):
+    id: uuid.UUID
+    ride_id: uuid.UUID
+    status: OfferStatus
+    pickup: Coordinates
+    dropoff: Coordinates
+    distance_m: int
+    duration_s: int
+    amount_kzt: int
+    currency: Literal["KZT"]
+    created_at: datetime
+    expires_at: datetime
+
+    @classmethod
+    def build(cls, offer: RideOffer, ride: Ride) -> "OfferResponse":
+        return cls(
+            id=offer.id,
+            ride_id=ride.id,
+            status=offer.status,
+            pickup=pickup_of(ride),
+            dropoff=dropoff_of(ride),
+            distance_m=ride.distance_m,
+            duration_s=ride.duration_s,
+            amount_kzt=ride.amount_kzt,
+            currency="KZT",
+            created_at=offer.created_at,
+            expires_at=offer.expires_at,
+        )
+
+
+class RideSummary(BaseModel):
+    """A list item without the route geometry; payment fields are null before completion."""
+
+    id: uuid.UUID
+    status: RideStatus
+    passenger_id: uuid.UUID
+    driver_id: uuid.UUID | None
+    pickup: Coordinates
+    dropoff: Coordinates
+    distance_m: int
+    duration_s: int
+    amount_kzt: int
+    currency: Literal["KZT"]
+    created_at: datetime
+    updated_at: datetime
+    payment_status: PaymentStatus | None
+    payment_method: PaymentMethod | None
+
+    @classmethod
+    def build(cls, row: RideRow) -> "RideSummary":
+        ride = row.ride
+        return cls(
+            id=ride.id,
+            status=ride.status,
+            passenger_id=ride.passenger_id,
+            driver_id=ride.driver_id,
+            pickup=pickup_of(ride),
+            dropoff=dropoff_of(ride),
+            distance_m=ride.distance_m,
+            duration_s=ride.duration_s,
+            amount_kzt=ride.amount_kzt,
+            currency="KZT",
+            created_at=ride.created_at,
+            updated_at=ride.updated_at,
+            payment_status=row.payment_status,
+            payment_method=row.payment_method,
+        )
+
+    @classmethod
+    def page(cls, result: RidePage, params: PageParams) -> Page["RideSummary"]:
+        return Page(
+            items=[cls.build(row) for row in result.rows],
+            limit=params.limit,
+            offset=params.offset,
+            total=result.total,
+        )
 
 
 def pickup_of(snapshot: RouteSnapshot) -> Coordinates:

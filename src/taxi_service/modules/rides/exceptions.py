@@ -134,3 +134,12 @@ class IdempotencyKeyReusedError(AppError):
             code="idempotency_key_reused",
             message="This Idempotency-Key was already used with a different request.",
         )
+
+
+class InvalidDateRangeError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=422,
+            code="invalid_date_range",
+            message="created_from must not be later than created_to.",
+        )
