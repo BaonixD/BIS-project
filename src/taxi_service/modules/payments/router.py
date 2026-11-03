@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request
 
 from taxi_service.core.clock import ClockDep
-from taxi_service.database.session import SessionDep
+from taxi_service.database.session import DbSession
 from taxi_service.modules.auth.dependencies import CurrentUser
 from taxi_service.modules.auth.service import AuthenticatedUser
 from taxi_service.modules.payments.config import PaymentSettings
@@ -34,7 +34,7 @@ PaymentSettingsDep = Annotated[PaymentSettings, Depends(get_payment_settings)]
 
 
 def get_payment_service(
-    session: SessionDep, clock: ClockDep, settings: PaymentSettingsDep
+    session: DbSession, clock: ClockDep, settings: PaymentSettingsDep
 ) -> PaymentService:
     return PaymentService(session, clock, settings)
 

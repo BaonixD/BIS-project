@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Response, status
 
 from taxi_service.core.clock import ClockDep
-from taxi_service.database.session import SessionDep
+from taxi_service.database.session import DbSession
 from taxi_service.modules.auth.dependencies import CurrentUser, require_roles
 from taxi_service.modules.auth.service import AuthenticatedUser
 from taxi_service.modules.geo.dependencies import RoutingProviderDep
@@ -27,9 +27,7 @@ router = APIRouter(prefix="/rides", tags=["rides"])
 PassengerUser = Annotated[AuthenticatedUser, Depends(require_roles(UserRole.PASSENGER))]
 
 
-def get_ride_service(
-    session: SessionDep, clock: ClockDep, policy: DispatchPolicyDep
-) -> RideService:
+def get_ride_service(session: DbSession, clock: ClockDep, policy: DispatchPolicyDep) -> RideService:
     return RideService(session, clock, policy)
 
 

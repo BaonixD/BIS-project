@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from taxi_service.core.clock import ClockDep
-from taxi_service.database.session import SessionDep
+from taxi_service.database.session import DbSession
 from taxi_service.modules.auth.dependencies import CurrentUser
 from taxi_service.modules.rides.completion import CompletionHookDep
 from taxi_service.modules.rides.lifecycle import RideLifecycleService
@@ -19,7 +19,7 @@ COMMAND_ERRORS = error_responses(401, 403, 404, 409)
 
 
 def get_lifecycle_service(
-    session: SessionDep, clock: ClockDep, policy: DispatchPolicyDep, hook: CompletionHookDep
+    session: DbSession, clock: ClockDep, policy: DispatchPolicyDep, hook: CompletionHookDep
 ) -> RideLifecycleService:
     return RideLifecycleService(session, clock, policy, on_completed=hook)
 

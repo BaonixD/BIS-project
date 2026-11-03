@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from taxi_service.database.session import SessionDep
+from taxi_service.database.session import DbSession
 from taxi_service.modules.auth.dependencies import require_roles
 from taxi_service.modules.auth.service import AuthenticatedUser
 from taxi_service.modules.rides.history_schemas import RideFiltersDep, RideSummary
@@ -18,7 +18,7 @@ Participant = Annotated[
 ]
 
 
-def get_ride_queries(session: SessionDep) -> RideQueries:
+def get_ride_queries(session: DbSession) -> RideQueries:
     return RideQueries(session)
 
 

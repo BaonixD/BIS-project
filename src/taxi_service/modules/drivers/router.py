@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from taxi_service.core.clock import ClockDep
-from taxi_service.database.session import SessionDep
+from taxi_service.database.session import DbSession
 from taxi_service.modules.auth.dependencies import require_roles
 from taxi_service.modules.auth.service import AuthenticatedUser
 from taxi_service.modules.drivers.schemas import (
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/drivers", tags=["drivers"])
 DriverUser = Annotated[AuthenticatedUser, Depends(require_roles(UserRole.DRIVER))]
 
 
-def get_driver_service(session: SessionDep, clock: ClockDep) -> DriverService:
+def get_driver_service(session: DbSession, clock: ClockDep) -> DriverService:
     return DriverService(session, clock)
 
 

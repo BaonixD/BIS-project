@@ -8,7 +8,7 @@ from fastapi.security import APIKeyCookie, APIKeyHeader
 from taxi_service.core.clock import ClockDep
 from taxi_service.core.config import SettingsDep
 from taxi_service.core.origins import normalize_origin
-from taxi_service.database.session import SessionDep
+from taxi_service.database.session import DbSession
 from taxi_service.modules.auth.cookies import SESSION_COOKIE_NAME
 from taxi_service.modules.auth.exceptions import (
     CsrfFailedError,
@@ -57,9 +57,7 @@ def get_login_limiter(request: Request) -> LoginAttemptLimiter:
 LoginLimiterDep = Annotated[LoginAttemptLimiter, Depends(get_login_limiter)]
 
 
-def get_user_service(
-    session: SessionDep, clock: ClockDep, hasher: PasswordHasherDep
-) -> UserService:
+def get_user_service(session: DbSession, clock: ClockDep, hasher: PasswordHasherDep) -> UserService:
     return UserService(session, clock, hasher)
 
 
@@ -67,7 +65,7 @@ UserServiceDep = Annotated[UserService, Depends(get_user_service)]
 
 
 def get_auth_service(
-    session: SessionDep, clock: ClockDep, hasher: PasswordHasherDep, limiter: LoginLimiterDep
+    session: DbSession, clock: ClockDep, hasher: PasswordHasherDep, limiter: LoginLimiterDep
 ) -> AuthService:
     return AuthService(session, clock, hasher, limiter)
 

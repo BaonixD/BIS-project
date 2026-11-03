@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 
-from taxi_service.database.session import SessionDep
+from taxi_service.database.session import DbSession
 from taxi_service.modules.admin.schemas import AdminUserResponse
 from taxi_service.modules.auth.dependencies import require_roles
 from taxi_service.modules.auth.service import AuthenticatedUser
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 AdminUser = Annotated[AuthenticatedUser, Depends(require_roles(UserRole.ADMIN))]
 
 
-def get_user_queries(session: SessionDep) -> UserQueries:
+def get_user_queries(session: DbSession) -> UserQueries:
     return UserQueries(session)
 
 
