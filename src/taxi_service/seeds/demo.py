@@ -19,10 +19,9 @@ from taxi_service.modules.drivers.geodesy import haversine_m
 from taxi_service.modules.drivers.models import Vehicle
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate
 from taxi_service.modules.geo.schemas import Coordinates
+from taxi_service.modules.users import service as users_service
 from taxi_service.modules.users.models import UserRole
-from taxi_service.modules.users.repository import UserRepository
 from taxi_service.modules.users.schemas import MyProfileUpdate
-from taxi_service.modules.users.service import UserService
 
 DEMO_ADMIN = "demo_admin"
 DEMO_PICKUP = Coordinates(longitude=76.9457, latitude=43.2383)
@@ -134,10 +133,9 @@ class SeedReport:
 async def plan_demo_seed(session_factory: SessionFactory) -> DemoPlan:
     """Read which demo accounts exist; ``DemoSeedConflictError`` if existing data blocks them."""
     async with session_factory() as session, read_transaction(session):
-        users = UserRepository(session)
         existing = {}
         for username in DEMO_USERNAMES:
-            user = await users.get_by_username(username)
+            user = await users_service.get_user_by_username(session, username)
             if user is not None:
                 existing[username] = ExistingAccount(id=user.id, role=user.role)
         plan = DemoPlan(existing=existing)
@@ -221,8 +219,11 @@ async def _seed_passenger(
         return _skipped(UserRole.PASSENGER, passenger.username)
     user_id = await _create_user(accounts, passenger.username, UserRole.PASSENGER)
     async with accounts.session_factory() as session:
-        await UserService(session, accounts.clock, accounts.hasher).update_profile(
-            user_id, MyProfileUpdate(display_name=passenger.display_name)
+        await users_service.update_profile(
+            session,
+            user_id,
+            MyProfileUpdate(display_name=passenger.display_name),
+            clock=accounts.clock,
         )
     return SeedEntry("created", UserRole.PASSENGER, passenger.username)
 
@@ -252,8 +253,9 @@ async def _create_user(accounts: _Accounts, username: str, role: UserRole) -> uu
     if accounts.password is None:
         raise ValueError("a password is required to create demo accounts")
     async with accounts.session_factory() as session:
-        service = UserService(session, accounts.clock, accounts.hasher)
-        user = await service.create_user(username=username, password=accounts.password, role=role)
+        user = await users_service.create_user(
+            session, username, accounts.password, role, clock=accounts.clock, hasher=accounts.hasher
+        )
     return user.id
 
 

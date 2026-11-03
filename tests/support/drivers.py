@@ -25,8 +25,8 @@ from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.drivers import service as driver_service
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate
 from taxi_service.modules.geo.schemas import Coordinates
+from taxi_service.modules.users import service as users_service
 from taxi_service.modules.users.models import UserRole
-from taxi_service.modules.users.service import UserService
 
 DRIVERS_ME_URL = "/api/v1/drivers/me"
 AVAILABILITY_URL = f"{DRIVERS_ME_URL}/availability"
@@ -70,8 +70,14 @@ async def create_admin(
 ) -> uuid.UUID:
     """Admin account as ``scripts/create_admin.py`` makes it (not via the public API)."""
     async with session_factory() as session:
-        service = UserService(session, clock, app.state.password_hasher)
-        user = await service.create_user(username=username, password=PASSWORD, role=UserRole.ADMIN)
+        user = await users_service.create_user(
+            session,
+            username,
+            PASSWORD,
+            UserRole.ADMIN,
+            clock=clock,
+            hasher=app.state.password_hasher,
+        )
     return user.id
 
 
@@ -182,6 +188,7 @@ class DriverFactory:
 
     async def _create_user(self, username: str, role: UserRole) -> uuid.UUID:
         async with self.session_factory() as session:
-            service = UserService(session, self.clock, self.hasher)
-            user = await service.create_user(username=username, password=PASSWORD, role=role)
+            user = await users_service.create_user(
+                session, username, PASSWORD, role, clock=self.clock, hasher=self.hasher
+            )
         return user.id

@@ -17,8 +17,8 @@ from taxi_service.core.clock import SystemClock
 from taxi_service.core.config import Settings
 from taxi_service.database.session import SessionFactory, read_transaction
 from taxi_service.modules.auth.passwords import PasswordHasher
+from taxi_service.modules.users import service as users_service
 from taxi_service.modules.users.models import User, UserRole
-from taxi_service.modules.users.service import UserService
 from taxi_service.seeds.demo import DEMO_USERNAMES
 
 SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "seed.py"
@@ -186,9 +186,13 @@ async def test_conflicting_existing_account_is_reported_and_nothing_changes(
     run_seed: SeedRunner, session_factory: SessionFactory, settings: Settings
 ) -> None:
     async with session_factory() as session:
-        service = UserService(session, SystemClock(), PasswordHasher.from_settings(settings))
-        await service.create_user(
-            username="demo_admin", password="passenger-passphrase", role=UserRole.PASSENGER
+        await users_service.create_user(
+            session,
+            "demo_admin",
+            "passenger-passphrase",
+            UserRole.PASSENGER,
+            clock=SystemClock(),
+            hasher=PasswordHasher.from_settings(settings),
         )
 
     result = run_seed()

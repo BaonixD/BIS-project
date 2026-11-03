@@ -16,9 +16,9 @@ from taxi_service.modules.drivers.candidates import find_nearby_candidates
 from taxi_service.modules.drivers.models import ApprovalStatus, DriverProfile, Vehicle
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate
 from taxi_service.modules.geo.schemas import Coordinates
+from taxi_service.modules.users import service as users_service
 from taxi_service.modules.users.models import User, UserProfile, UserRole
 from taxi_service.modules.users.schemas import MyProfileUpdate
-from taxi_service.modules.users.service import UserService
 from taxi_service.seeds.demo import (
     DEMO_ADMIN,
     DEMO_DRIVERS,
@@ -107,9 +107,7 @@ async def test_first_run_creates_the_demo_accounts(
     assert all(user.password_hash.startswith("$argon2id$") for user in users.values())
     assert await hasher.verify(users["demo_passenger_1"].password_hash, DEMO_PASSWORD)
     async with session_factory() as session:
-        profile = await UserService(session, clock, hasher).get_profile(
-            users["demo_passenger_2"].id
-        )
+        profile = await users_service.get_profile(session, users["demo_passenger_2"].id)
     assert profile is not None
     assert profile.display_name == "Demo Passenger 2"
 
@@ -195,8 +193,11 @@ async def test_rerun_keeps_changes_made_through_the_application(
             clock=clock,
         )
     async with session_factory() as session:
-        await UserService(session, clock, hasher).update_profile(
-            users["demo_passenger_1"].id, MyProfileUpdate(display_name="Aigerim")
+        await users_service.update_profile(
+            session,
+            users["demo_passenger_1"].id,
+            MyProfileUpdate(display_name="Aigerim"),
+            clock=clock,
         )
     async with session_factory() as session:
         await driver_service.set_availability(
@@ -208,9 +209,7 @@ async def test_rerun_keeps_changes_made_through_the_application(
     assert (await driver_profile(session_factory, "demo_driver_1")).phone == "+77019998877"
     assert not (await driver_profile(session_factory, "demo_driver_3")).is_online
     async with session_factory() as session:
-        profile = await UserService(session, clock, hasher).get_profile(
-            users["demo_passenger_1"].id
-        )
+        profile = await users_service.get_profile(session, users["demo_passenger_1"].id)
     assert profile is not None
     assert profile.display_name == "Aigerim"
 
@@ -297,8 +296,8 @@ async def test_demo_username_taken_with_another_role_is_a_conflict(
     session_factory: SessionFactory, clock: ManualClock, hasher: PasswordHasher
 ) -> None:
     async with session_factory() as session:
-        await UserService(session, clock, hasher).create_user(
-            username="Demo_Driver_2", password=DEMO_PASSWORD, role=UserRole.PASSENGER
+        await users_service.create_user(
+            session, "Demo_Driver_2", DEMO_PASSWORD, UserRole.PASSENGER, clock=clock, hasher=hasher
         )
 
     with pytest.raises(DemoSeedConflictError, match="demo_driver_2"):
