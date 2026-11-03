@@ -91,6 +91,33 @@ export async function restoreSession() {
 
 На `401 not_authenticated` в любом запросе — сессия истекла или отозвана: показать вход. На `403 csrf_failed` — перечитать `GET /auth/session` и повторить запрос один раз.
 
+### Вход через Google (пассажиры)
+
+Решение — [ADR 0011](decisions/0011-google-login.md). Реальный вход с настоящим Client ID пока **external_pending**: Client ID ещё не выдан.
+
+1. При загрузке экрана входа: `GET /auth/providers` → `{google_client_id: string | null}`. `null` — Google-вход выключен на сервере, кнопку не показывать.
+2. Кнопка — [Google Identity Services](https://developers.google.com/identity/gsi/web/guides/display-button): скрипт `https://accounts.google.com/gsi/client`, `google.accounts.id.initialize({client_id, callback})`, `google.accounts.id.renderButton(...)`. Callback получает `response.credential` — Google ID token (JWT). Origin фронтенда (`http://localhost:5173`) должен быть в **Authorized JavaScript origins** OAuth-клиента и в `CORS_ALLOWED_ORIGINS` сервера.
+3. `POST /auth/google` `{credential}` → как login: `200 {user, csrf_token, expires_at}` и cookie `taxi_session`. Сохраните `csrf_token`; дальше всё как после обычного входа.
+
+- Первый вход создаёт **пассажира**: username из части email до `@` (`Alice.Smith@gmail.com` → `alice_smith`; занято — `alice_smith_2` …), `display_name` профиля — имя из Google. Повторный вход тем же Google-аккаунтом возвращает того же пользователя. Аккаунт с тем же email или username не связывается — получится отдельный пассажир.
+- У Google-пользователя нет пароля: `POST /auth/login` с его username всегда `401 invalid_credentials`.
+- Ошибки: `401 invalid_google_token` (подпись, срок, чужой `aud`, email не подтверждён) — снова показать кнопку; `503 google_login_unavailable` — на сервере нет `GOOGLE_CLIENT_ID` или Google недоступен; `403 origin_not_allowed`; `429 too_many_attempts` — больше 5 входов одного Google-аккаунта за 15 минут.
+
+```ts
+export async function googleClientId(): Promise<string | null> {
+  return (await api<{ google_client_id: string | null }>("/auth/providers")).google_client_id;
+}
+
+export async function loginWithGoogle(credential: string) {
+  const session = await api<{ csrf_token: string }>("/auth/google",
+    { method: "POST", body: { credential } });
+  csrfToken = session.csrf_token;
+  return session;
+}
+
+// google.accounts.id.initialize({ client_id, callback: ({ credential }) => loginWithGoogle(credential) });
+```
+
 ## Общие правила
 
 - JSON, UUID для идентификаторов, время — UTC ISO 8601 с `Z` (`"2026-11-03T09:00:00.123456Z"`); показывать в часовом поясе пользователя (Алматы).
@@ -123,7 +150,7 @@ export async function restoreSession() {
 
 ## Все маршруты
 
-Пути после `http://localhost:8000`. Роль «вошедший» — любая роль с сессией. Все изменяющие маршруты под `/api/v1` требуют `X-CSRF-Token`, кроме `register` и `login`.
+Пути после `http://localhost:8000`. Роль «вошедший» — любая роль с сессией. Все изменяющие маршруты под `/api/v1` требуют `X-CSRF-Token`, кроме `register`, `login` и `auth/google`.
 
 | Метод | Путь | Кто | Тело → ответ |
 | --- | --- | --- | --- |
@@ -131,6 +158,8 @@ export async function restoreSession() {
 | GET | `/health/ready` | все | → `{status: "ready"}` или `503 database_unavailable` / `database_not_migrated` |
 | POST | `/api/v1/auth/register` | без сессии | `{username, password, role}` → `201 UserResponse` |
 | POST | `/api/v1/auth/login` | без сессии | `{username, password}` → `SessionResponse` + cookie |
+| GET | `/api/v1/auth/providers` | все | → `{google_client_id: string \| null}` |
+| POST | `/api/v1/auth/google` | без сессии | `{credential}` (Google ID token) → `SessionResponse` + cookie |
 | GET | `/api/v1/auth/session` | вошедший | → `SessionResponse {user, csrf_token, expires_at}` |
 | POST | `/api/v1/auth/logout` | вошедший | → `204` |
 | GET | `/api/v1/users/me` | вошедший | → `{id, username, role, created_at, display_name, phone}` |
@@ -174,7 +203,7 @@ export async function restoreSession() {
 
 ## Поток пассажира
 
-1. **Регистрация и вход**: `POST /auth/register` (`role: "passenger"`), `POST /auth/login`, сохранить `csrf_token`. По желанию `PATCH /users/me {display_name, phone}`.
+1. **Регистрация и вход**: `POST /auth/register` (`role: "passenger"`), `POST /auth/login`, сохранить `csrf_token`. Или [через Google](#вход-через-google-пассажиры): `POST /auth/google` создаёт пассажира при первом входе. По желанию `PATCH /users/me {display_name, phone}`.
 2. **Активная поездка после перезагрузки**: `GET /rides?status=searching&status=assigned&status=arrived&status=in_progress&limit=1` — если есть элемент, сразу открыть экран поездки.
 3. **Выбор точек** на карте (адресного поиска на сервере нет) и **цена**: `POST /rides/quotes {pickup, dropoff}` → показать `amount_kzt`, маршрут (`route.route_geometry`), `route.distance_m`, `route.duration_s`. Quote действует 5 минут (`expires_at`); после — запросить новый. Ошибки: `503 routing_unavailable` (на сервере нет ключа маршрутов), `503 routing_provider_error`, `422 route_not_found`, `422 route_points_identical`; при ошибке quote не создаётся.
 4. **Заказ**: выбрать способ оплаты ([Оплата](#оплата)), затем `POST /rides {quote_id, payment_method}` с новым `Idempotency-Key` → `201`. Ответ уже после первого шага поиска: `searching` (предложение отправлено ближайшему водителю) или сразу `no_driver` (рядом нет свободных водителей). Цена берётся только из quote. Ошибки: `409 active_ride_exists`, `409 quote_expired`, `409 quote_already_used`, `404 quote_not_found` (неизвестный или чужой quote), `503 kaspi_unavailable` (Kaspi не настроен — заказать наличными). Повтор с тем же ключом поиск заново не запускает.
@@ -256,11 +285,13 @@ WebSocket и SSE нет. Сервер обрабатывает истечени�
 | --- | --- | --- | --- |
 | 401 | `not_authenticated` | любой маршрут с сессией | экран входа |
 | 401 | `invalid_credentials` | login | «неверный логин или пароль» |
+| 401 | `invalid_google_token` | `auth/google` | токен Google недействителен или email не подтверждён: войти через Google снова |
 | 403 | `csrf_failed` | изменяющие запросы | перечитать `GET /auth/session`, повторить |
-| 403 | `origin_not_allowed` | login, register | конфигурация: origin не в `CORS_ALLOWED_ORIGINS` |
+| 403 | `origin_not_allowed` | login, register, `auth/google` | конфигурация: origin не в `CORS_ALLOWED_ORIGINS` |
 | 403 | `forbidden` | маршруты с ролью | роль не подходит |
 | 409 | `username_taken` | register | занято (без учёта регистра) |
-| 429 | `too_many_attempts` | login | подождать `details.retry_after_seconds` |
+| 429 | `too_many_attempts` | login, `auth/google` | подождать `details.retry_after_seconds` |
+| 503 | `google_login_unavailable` | `auth/google` | Google-вход выключен или Google недоступен: скрыть кнопку, вход по паролю |
 | 404 | `driver_not_found` | approve | нет такого водителя |
 | 409 | `driver_profile_incomplete` | availability, approve | `details.missing_fields` |
 | 409 | `driver_not_approved` | availability | ждать допуска |

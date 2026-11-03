@@ -75,3 +75,46 @@ async def test_normalized_username_must_be_lower_case_username(
 async def test_unknown_role_is_rejected(session_factory: SessionFactory) -> None:
     with pytest.raises(IntegrityError, match="CHECK"):
         await insert_raw(session_factory, "alice", "alice", "superuser")
+
+
+def google_user(username: str, google_sub: str | None) -> User:
+    return User(
+        username=username,
+        username_normalized=username.lower(),
+        password_hash=None,
+        google_sub=google_sub,
+        email=f"{username}@gmail.com",
+        role=UserRole.PASSENGER,
+        created_at=CREATED_AT,
+    )
+
+
+async def test_google_user_needs_no_password(session_factory: SessionFactory) -> None:
+    async with session_factory.begin() as session:
+        session.add(google_user("alice", "10001"))
+
+    async with session_factory() as session, read_transaction(session):
+        stored = (await session.scalars(select(User))).one()
+
+    assert (stored.password_hash, stored.google_sub, stored.email) == (
+        None,
+        "10001",
+        "alice@gmail.com",
+    )
+
+
+async def test_user_without_password_or_google_subject_is_rejected(
+    session_factory: SessionFactory,
+) -> None:
+    with pytest.raises(IntegrityError, match="CHECK"):
+        async with session_factory.begin() as session:
+            session.add(google_user("alice", None))
+
+
+async def test_google_subject_is_unique(session_factory: SessionFactory) -> None:
+    async with session_factory.begin() as session:
+        session.add(google_user("alice", "10001"))
+
+    with pytest.raises(IntegrityError, match="UNIQUE"):
+        async with session_factory.begin() as session:
+            session.add(google_user("bob", "10001"))

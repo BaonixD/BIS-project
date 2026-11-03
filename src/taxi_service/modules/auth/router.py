@@ -13,11 +13,19 @@ from taxi_service.modules.auth.cookies import (
 )
 from taxi_service.modules.auth.dependencies import (
     CurrentUser,
+    GoogleLoginLimiterDep,
+    GoogleVerifierDep,
     LoginLimiterDep,
     PasswordHasherDep,
     require_allowed_origin,
 )
-from taxi_service.modules.auth.schemas import LoginRequest, RegisterRequest, SessionResponse
+from taxi_service.modules.auth.schemas import (
+    AuthProvidersResponse,
+    GoogleLoginRequest,
+    LoginRequest,
+    RegisterRequest,
+    SessionResponse,
+)
 from taxi_service.modules.users import service as users_service
 from taxi_service.modules.users.models import UserRole
 from taxi_service.modules.users.schemas import UserResponse
@@ -69,6 +77,41 @@ async def login(
         body.password.get_secret_value(),
         clock=clock,
         hasher=hasher,
+        limiter=limiter,
+        replaces_token=current_token,
+    )
+    set_session_cookie(response, issued.token, settings)
+    return SessionResponse.from_user(issued.user)
+
+
+@router.get("/providers")
+async def read_providers(settings: SettingsDep) -> AuthProvidersResponse:
+    return AuthProvidersResponse(google_client_id=settings.google_client_id)
+
+
+@router.post(
+    "/google",
+    dependencies=[Depends(require_allowed_origin)],
+    responses=error_responses(401, 403, 429, 503),
+)
+async def login_with_google(
+    body: GoogleLoginRequest,
+    response: Response,
+    db: DbSession,
+    clock: ClockDep,
+    verifier: GoogleVerifierDep,
+    limiter: GoogleLoginLimiterDep,
+    settings: SettingsDep,
+    current_token: Annotated[
+        str | None, Cookie(alias=SESSION_COOKIE_NAME, include_in_schema=False)
+    ] = None,
+) -> SessionResponse:
+    issued = await service.login_with_google(
+        db,
+        body.credential.get_secret_value(),
+        client_id=settings.google_client_id,
+        verifier=verifier,
+        clock=clock,
         limiter=limiter,
         replaces_token=current_token,
     )

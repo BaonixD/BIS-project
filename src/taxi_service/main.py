@@ -9,6 +9,7 @@ from taxi_service.core.config import Settings
 from taxi_service.core.lifespan import lifespan
 from taxi_service.core.request_id import REQUEST_ID_HEADER, RequestIdMiddleware
 from taxi_service.modules.auth.dependencies import CSRF_HEADER_NAME
+from taxi_service.modules.auth.google import GoogleIdTokenVerifier, GoogleTokenVerifier
 from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.auth.rate_limit import LoginAttemptLimiter
 from taxi_service.modules.geo.client import RoutingProvider
@@ -38,6 +39,7 @@ def create_app(
     clock: Clock | None = None,
     routing_provider: RoutingProvider | None = None,
     payment_settings: PaymentSettings | None = None,
+    google_verifier: GoogleTokenVerifier | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="Mini Taxi Service",
@@ -52,6 +54,8 @@ def create_app(
     app.state.routing_provider_override = routing_provider
     app.state.password_hasher = PasswordHasher.from_settings(settings)
     app.state.login_limiter = LoginAttemptLimiter.from_settings(settings, clock)
+    app.state.google_login_limiter = LoginAttemptLimiter.from_settings(settings, clock)
+    app.state.google_verifier = google_verifier or GoogleIdTokenVerifier()
     app.state.dispatch_policy = DispatchPolicy.from_settings(settings)
     app.state.ride_completion_hook = on_ride_completed
     app.state.payment_settings = payment_settings or PaymentSettings()

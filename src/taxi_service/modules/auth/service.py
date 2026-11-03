@@ -10,7 +10,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from taxi_service.core.clock import Clock
 from taxi_service.database.session import read_transaction
-from taxi_service.modules.auth.exceptions import InvalidCredentialsError, NotAuthenticatedError
+from taxi_service.modules.auth.exceptions import (
+    GoogleLoginUnavailableError,
+    InvalidCredentialsError,
+    InvalidGoogleTokenError,
+    NotAuthenticatedError,
+)
+from taxi_service.modules.auth.google import GoogleTokenVerifier
 from taxi_service.modules.auth.models import AuthSession
 from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.auth.rate_limit import LoginAttemptLimiter
@@ -78,22 +84,35 @@ async def login(
         logger.info("Login failed")
         raise InvalidCredentialsError
     limiter.reset(limiter_key)
-    token = secrets.token_urlsafe(_TOKEN_BYTES)
-    now = clock.now()
-    auth_session = AuthSession(
-        user_id=user.id,
-        token_hash=hash_token(token),
-        csrf_token=secrets.token_urlsafe(_TOKEN_BYTES),
-        created_at=now,
-        expires_at=now + SESSION_TTL,
-    )
-    async with db.begin():
-        if replaces_token:
-            await _revoke_by_token_hash(db, hash_token(replaces_token), now)
-        db.add(auth_session)
-        await db.flush()
+    issued = await _issue_session(db, user, clock=clock, replaces_token=replaces_token)
     logger.info("Login succeeded")
-    return IssuedSession(token=token, user=AuthenticatedUser.from_rows(user, auth_session))
+    return issued
+
+
+async def login_with_google(
+    db: AsyncSession,
+    credential: str,
+    *,
+    client_id: str | None,
+    verifier: GoogleTokenVerifier,
+    clock: Clock,
+    limiter: LoginAttemptLimiter,
+    replaces_token: str | None = None,
+) -> IssuedSession:
+    """Google's check runs outside any transaction; ``limiter`` counts per Google account."""
+    if client_id is None:
+        raise GoogleLoginUnavailableError
+    claims = await verifier.verify(credential, audience=client_id)
+    limiter.acquire(claims.sub)
+    if not claims.email_verified or claims.email is None:
+        logger.info("Google login failed")
+        raise InvalidGoogleTokenError
+    user = await users_service.get_or_create_google_passenger(
+        db, claims.sub, claims.email, claims.name, clock=clock
+    )
+    issued = await _issue_session(db, user, clock=clock, replaces_token=replaces_token)
+    logger.info("Google login succeeded")
+    return issued
 
 
 async def authenticate(db: AsyncSession, token: str, *, clock: Clock) -> AuthenticatedUser:
@@ -109,6 +128,27 @@ async def logout(db: AsyncSession, session_id: uuid.UUID, *, clock: Clock) -> No
     async with db.begin():
         await _revoke(db, session_id, clock.now())
     logger.info("Logged out")
+
+
+async def _issue_session(
+    db: AsyncSession, user: User, *, clock: Clock, replaces_token: str | None
+) -> IssuedSession:
+    """``replaces_token`` is revoked in the transaction that inserts the new session."""
+    token = secrets.token_urlsafe(_TOKEN_BYTES)
+    now = clock.now()
+    auth_session = AuthSession(
+        user_id=user.id,
+        token_hash=hash_token(token),
+        csrf_token=secrets.token_urlsafe(_TOKEN_BYTES),
+        created_at=now,
+        expires_at=now + SESSION_TTL,
+    )
+    async with db.begin():
+        if replaces_token:
+            await _revoke_by_token_hash(db, hash_token(replaces_token), now)
+        db.add(auth_session)
+        await db.flush()
+    return IssuedSession(token=token, user=AuthenticatedUser.from_rows(user, auth_session))
 
 
 async def _get_active_session(

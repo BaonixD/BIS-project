@@ -17,6 +17,7 @@ from taxi_service.modules.auth.exceptions import (
     NotAuthenticatedError,
     OriginNotAllowedError,
 )
+from taxi_service.modules.auth.google import GoogleTokenVerifier
 from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.auth.rate_limit import LoginAttemptLimiter
 from taxi_service.modules.auth.service import AuthenticatedUser
@@ -53,6 +54,22 @@ def get_login_limiter(request: Request) -> LoginAttemptLimiter:
 
 
 LoginLimiterDep = Annotated[LoginAttemptLimiter, Depends(get_login_limiter)]
+
+
+def get_google_login_limiter(request: Request) -> LoginAttemptLimiter:
+    limiter: LoginAttemptLimiter = request.app.state.google_login_limiter
+    return limiter
+
+
+GoogleLoginLimiterDep = Annotated[LoginAttemptLimiter, Depends(get_google_login_limiter)]
+
+
+def get_google_verifier(request: Request) -> GoogleTokenVerifier:
+    verifier: GoogleTokenVerifier = request.app.state.google_verifier
+    return verifier
+
+
+GoogleVerifierDep = Annotated[GoogleTokenVerifier, Depends(get_google_verifier)]
 
 
 async def get_current_user(

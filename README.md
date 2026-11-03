@@ -1,6 +1,6 @@
 # BIS-project — Mini Taxi Service
 
-Учебный проект по Basics of Information Systems: backend MVP сервиса такси в Алматы (KZT). Реализованы вход по username/password с серверными сессиями и CSRF, профили пассажиров и водителей, допуск водителей, дорожный маршрут и учебный тариф, идемпотентный заказ, назначение ближайшего водителя с 30-секундными предложениями, жизненный цикл поездки, учебная оплата «как в такси»: наличные или ссылка Kaspi выбираются при заказе, история и административное чтение, демонстрационный seed.
+Учебный проект по Basics of Information Systems: backend MVP сервиса такси в Алматы (KZT). Реализованы вход по username/password с серверными сессиями и CSRF, вход пассажиров через Google, профили пассажиров и водителей, допуск водителей, дорожный маршрут и учебный тариф, идемпотентный заказ, назначение ближайшего водителя с 30-секундными предложениями, жизненный цикл поездки, учебная оплата «как в такси»: наличные или ссылка Kaspi выбираются при заказе, история и административное чтение, демонстрационный seed.
 
 Стек: Python 3.12, FastAPI, SQLAlchemy 2 async, Alembic, SQLite без Docker ([ADR 0001](docs/decisions/0001-sqlite-without-docker.md)). Локальный модульный монолит, без CI и микросервисов. React-интерфейс — следующий этап.
 
@@ -63,6 +63,7 @@ cp .env.example .env  # локальные настройки; .env не ком�
 | --- | --- | --- |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` или `CRITICAL`, без учёта регистра |
 | `DATABASE_URL` | — (обязательна) | URL БД для приложения и Alembic; локально `sqlite+aiosqlite:///./taxi.db` |
+| `GOOGLE_CLIENT_ID` | пусто | OAuth Client ID (тип Web) для входа пассажиров через Google, в локальном `.env`; пусто — Google-вход выключен (`503 google_login_unavailable`, см. «Вход через Google») |
 | `KASPI_PAYMENT_URL` | пусто | Ссылка Kaspi владельца `https://pay.kaspi.kz/pay/<id>`, только в локальном `.env`; пусто — Kaspi выключен, наличные работают (см. «Оплата») |
 | `ROUTING_API_KEY` | пусто | Персональный ключ openrouteservice, только в локальном `.env`; пусто — маршрут и quote отвечают `503 routing_unavailable` (см. «Маршруты») |
 | `ROUTING_BASE_URL`, `ROUTING_CONNECT_TIMEOUT_S`, `ROUTING_READ_TIMEOUT_S`, `ROUTING_MAX_RETRIES`, `ROUTING_RETRY_BACKOFF_S`, `ROUTING_MAX_RETRY_DELAY_S`, `ROUTING_TOTAL_TIMEOUT_S` | `https://api.openrouteservice.org`, `3.0`, `5.0`, `1`, `0.5`, `5.0`, `10.0` | Необязательные параметры запроса маршрута ([ADR 0002](docs/decisions/0002-routing-provider.md)) |
@@ -157,6 +158,8 @@ uv run uvicorn --factory taxi_service.main:create_app --port 8000
 | `POST /login` | `{username, password}` → `200 {user, csrf_token, expires_at}` и cookie `taxi_session` | `401 invalid_credentials` (одинаково для неверного пароля и неизвестного username), `429 too_many_attempts`, `403 origin_not_allowed` |
 | `GET /session` | текущий пользователь и `csrf_token` сессии | `401 not_authenticated` |
 | `POST /logout` | отзывает сессию в БД и удаляет cookie → `204` | `401 not_authenticated`, `403 csrf_failed` |
+| `GET /providers` | `{google_client_id}` — `null`, если Google-вход выключен | — |
+| `POST /google` | `{credential}` (Google ID token) → как login; первый вход создаёт пассажира без пароля | `401 invalid_google_token`, `503 google_login_unavailable`, `429 too_many_attempts`, `403 origin_not_allowed` |
 
 - Username: 3–32 символа `[A-Za-z0-9_]`, уникален без учёта регистра; вход тоже без учёта регистра, написание сохраняется. Пароль: 10–128 символов, хранится только как Argon2id-хеш.
 - Cookie `taxi_session`: `HttpOnly`, `SameSite=Lax`, `Path=/`, 7 дней. `Secure` управляется `SESSION_COOKIE_SECURE`: по умолчанию включён; для локального HTTP в `.env` — `false`, иначе браузер не вернёт cookie. В БД хранится только SHA-256 токена. Срок — 7 дней по серверным часам; новый вход в том же клиенте отзывает прежнюю сессию.
@@ -208,6 +211,20 @@ ADMIN_PASSWORD='...' uv run python scripts/create_admin.py --username admin   # 
 
 Коды выхода: `0` — создан; `1` — username уже существует в любом регистре (ничего не меняется) либо БД отсутствует или не мигрирована; `2` — некорректные username или пароль.
 
+#### Вход через Google
+
+Пассажиры могут входить кнопкой Google ([ADR 0011](docs/decisions/0011-google-login.md)): фронтенд получает ID token через Google Identity Services и отправляет его в `POST /api/v1/auth/google`; сервер проверяет его библиотекой `google-auth` и выдаёт обычную сессию. Без `GOOGLE_CLIENT_ID` функция выключена. Реальный вход — **external_pending**, пока Client ID не выдан.
+
+Как получить Client ID (бесплатно, платные API не нужны):
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → создать или выбрать проект.
+2. **Google Auth Platform** (APIs & Services → OAuth consent screen): тип External, имя приложения и email поддержки; в режиме Testing добавить свои Google-аккаунты в Test users.
+3. **Clients** (APIs & Services → Credentials) → **Create client** → тип **Web application**.
+4. **Authorized JavaScript origins**: `http://localhost:5173` (dev-сервер фронтенда; при необходимости и `http://localhost`). Redirect URI не нужен — поток без redirect. Client secret сервер не использует.
+5. Скопировать Client ID (`…apps.googleusercontent.com`) в локальный `.env`: `GOOGLE_CLIENT_ID=…`, перезапустить API. Проверка: `curl -s http://127.0.0.1:8000/api/v1/auth/providers` → `{"google_client_id":"…"}`.
+
+Первый вход создаёт пассажира (username из email до `@`, при совпадении — с суффиксом `_2`, …), повторный находит его по Google `sub`. Существующие аккаунты по email не связываются; вход по паролю для Google-пользователя невозможен. Проверка токена обращается к `https://www.googleapis.com` за сертификатами — нужен интернет.
+
 ### Ошибки, request_id и логи
 
 Любой ответ с ошибкой, включая неизвестный маршрут (404), неверный метод (405), ошибку валидации (422) и непредвиденную ошибку (500), имеет формат из [MVP_SPEC §3](docs/MVP_SPEC.md#3-общий-контракт-api):
@@ -241,7 +258,7 @@ CI и Git hooks не настраиваются; проверки запуска
 
 ## Продукт
 
-Алматы, KZT. Вход по username/password. Поездка предлагается ближайшему доступному водителю; 30 секунд на ответ, затем следующий. Реальный дорожный маршрут, учебный расчёт цены, наличные и Kaspi по ссылке; способ выбирается при заказе, наличные подтверждает водитель, Kaspi засчитывается сразу (имитация) без проверки. Google-вход — последующий этап.
+Алматы, KZT. Вход по username/password; пассажиры могут входить через Google (при заданном `GOOGLE_CLIENT_ID`). Поездка предлагается ближайшему доступному водителю; 30 секунд на ответ, затем следующий. Реальный дорожный маршрут, учебный расчёт цены, наличные и Kaspi по ссылке; способ выбирается при заказе, наличные подтверждает водитель, Kaspi засчитывается сразу (имитация) без проверки.
 
 Внешние значения хранятся только в локальном `.env` и в Git не попадают: `ROUTING_API_KEY` (без него маршрут и quote — `503 routing_unavailable`), `KASPI_PAYMENT_URL` (без неё доступны только наличные), `DEMO_PASSWORD` (seed). `ADMIN_PASSWORD` задаётся только в окружении команды `create_admin`.
 
@@ -252,7 +269,8 @@ CI и Git hooks не настраиваются; проверки запуска
 - Оплата учебная ([ADR 0010](docs/decisions/0010-pay-before-order.md)): заказ с Kaspi сразу `paid`, отмена или `no_driver` — `refunded`; это имитация, сервер не проверяет движение денег и не обращается к Kaspi. Реальная оплата по ссылке не проверялась (**external_pending**). Эквайринга нет.
 - Клиенты опрашивают API (polling), WebSocket/SSE нет. Ближайший водитель — по прямой (haversine), не по дорогам. Адресного поиска (геокодирования) нет: клиент передаёт точки.
 - Нет автоматической очистки истёкших сессий, quote, ключей идемпотентности, предложений и журналов.
-- Нет CI, Docker и деплоя; HTTPS не настроен (локально `SESSION_COOKIE_SECURE=false`). Google-вход — отдельная задача T11.
+- Нет CI, Docker и деплоя; HTTPS не настроен (локально `SESSION_COOKIE_SECURE=false`).
+- Вход через Google с настоящим Client ID — **external_pending**: тесты подменяют проверку токена, реальный вход не выполнялся ([ADR 0011](docs/decisions/0011-google-login.md)).
 
 Подробнее — [docs/architecture.md](docs/architecture.md#ограничения).
 

@@ -104,7 +104,7 @@ async def test_first_run_creates_the_demo_accounts(
         "demo_driver_2": UserRole.DRIVER,
         "demo_driver_3": UserRole.DRIVER,
     }
-    assert all(user.password_hash.startswith("$argon2id$") for user in users.values())
+    assert all((user.password_hash or "").startswith("$argon2id$") for user in users.values())
     assert await hasher.verify(users["demo_passenger_1"].password_hash, DEMO_PASSWORD)
     async with session_factory() as session:
         profile = await users_service.get_profile(session, users["demo_passenger_2"].id)

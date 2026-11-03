@@ -14,3 +14,4 @@
 | [0008](0008-functional-services.md) | Сервисы — функции модуля с DI через FastAPI, SQL в сервисе без слоя репозиториев, тонкие роутеры без docstring |
 | [0009](0009-simple-payments.md) | Поток заменён ADR 0010; ссылка Kaspi действует. Лёгкая оплата: `cash` или `kaspi_link`, кнопка «Оплатил» пассажира сразу даёт `paid` без проверки; без `reported`, сверки и `payment_events` |
 | [0010](0010-pay-before-order.md) | Оплата «как в такси»: `payment_method` в заказе, Kaspi сразу `paid` (имитация), возврат `refunded` при отмене или `no_driver`, наличные подтверждает водитель (`cash-received`) |
+| [0011](0011-google-login.md) | Вход пассажиров через Google: ID token из Google Identity Services проверяет `google-auth`, аккаунт только по `google_sub`, новый — пассажир без пароля; без `GOOGLE_CLIENT_ID` выключено |

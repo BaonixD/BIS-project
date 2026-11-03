@@ -52,8 +52,9 @@ def test_protected_operations_declare_the_session_scheme(schema: dict[str, Any])
 
 
 def test_public_operations_need_no_session(schema: dict[str, Any]) -> None:
-    for path in ("/auth/register", "/auth/login"):
+    for path in ("/auth/register", "/auth/login", "/auth/google"):
         assert "security" not in operation(schema, "post", path)
+    assert "security" not in operation(schema, "get", "/auth/providers")
 
 
 def test_validation_errors_use_the_unified_envelope(schema: dict[str, Any]) -> None:
@@ -66,6 +67,7 @@ def test_validation_errors_use_the_unified_envelope(schema: dict[str, Any]) -> N
     [
         ("post", "/auth/register", {"403", "409", "422"}),
         ("post", "/auth/login", {"401", "403", "422", "429"}),
+        ("post", "/auth/google", {"401", "403", "422", "429", "503"}),
         ("post", "/auth/logout", {"401", "403"}),
         ("get", "/auth/session", {"401"}),
     ],

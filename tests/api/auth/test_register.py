@@ -40,6 +40,7 @@ async def test_password_is_stored_only_as_argon2id_hash(
     await register(client, "alice")
 
     [user] = await stored_users(session_factory)
+    assert user.password_hash is not None
     assert user.password_hash.startswith("$argon2id$")
     assert PASSWORD not in user.password_hash
 

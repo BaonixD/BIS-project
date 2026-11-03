@@ -48,3 +48,21 @@ class TooManyLoginAttemptsError(AppError):
             message="Too many login attempts; try again later.",
             details={"retry_after_seconds": retry_after_seconds},
         )
+
+
+class InvalidGoogleTokenError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=401,
+            code="invalid_google_token",
+            message="The Google credential is invalid, expired or not for this application.",
+        )
+
+
+class GoogleLoginUnavailableError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=503,
+            code="google_login_unavailable",
+            message="Sign-in with Google is not available right now.",
+        )

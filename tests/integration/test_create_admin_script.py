@@ -77,7 +77,7 @@ async def test_creates_admin_with_password_from_environment(
     assert ADMIN_PASSWORD not in output(result)
     [admin] = await stored_users(session_factory)
     assert (admin.username, admin.role) == ("Root_Admin", UserRole.ADMIN)
-    assert admin.password_hash.startswith("$argon2id$")
+    assert (admin.password_hash or "").startswith("$argon2id$")
 
 
 async def test_existing_username_is_an_error_and_changes_nothing(

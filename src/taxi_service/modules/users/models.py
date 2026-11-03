@@ -10,6 +10,8 @@ from taxi_service.database.base import Base, UtcDateTime
 USERNAME_MAX_LENGTH = 32
 DISPLAY_NAME_MAX_LENGTH = 64
 PHONE_MAX_LENGTH = 16
+GOOGLE_SUB_MAX_LENGTH = 255
+EMAIL_MAX_LENGTH = 320
 
 
 class UserRole(StrEnum):
@@ -25,12 +27,18 @@ class User(Base):
     __table_args__ = (
         CheckConstraint("username_normalized = lower(username)", name="username_normalized"),
         CheckConstraint("role IN ('passenger', 'driver', 'admin')", name="role"),
+        CheckConstraint(
+            "password_hash IS NOT NULL OR google_sub IS NOT NULL", name="has_credentials"
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     username: Mapped[str] = mapped_column(String(USERNAME_MAX_LENGTH))
     username_normalized: Mapped[str] = mapped_column(String(USERNAME_MAX_LENGTH), unique=True)
-    password_hash: Mapped[str] = mapped_column(String(255))
+    # NULL for Google accounts: password login then always fails.
+    password_hash: Mapped[str | None] = mapped_column(String(255))
+    google_sub: Mapped[str | None] = mapped_column(String(GOOGLE_SUB_MAX_LENGTH), unique=True)
+    email: Mapped[str | None] = mapped_column(String(EMAIL_MAX_LENGTH))
     role: Mapped[UserRole] = mapped_column(
         Enum(
             UserRole,

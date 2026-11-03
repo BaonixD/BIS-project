@@ -18,6 +18,7 @@ SECURITY_VARIABLES = (
     "LOGIN_MAX_ATTEMPTS",
     "LOGIN_ATTEMPT_WINDOW_SECONDS",
     "LOGIN_LIMITER_MAX_KEYS",
+    "GOOGLE_CLIENT_ID",
 )
 
 
@@ -106,3 +107,16 @@ def test_env_example_opts_into_local_http_explicitly(monkeypatch: pytest.MonkeyP
 
     assert example.session_cookie_secure is False
     assert example.cors_allowed_origins == ["http://localhost:5173"]
+    assert example.google_client_id is None
+
+
+def test_google_sign_in_is_off_without_client_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert settings().google_client_id is None
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "  ")
+    assert settings().google_client_id is None
+
+
+def test_google_client_id_is_read_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", " 1234-abc.apps.googleusercontent.com ")
+
+    assert settings().google_client_id == "1234-abc.apps.googleusercontent.com"

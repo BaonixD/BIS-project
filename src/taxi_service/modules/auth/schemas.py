@@ -11,6 +11,9 @@ from taxi_service.modules.users.schemas import (
     UserResponse,
 )
 
+# Google ID tokens are about 1-2 KB.
+GOOGLE_CREDENTIAL_MAX_LENGTH = 4096
+
 
 class RegisterRequest(BaseModel):
     username: Username
@@ -26,6 +29,22 @@ class LoginRequest(BaseModel):
     username: str = Field(min_length=1, max_length=64, examples=["alice_01"])
     password: SecretStr = Field(
         min_length=1, max_length=PASSWORD_MAX_LENGTH, examples=["correct-horse-battery"]
+    )
+
+
+class GoogleLoginRequest(BaseModel):
+    credential: SecretStr = Field(
+        min_length=1,
+        max_length=GOOGLE_CREDENTIAL_MAX_LENGTH,
+        description="Google ID token (JWT) from Google Identity Services: "
+        "the `credential` of the sign-in callback.",
+    )
+
+
+class AuthProvidersResponse(BaseModel):
+    google_client_id: str | None = Field(
+        description="OAuth client ID for Google Identity Services; null when "
+        "sign-in with Google is off (hide the button)."
     )
 
 

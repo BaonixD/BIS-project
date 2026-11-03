@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     login_attempt_window_seconds: int = Field(default=900, ge=1)
     login_limiter_max_keys: int = Field(default=10_000, ge=1)
 
+    google_client_id: str | None = None
+
     offer_ttl_s: int = Field(default=30, ge=1)
     search_budget_s: int = Field(default=180, ge=1)
     dispatch_interval_s: float = Field(default=1.0, gt=0)
@@ -53,6 +55,11 @@ class Settings(BaseSettings):
             # The message must not echo the value back.
             raise ValueError("must be a SQLAlchemy database URL") from None
         return value
+
+    @field_validator("google_client_id")
+    @classmethod
+    def blank_client_id_means_off(cls, value: str | None) -> str | None:
+        return (value or "").strip() or None
 
     @field_validator("cors_allowed_origins", mode="before")
     @classmethod

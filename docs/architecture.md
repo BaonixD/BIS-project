@@ -44,7 +44,7 @@ src/taxi_service/
 
 `create_app(settings=None, *, clock=None, routing_provider=None, payment_settings=None)` в `main.py` только собирает объект и ничего не подключает:
 
-- `app.state`: `settings`, `clock` (`SystemClock` по умолчанию), `password_hasher`, `login_limiter`, `dispatch_policy`, `ride_completion_hook` (`on_ride_completed`), `payment_settings` (читает `KASPI_PAYMENT_URL` один раз), `routing_provider_override`.
+- `app.state`: `settings`, `clock` (`SystemClock` по умолчанию), `password_hasher`, `login_limiter`, `google_login_limiter`, `google_verifier` (`GoogleIdTokenVerifier` по умолчанию), `dispatch_policy`, `ride_completion_hook` (`on_ride_completed`), `payment_settings` (читает `KASPI_PAYMENT_URL` один раз), `routing_provider_override`.
 - Middleware: `CORSMiddleware` (allowlist `CORS_ALLOWED_ORIGINS`, `allow_credentials=True`, заголовки `Content-Type`, `X-CSRF-Token`, `X-Request-ID`, `Idempotency-Key`; клиенту открыты `X-Request-ID`, `Idempotent-Replayed`), затем внешний `RequestIdMiddleware`.
 - Обработчики ошибок (`api/exception_handlers.py`) переводят `AppError`, HTTP-ошибки, 422 и непредвиденные исключения в единый конверт `ErrorResponse` с `request_id`.
 - Роутеры: `/health/live`, `/health/ready` и `/api/v1/...` (`api/v1.py` подключает роутеры модулей).
@@ -172,7 +172,9 @@ erDiagram
         uuid id PK
         varchar username "написание как при регистрации"
         varchar username_normalized UK "lower(username)"
-        varchar password_hash "Argon2id"
+        varchar password_hash "Argon2id; NULL у Google-аккаунта"
+        varchar google_sub UK "Google subject, NULL у локальных"
+        varchar email "из Google, без уникальности"
         varchar role "passenger, driver, admin"
         datetime created_at
     }
@@ -481,5 +483,5 @@ amount_kzt = ROUND_HALF_UP( max(800, 500 + 120 * distance_m / 1000 + 20 * durati
 - **Polling без WebSocket/SSE.** Клиент опрашивает `GET /rides/{id}` и `GET /drivers/me/offers`; движение водителя видно по последней координате и её времени.
 - **Нет фоновой очистки** истёкших сессий, quote, записей идемпотентности, старых предложений и событий.
 - **Ближайший водитель — по прямой**, не по времени подачи по дорогам.
-- Нет аварийного закрытия `in_progress`, споров, штрафов, рейтингов, заказов ко времени и нескольких остановок; Google-вход — отдельная задача T11.
+- Нет аварийного закрытия `in_progress`, споров, штрафов, рейтингов, заказов ко времени и нескольких остановок. Вход через Google — только для пассажиров, без связывания с существующими аккаунтами; реальный вход `external_pending` ([ADR 0011](decisions/0011-google-login.md)).
 - Путь к `alembic.ini` вычисляется от исходников: запуск только из репозитория (editable-установка `uv sync`).
