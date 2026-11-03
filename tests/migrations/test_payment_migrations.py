@@ -1,4 +1,8 @@
-"""T08B revision on a database with rides: completed rides get their unpaid cash payment."""
+"""Payment revisions on a database with rides.
+
+T08B (``272671ab4753``) opens an unpaid cash payment for every completed ride;
+the simple-payments revision folds ``reported``/``confirmed`` into ``paid``.
+"""
 
 import asyncio
 from pathlib import Path
@@ -7,11 +11,13 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from taxi_service.database.migrations import alembic_config
 from taxi_service.database.session import create_database_engine
 
 T07_HEAD = "b42082a5b952"
+T08B_HEAD = "272671ab4753"
 USER = "0f1e2d3c4b5a69788796a5b4c3d2e1f0"
 DRIVER = "3f1e2d3c4b5a69788796a5b4c3d2e1f0"
 COMPLETED_RIDE = "2f1e2d3c4b5a69788796a5b4c3d2e1f0"
@@ -22,6 +28,22 @@ SNAPSHOT_COLUMNS = (
     "pickup_longitude, pickup_latitude, dropoff_longitude, dropoff_latitude, distance_m,"
     " duration_s, route_geometry, provider, amount_kzt, currency, tariff_version"
 )
+REPORTED_RIDE = "5f1e2d3c4b5a69788796a5b4c3d2e1f0"
+CONFIRMED_KASPI_RIDE = "6f1e2d3c4b5a69788796a5b4c3d2e1f0"
+CONFIRMED_CASH_RIDE = "7f1e2d3c4b5a69788796a5b4c3d2e1f0"
+REPORTED_AT = "2026-11-03 09:40:00.000000"
+CONFIRMED_AT = "2026-11-03 09:45:00.000000"
+PAYMENT_COLUMNS = {
+    "id",
+    "ride_id",
+    "amount_kzt",
+    "currency",
+    "method",
+    "status",
+    "paid_at",
+    "created_at",
+    "updated_at",
+}
 PAYMENT_TABLES = "SELECT name FROM sqlite_master WHERE name IN ('payments', 'payment_events')"
 
 
@@ -103,7 +125,7 @@ def test_completed_rides_get_an_unpaid_cash_payment(config: Config) -> None:
     command.upgrade(config, T07_HEAD)
     insert_t07_rides(config)
 
-    command.upgrade(config, "head")
+    command.upgrade(config, T08B_HEAD)
 
     assert execute(
         config,
@@ -130,7 +152,6 @@ def test_completed_rides_get_an_unpaid_cash_payment(config: Config) -> None:
         " e.actor_id, e.reference, e.created_at"
         " FROM payment_events e JOIN payments p ON p.id = e.payment_id",
     ) == [(COMPLETED_RIDE, "open", None, "unpaid", None, "cash", None, None, COMPLETED_AT)]
-    command.check(config)
 
 
 def test_completed_ride_without_completion_time_is_opened_at_its_last_update(
@@ -141,7 +162,7 @@ def test_completed_ride_without_completion_time_is_opened_at_its_last_update(
     insert_t07_people(config)
     insert_ride(config, COMPLETED_RIDE, status="completed", amount_kzt=3100, completed_at=None)
 
-    command.upgrade(config, "head")
+    command.upgrade(config, T08B_HEAD)
 
     assert execute(config, "SELECT ride_id, status, created_at, updated_at FROM payments") == [
         (COMPLETED_RIDE, "unpaid", UPDATED_AT, UPDATED_AT)
@@ -164,5 +185,99 @@ def test_downgrade_to_t07_drops_payments_and_keeps_rides(config: Config) -> None
         (CANCELLED_RIDE, "cancelled"),
     ]
     command.upgrade(config, "head")
-    assert execute(config, "SELECT ride_id FROM payments") == [(COMPLETED_RIDE,)]
+    assert execute(config, "SELECT ride_id, status FROM payments") == [(COMPLETED_RIDE, "unpaid")]
+    command.check(config)
+
+
+def insert_t08b_payments(config: Config) -> None:
+    """One payment in each T08B state: unpaid cash, reported and confirmed Kaspi, confirmed cash."""
+    command.upgrade(config, T07_HEAD)
+    insert_t07_people(config)
+    for ride_id in (COMPLETED_RIDE, REPORTED_RIDE, CONFIRMED_KASPI_RIDE, CONFIRMED_CASH_RIDE):
+        insert_ride(config, ride_id, status="completed", amount_kzt=3100)
+    command.upgrade(config, T08B_HEAD)
+    execute(
+        config,
+        f"UPDATE payments SET method = 'kaspi_link', status = 'reported',"
+        f" reported_at = '{REPORTED_AT}' WHERE ride_id = '{REPORTED_RIDE}'",
+    )
+    execute(
+        config,
+        f"UPDATE payments SET method = 'kaspi_link', status = 'confirmed',"
+        f" reported_at = '{REPORTED_AT}', confirmed_at = '{CONFIRMED_AT}',"
+        f" confirmed_by = '{USER}', confirmation_reference = 'POS 1'"
+        f" WHERE ride_id = '{CONFIRMED_KASPI_RIDE}'",
+    )
+    execute(
+        config,
+        f"UPDATE payments SET status = 'confirmed', confirmed_at = '{CONFIRMED_AT}',"
+        f" confirmed_by = '{DRIVER}' WHERE ride_id = '{CONFIRMED_CASH_RIDE}'",
+    )
+
+
+def payment_columns(config: Config) -> set[object]:
+    return {row[1] for row in execute(config, "PRAGMA table_info(payments)")}
+
+
+def test_reported_and_confirmed_payments_become_paid(config: Config) -> None:
+    insert_t08b_payments(config)
+
+    command.upgrade(config, "head")
+
+    assert payment_columns(config) == PAYMENT_COLUMNS
+    assert execute(
+        config,
+        "SELECT ride_id, amount_kzt, method, status, paid_at, created_at FROM payments"
+        " ORDER BY ride_id",
+    ) == [
+        (COMPLETED_RIDE, 3100, "cash", "unpaid", None, COMPLETED_AT),
+        (REPORTED_RIDE, 3100, "kaspi_link", "paid", REPORTED_AT, COMPLETED_AT),
+        (CONFIRMED_KASPI_RIDE, 3100, "kaspi_link", "paid", CONFIRMED_AT, COMPLETED_AT),
+        (CONFIRMED_CASH_RIDE, 3100, "cash", "paid", CONFIRMED_AT, COMPLETED_AT),
+    ]
+    assert execute(config, PAYMENT_TABLES) == [("payments",)]
+    command.check(config)
+
+
+def test_paid_requires_paid_at_after_the_upgrade(config: Config) -> None:
+    insert_t08b_payments(config)
+    command.upgrade(config, "head")
+
+    for values in ("status = 'paid'", f"paid_at = '{CONFIRMED_AT}'", "status = 'confirmed'"):
+        with pytest.raises(IntegrityError, match="CHECK"):
+            execute(config, f"UPDATE payments SET {values} WHERE ride_id = '{COMPLETED_RIDE}'")
+
+
+def test_downgrade_to_t08b_restores_the_manual_schema_as_unpaid(config: Config) -> None:
+    insert_t08b_payments(config)
+    command.upgrade(config, "head")
+
+    command.downgrade(config, T08B_HEAD)
+
+    assert execute(
+        config,
+        "SELECT ride_id, method, status, verification, reported_at, confirmed_at,"
+        " confirmed_by, confirmation_reference FROM payments ORDER BY ride_id",
+    ) == [
+        (COMPLETED_RIDE, "cash", "unpaid", "manual", None, None, None, None),
+        (REPORTED_RIDE, "kaspi_link", "unpaid", "manual", None, None, None, None),
+        (CONFIRMED_KASPI_RIDE, "kaspi_link", "unpaid", "manual", None, None, None, None),
+        (CONFIRMED_CASH_RIDE, "cash", "unpaid", "manual", None, None, None, None),
+    ]
+    assert execute(
+        config,
+        "SELECT p.ride_id, e.action, e.to_status, e.to_method, e.created_at"
+        " FROM payment_events e JOIN payments p ON p.id = e.payment_id ORDER BY p.ride_id",
+    ) == [
+        (COMPLETED_RIDE, "open", "unpaid", "cash", COMPLETED_AT),
+        (REPORTED_RIDE, "open", "unpaid", "kaspi_link", COMPLETED_AT),
+        (CONFIRMED_KASPI_RIDE, "open", "unpaid", "kaspi_link", COMPLETED_AT),
+        (CONFIRMED_CASH_RIDE, "open", "unpaid", "cash", COMPLETED_AT),
+    ]
+    with pytest.raises(IntegrityError, match="CHECK"):
+        execute(config, f"UPDATE payments SET status = 'paid' WHERE ride_id = '{COMPLETED_RIDE}'")
+
+    command.upgrade(config, "head")
+
+    assert execute(config, "SELECT count(*) FROM payments WHERE status = 'unpaid'") == [(4,)]
     command.check(config)

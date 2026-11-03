@@ -111,7 +111,8 @@ def test_downgrade_one_step_and_upgrade_again(config: Config) -> None:
     revisions, tables = database_state(config)
     assert revisions != expected_heads()
     assert "users" in tables
-    assert set(tables) < set(head_tables)
+    # The last revision drops payment_events, so its downgrade brings a table back.
+    assert set(tables) ^ set(head_tables) == {"payment_events"}
 
     command.upgrade(config, "head")
     assert database_state(config) == (expected_heads(), head_tables)

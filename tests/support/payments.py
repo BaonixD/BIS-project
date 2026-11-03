@@ -1,15 +1,13 @@
-"""Ride payments through the API and the stored ``payments``/``payment_events`` rows.
+"""Ride payments through the API and the stored ``payments`` row.
 
 Usage in an API test with the ``client``, ``driver_factory``, ``dispatcher`` and
 ``session_factory`` fixtures (``support.lifecycle``: passenger ``pat``, driver ``dana``)::
 
     trip = await trip_in("completed", client, driver_factory, dispatcher)
-    response = await pay(client, trip.ride_id, "confirm", trip.driver)
-    assert [event.action for event in await payment_events(session_factory, trip.ride_id)] == [
-        "open", "confirm"
-    ]
+    body = await expect_paid_ok(client, trip.ride_id, "pay", trip.passenger)
+    assert (await stored_payment(session_factory, trip.ride_id)).status == "paid"
 
-Kaspi is off unless a test uses the ``kaspi_settings`` fixture (``tests/api/payments``);
+Kaspi is off unless a test overrides the ``payment_settings`` fixture with ``kaspi_on()``;
 the link is always the controlled ``TEST_KASPI_URL``, never the owner's real one.
 """
 
@@ -20,17 +18,16 @@ from typing import Any, Final
 
 import httpx
 import pytest
-from sqlalchemy import literal_column, select
+from sqlalchemy import select
 
 from support.drivers import login_as
 from support.rides import ride_url
 from taxi_service.database.session import SessionFactory, read_transaction
 from taxi_service.modules.payments.config import PaymentSettings
-from taxi_service.modules.payments.models import Payment, PaymentEvent
+from taxi_service.modules.payments.models import Payment
 
 TEST_KASPI_URL: Final = "https://pay.kaspi.kz/pay/test123"
 ADMIN: Final = "admin"
-REFERENCE: Final = "POS receipt 0042"
 
 
 def isolate_payment_environment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -48,7 +45,7 @@ def kaspi_off() -> PaymentSettings:
 
 
 def payment_url(ride_id: uuid.UUID | str, action: str | None = None) -> str:
-    """``/rides/{id}/payment`` or one of its commands: ``method``, ``report``, ``confirm``."""
+    """``/rides/{id}/payment`` or one of its commands: ``method`` or ``pay``."""
     base = f"{ride_url(ride_id)}/payment"
     return f"{base}/{action}" if action else base
 
@@ -59,23 +56,9 @@ class StoredPayment:
     currency: str
     method: str
     status: str
-    verification: str
-    reported_at: datetime | None
-    confirmed_at: datetime | None
-    confirmed_by: uuid.UUID | None
-    confirmation_reference: str | None
+    paid_at: datetime | None
     created_at: datetime
-
-
-@dataclass(frozen=True)
-class AuditEvent:
-    action: str
-    from_status: str | None
-    to_status: str
-    from_method: str | None
-    to_method: str
-    actor_id: uuid.UUID | None
-    reference: str | None
+    updated_at: datetime
 
 
 async def read_payment(client: httpx.AsyncClient, ride_id: uuid.UUID, username: str) -> Any:
@@ -94,11 +77,7 @@ async def pay(
     *,
     json: dict[str, Any] | None = None,
 ) -> httpx.Response:
-    """Log in as ``username`` and send a payment command.
-
-    ``method`` is a PUT (body ``{"method": ...}`` required); ``report`` and
-    ``confirm`` are POSTs with an optional body.
-    """
+    """Log in as ``username``; ``method`` is a PUT with ``{"method": ...}``, ``pay`` a POST."""
     user = await login_as(client, username)
     url = payment_url(ride_id, action)
     if action == "method":
@@ -132,38 +111,7 @@ async def stored_payment(
         currency=row.currency,
         method=row.method.value,
         status=row.status.value,
-        verification=row.verification.value,
-        reported_at=row.reported_at,
-        confirmed_at=row.confirmed_at,
-        confirmed_by=row.confirmed_by,
-        confirmation_reference=row.confirmation_reference,
+        paid_at=row.paid_at,
         created_at=row.created_at,
+        updated_at=row.updated_at,
     )
-
-
-async def payment_events(session_factory: SessionFactory, ride_id: uuid.UUID) -> list[AuditEvent]:
-    """The payment's audit history, oldest first (``rowid`` breaks ties of a still clock)."""
-    query = (
-        select(PaymentEvent)
-        .join(Payment, Payment.id == PaymentEvent.payment_id)
-        .where(Payment.ride_id == ride_id)
-        .order_by(PaymentEvent.created_at, literal_column("payment_events.rowid"))
-    )
-    async with session_factory() as session, read_transaction(session):
-        rows = list(await session.scalars(query))
-    return [
-        AuditEvent(
-            action=row.action.value,
-            from_status=None if row.from_status is None else row.from_status.value,
-            to_status=row.to_status.value,
-            from_method=None if row.from_method is None else row.from_method.value,
-            to_method=row.to_method.value,
-            actor_id=row.actor_id,
-            reference=row.reference,
-        )
-        for row in rows
-    ]
-
-
-async def actions_of(session_factory: SessionFactory, ride_id: uuid.UUID) -> list[str]:
-    return [event.action for event in await payment_events(session_factory, ride_id)]

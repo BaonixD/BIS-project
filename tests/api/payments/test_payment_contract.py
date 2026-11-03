@@ -29,8 +29,7 @@ def error_statuses(operation: dict[str, Any]) -> set[str]:
     [
         ("get", BASE, {"401", "404", "409", "422"}),
         ("put", f"{BASE}/method", {"401", "403", "404", "409", "422", "503"}),
-        ("post", f"{BASE}/report", {"401", "403", "404", "409", "422"}),
-        ("post", f"{BASE}/confirm", {"401", "403", "404", "409", "422"}),
+        ("post", f"{BASE}/pay", {"401", "403", "404", "409", "422"}),
     ],
 )
 def test_payment_operations_document_their_responses(
@@ -43,17 +42,33 @@ def test_payment_operations_document_their_responses(
     assert any("SessionCookie" in requirement for requirement in operation["security"])
 
 
-@pytest.mark.parametrize(
-    "name", ["PaymentMethodRequest", "PaymentReportRequest", "PaymentConfirmRequest"]
-)
-def test_request_bodies_forbid_extra_fields(schema: dict[str, Any], name: str) -> None:
-    body = schema["components"]["schemas"][name]
+def test_report_and_confirm_are_gone(schema: dict[str, Any]) -> None:
+    assert {path for path in schema["paths"] if path.startswith(BASE)} == {
+        BASE,
+        f"{BASE}/method",
+        f"{BASE}/pay",
+    }
+    assert "requestBody" not in schema["paths"][f"{BASE}/pay"]["post"]
+
+
+def test_method_request_forbids_extra_fields(schema: dict[str, Any]) -> None:
+    body = schema["components"]["schemas"]["PaymentMethodRequest"]
 
     assert body["additionalProperties"] is False
-    assert not {"amount_kzt", "payment_url", "status", "verification"} & set(body["properties"])
+    assert set(body["properties"]) == {"method"}
 
 
-def test_responses_state_manual_verification(schema: dict[str, Any]) -> None:
-    verification = schema["components"]["schemas"]["PaymentResponse"]["properties"]["verification"]
+def test_response_has_the_simple_payment_fields(schema: dict[str, Any]) -> None:
+    response = schema["components"]["schemas"]["PaymentResponse"]
 
-    assert verification.get("const") == "manual" or verification.get("enum") == ["manual"]
+    assert set(response["properties"]) == {
+        "ride_id",
+        "amount_kzt",
+        "currency",
+        "method",
+        "status",
+        "paid_at",
+        "payment_url",
+    }
+    status = schema["components"]["schemas"]["PaymentStatus"]
+    assert sorted(status["enum"]) == ["paid", "unpaid"]

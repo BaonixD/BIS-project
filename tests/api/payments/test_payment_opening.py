@@ -10,7 +10,7 @@ from support.clock import ManualClock
 from support.dispatch import Dispatcher
 from support.drivers import DriverFactory, login_as
 from support.lifecycle import command_url, commands_of, expect_ok, send, trip_in
-from support.payments import AuditEvent, StoredPayment, payment_events, stored_payment
+from support.payments import StoredPayment, stored_payment
 from support.rides import count_rows
 from support.rows import insert_payment
 from taxi_service.database.session import SessionFactory
@@ -33,17 +33,11 @@ async def test_complete_opens_one_unpaid_cash_payment_with_the_ride_amount(
         currency="KZT",
         method="cash",
         status="unpaid",
-        verification="manual",
-        reported_at=None,
-        confirmed_at=None,
-        confirmed_by=None,
-        confirmation_reference=None,
+        paid_at=None,
         created_at=clock.now(),
+        updated_at=clock.now(),
     )
     assert ride["amount_kzt"] == (await dispatcher.ride(trip.ride_id)).amount_kzt == 2200
-    assert await payment_events(session_factory, trip.ride_id) == [
-        AuditEvent("open", None, "unpaid", None, "cash", None, None)
-    ]
 
 
 async def test_repeated_complete_opens_no_second_payment(
@@ -57,7 +51,6 @@ async def test_repeated_complete_opens_no_second_payment(
     await expect_ok(client, trip, "complete")
 
     assert await count_rows(session_factory, Payment) == 1
-    assert len(await payment_events(session_factory, trip.ride_id)) == 1
 
 
 @pytest.mark.parametrize("status", ["searching", "assigned", "arrived", "in_progress", "cancelled"])
@@ -91,7 +84,6 @@ async def test_failed_payment_opening_rolls_the_completion_back(
     assert (ride.status.value, ride.completed_at) == ("in_progress", None)
     assert "complete" not in await commands_of(session_factory, trip.ride_id)
     assert await count_rows(session_factory, Payment) == 1
-    assert await payment_events(session_factory, trip.ride_id) == []
 
 
 async def test_concurrent_completes_open_one_payment(
@@ -112,6 +104,3 @@ async def test_concurrent_completes_open_one_payment(
 
     assert [response.status_code for response in responses] == [200, 200]
     assert await count_rows(session_factory, Payment) == 1
-    assert [event.action for event in await payment_events(session_factory, trip.ride_id)] == [
-        "open"
-    ]

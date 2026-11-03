@@ -234,7 +234,7 @@ async def payment(participant: Participant, ride_id: str) -> Json:
 async def pay(
     participant: Participant, ride_id: str, action: str, json: Json | None = None
 ) -> httpx.Response:
-    """``method`` (PUT, body required), ``report`` or ``confirm`` (POST)."""
+    """``method`` (PUT, body required) or ``pay`` (POST)."""
     url = payment_url(ride_id, action)
     if action == "method":
         assert json is not None

@@ -39,11 +39,11 @@ async def test_history_shows_the_payment_of_a_completed_ride(
 
     await login_as(client, trip.passenger)
     [unpaid] = (await get_page(client, RIDES_URL))["items"]
-    await expect_paid_ok(client, trip.ride_id, "confirm", trip.driver)
-    [confirmed] = (await get_page(client, RIDES_URL))["items"]
+    await expect_paid_ok(client, trip.ride_id, "pay", trip.passenger)
+    [paid] = (await get_page(client, RIDES_URL))["items"]
 
     assert payment_of(unpaid) == ("unpaid", "cash")
-    assert payment_of(confirmed) == ("confirmed", "cash")
+    assert payment_of(paid) == ("paid", "cash")
 
 
 async def test_rides_without_payment_show_null(
@@ -63,12 +63,13 @@ async def test_admin_list_shows_the_payment(
 ) -> None:
     trip = await trip_in("completed", client, driver_factory, dispatcher)
     await driver_factory.admin_id()
-    await expect_paid_ok(client, trip.ride_id, "confirm", ADMIN)
+    await expect_paid_ok(client, trip.ride_id, "pay", trip.passenger)
+    await login_as(client, ADMIN)
 
     [item] = (await get_page(client, ADMIN_RIDES_URL))["items"]
 
     assert item["id"] == str(trip.ride_id)
-    assert payment_of(item) == ("confirmed", "cash")
+    assert payment_of(item) == ("paid", "cash")
 
 
 async def seed_paid_rides(

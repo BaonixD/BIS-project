@@ -1,6 +1,6 @@
 import pytest
 
-from taxi_service.modules.payments.kaspi import (
+from taxi_service.modules.payments.config import (
     InvalidKaspiPaymentUrlError,
     validate_kaspi_payment_url,
 )

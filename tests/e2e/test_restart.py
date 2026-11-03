@@ -117,11 +117,11 @@ async def test_restart_after_the_offer_deadline_moves_on_without_double_assignme
         # The unpaid ride from before the restart is still open and can be settled.
         left_open = await payment(pia, unpaid_ride)
         assert (left_open["status"], left_open["amount_kzt"]) == ("unpaid", 2200)
-        assert expect(await pay(dana, unpaid_ride, "confirm"))["status"] == "confirmed"
+        assert expect(await pay(pia, unpaid_ride, "pay"))["status"] == "paid"
         # The ride in progress goes on with its driver and is paid after completion.
         assert expect(await ride(sam, trip))["status"] == "in_progress"
         expect(await ride_command(dora, trip, "complete"))
-        assert expect(await pay(dora, trip, "confirm"))["status"] == "confirmed"
+        assert expect(await pay(sam, trip, "pay"))["status"] == "paid"
 
     assert {o.driver_id: o.status for o in await dispatcher.offers(ride_uuid)} == {
         dana.id: OfferStatus.EXPIRED,

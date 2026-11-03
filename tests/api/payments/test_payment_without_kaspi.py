@@ -6,14 +6,7 @@ import pytest
 from support.dispatch import Dispatcher
 from support.drivers import DriverFactory
 from support.lifecycle import expect_ok, trip_in
-from support.payments import (
-    TEST_KASPI_URL,
-    actions_of,
-    expect_paid_ok,
-    pay,
-    read_payment,
-    stored_payment,
-)
+from support.payments import TEST_KASPI_URL, expect_paid_ok, pay, read_payment, stored_payment
 from taxi_service.core.config import Settings
 from taxi_service.database.session import SessionFactory
 from taxi_service.main import create_app
@@ -29,12 +22,13 @@ async def test_cash_ride_is_paid_end_to_end_without_kaspi(
     await expect_ok(client, trip, "complete")
 
     shown = await read_payment(client, trip.ride_id, trip.passenger)
-    confirmed = await expect_paid_ok(client, trip.ride_id, "confirm", trip.driver)
+    paid = await expect_paid_ok(client, trip.ride_id, "pay", trip.passenger)
 
-    assert (shown["method"], shown["status"]) == ("cash", "unpaid")
-    assert (shown["kaspi_available"], shown["payment_url"]) == (False, None)
-    assert (confirmed["status"], confirmed["verification"]) == ("confirmed", "manual")
-    assert await actions_of(session_factory, trip.ride_id) == ["open", "confirm"]
+    assert (shown["method"], shown["status"], shown["payment_url"]) == ("cash", "unpaid", None)
+    assert (paid["method"], paid["status"], paid["payment_url"]) == ("cash", "paid", None)
+    stored = await stored_payment(session_factory, trip.ride_id)
+    assert stored is not None
+    assert stored.status == "paid"
 
 
 async def test_switching_to_kaspi_is_unavailable(
@@ -53,8 +47,11 @@ async def test_switching_to_kaspi_is_unavailable(
     assert response.json()["error"]["code"] == "kaspi_unavailable"
     stored = await stored_payment(session_factory, trip.ride_id)
     assert stored is not None
-    assert (stored.method, stored.status) == ("cash", "unpaid")
-    assert await actions_of(session_factory, trip.ride_id) == ["open"]
+    assert (stored.method, stored.status, stored.updated_at) == (
+        "cash",
+        "unpaid",
+        stored.created_at,
+    )
 
 
 @pytest.mark.parametrize(("value", "enabled"), [("", False), (TEST_KASPI_URL, True)])

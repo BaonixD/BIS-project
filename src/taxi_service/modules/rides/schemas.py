@@ -7,7 +7,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstra
 
 from taxi_service.modules.drivers.models import DriverProfile
 from taxi_service.modules.geo.schemas import Coordinates, RouteResult
-from taxi_service.modules.payments.rules import PaymentMethod, PaymentStatus
+from taxi_service.modules.payments.models import PaymentMethod, PaymentStatus
 from taxi_service.modules.rides.history import RidePage, RideRow
 from taxi_service.modules.rides.models import (
     REASON_MAX_LENGTH,

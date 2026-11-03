@@ -23,7 +23,7 @@ from support.clock import ManualClock
 from support.e2e import expect, open_town, pay, ride_command
 from support.history import ADMIN_RIDES_URL
 from support.lifecycle import commands_of
-from support.payments import actions_of, kaspi_off
+from support.payments import kaspi_off
 from support.rides import RIDES_URL
 from support.routing import FakeRoutingProvider
 from support.rows import GEOMETRY
@@ -181,22 +181,19 @@ def test_t05_data_survives_the_upgrade_and_completed_rides_get_payments(
     )
     # Backfill: the completed ride (and only it) gets unpaid cash, opened at updated_at.
     assert execute(
-        config,
-        "SELECT ride_id, amount_kzt, method, status, verification, created_at FROM payments",
-    ) == [(COMPLETED, 2200, "cash", "unpaid", "manual", "2026-11-03 09:31:00.000000")]
-    assert execute(config, "SELECT action, to_status, actor_id FROM payment_events") == [
-        ("open", "unpaid", None)
-    ]
+        config, "SELECT ride_id, amount_kzt, method, status, paid_at, created_at FROM payments"
+    ) == [(COMPLETED, 2200, "cash", "unpaid", None, "2026-11-03 09:31:00.000000")]
+    assert execute(config, "SELECT name FROM sqlite_master WHERE name = 'payment_events'") == []
     assert execute(config, "SELECT count(*) FROM ride_offers")[0][0] == 0
     assert execute(config, "SELECT count(*) FROM ride_events")[0][0] == 0
 
 
-def test_downgrade_one_step_and_back_keeps_t05_data(
+def test_downgrade_to_t07_and_back_keeps_t05_data(
     config: Config, t05_database: dict[str, object]
 ) -> None:
     command.upgrade(config, "head")
 
-    command.downgrade(config, "-1")
+    command.downgrade(config, T07_HEAD)
 
     assert execute(config, "SELECT version_num FROM alembic_version") == [(T07_HEAD,)]
     assert execute(config, "SELECT name FROM sqlite_master WHERE name = 'payments'") == []
@@ -237,12 +234,12 @@ async def finish_upgraded_rides(settings: Settings) -> None:
 
             for command_name in ("arrive", "start", "complete"):
                 expect(await ride_command(dana, str(uuid.UUID(ASSIGNED)), command_name))
-            confirmed = expect(await pay(dana, str(uuid.UUID(COMPLETED)), "confirm"))
-            assert (confirmed["status"], confirmed["amount_kzt"]) == ("confirmed", 2200)
+            paid = expect(await pay(pat, str(uuid.UUID(COMPLETED)), "pay"))
+            assert (paid["status"], paid["amount_kzt"]) == ("paid", 2200)
             opened = expect(await dana.get(f"{RIDES_URL}/{uuid.UUID(ASSIGNED)}/payment"))
             assert (opened["status"], opened["amount_kzt"]) == ("unpaid", 1500)
-            [paid] = expect(await pat.get(RIDES_URL))["items"]
-            assert (paid["status"], paid["payment_status"]) == ("completed", "confirmed")
+            [listed] = expect(await pat.get(RIDES_URL))["items"]
+            assert (listed["status"], listed["payment_status"]) == ("completed", "paid")
 
             assert await town.dispatch_step() == 1  # SEARCHING's search ended long ago
             statuses = {
@@ -254,8 +251,6 @@ async def finish_upgraded_rides(settings: Settings) -> None:
                 str(uuid.UUID(ASSIGNED)): "completed",
                 str(uuid.UUID(SEARCHING)): "no_driver",
             }
-        assert await actions_of(session_factory, uuid.UUID(COMPLETED)) == ["open", "confirm"]
-        assert await actions_of(session_factory, uuid.UUID(ASSIGNED)) == ["open"]
         assert await commands_of(session_factory, uuid.UUID(SEARCHING)) == ["mark_no_driver"]
     finally:
         await engine.dispose()

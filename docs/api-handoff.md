@@ -97,7 +97,7 @@ export async function restoreSession() {
 - Координаты — объект `{"longitude": 76.9457, "latitude": 43.2383}` (WGS 84): сначала долгота, числа JSON, `longitude` −180…180, `latitude` −90…90.
 - Расстояние — целые метры (`distance_m`), длительность — секунды (`duration_s`), сумма — целые тенге (`amount_kzt`) и `currency: "KZT"`.
 - Тела запросов закрыты: лишние поля (сумма, статус, водитель и т. п.) дают `422 validation_error`. В `PATCH` пропущенное поле не меняется, `null` запрещён.
-- Статусы меняются только именованными командами (`/arrive`, `/cancel`, `/payment/confirm`…), не через `PATCH`.
+- Статусы меняются только именованными командами (`/arrive`, `/cancel`, `/payment/pay`…), не через `PATCH`.
 - Каждый ответ содержит `X-Request-ID`; прикладывайте его к сообщениям об ошибке.
 
 ### Формат ошибки
@@ -153,9 +153,8 @@ export async function restoreSession() {
 | POST | `/api/v1/rides/{ride_id}/cancel` | пассажир поездки | без тела или `{reason}` → `RideResponse` |
 | POST | `/api/v1/rides/{ride_id}/release` | назначенный водитель | `{reason}` (обязательно) → `RideResponse` |
 | GET | `/api/v1/rides/{ride_id}/payment` | пассажир, назначенный водитель, admin | → `PaymentResponse` |
-| PUT | `/api/v1/rides/{ride_id}/payment/method` | пассажир | `{method: "cash" \| "kaspi_link"}` → `PaymentCommandResponse` |
-| POST | `/api/v1/rides/{ride_id}/payment/report` | пассажир | без тела → `PaymentCommandResponse` |
-| POST | `/api/v1/rides/{ride_id}/payment/confirm` | cash: назначенный водитель или admin; kaspi_link: admin | без тела или `{reference}` → `PaymentCommandResponse` |
+| PUT | `/api/v1/rides/{ride_id}/payment/method` | пассажир | `{method: "cash" \| "kaspi_link"}` → `PaymentResponse` |
+| POST | `/api/v1/rides/{ride_id}/payment/pay` | пассажир | без тела → `PaymentResponse` |
 | GET | `/api/v1/admin/drivers` | admin | `?approval_status=pending\|approved&limit&offset` → `Page<AdminDriverResponse>` |
 | POST | `/api/v1/admin/drivers/{driver_id}/approve` | admin | → `AdminDriverResponse` |
 | GET | `/api/v1/admin/rides` | admin | фильтры истории + `passenger_id`, `driver_id` → `Page<RideSummary>` |
@@ -170,9 +169,9 @@ export async function restoreSession() {
 - `OfferResponse`: `id`, `ride_id`, `status`, `pickup`, `dropoff`, `distance_m`, `duration_s`, `amount_kzt`, `currency`, `created_at`, `expires_at`.
 - `RideSummary` (элемент истории): `id`, `status`, `passenger_id`, `driver_id`, `pickup`, `dropoff`, `distance_m`, `duration_s`, `amount_kzt`, `currency`, `created_at`, `updated_at`, `payment_status`, `payment_method` (оба `null` до завершения). Геометрии нет — за ней `GET /rides/{ride_id}`.
 - `DriverResponse`: `id`, `full_name`, `phone`, `license_number`, `vehicle`, `approval_status`, `approved_at`, `online`, `location`, `location_updated_at`, `missing_fields`. `AdminDriverResponse` дополнительно: `username`, `created_at`, `approved_by`.
-- `PaymentResponse`: `ride_id`, `amount_kzt`, `currency`, `method`, `status`, `verification` (всегда `"manual"`), `kaspi_available`, `payment_url`, `amount_entered_by_buyer`, `notice`, `reported_at`, `confirmed_at`, `confirmed_by`, `confirmation_reference`. `PaymentCommandResponse` — то же + `changed`.
+- `PaymentResponse`: `ride_id`, `amount_kzt`, `currency`, `method`, `status`, `paid_at`, `payment_url` (ссылка Kaspi только при `kaspi_link`, иначе `null`).
 
-Статусы: поездка — `searching`, `assigned`, `arrived`, `in_progress`, `completed`, `cancelled`, `no_driver`; предложение — `pending`, `accepted`, `rejected`, `expired`, `revoked`; оплата — `unpaid`, `reported`, `confirmed`; метод — `cash`, `kaspi_link`. Диаграммы — в [architecture.md](architecture.md#состояния).
+Статусы: поездка — `searching`, `assigned`, `arrived`, `in_progress`, `completed`, `cancelled`, `no_driver`; предложение — `pending`, `accepted`, `rejected`, `expired`, `revoked`; оплата — `unpaid`, `paid`; метод — `cash`, `kaspi_link`. Диаграммы — в [architecture.md](architecture.md#состояния).
 
 ## Поток пассажира
 
@@ -196,7 +195,7 @@ export async function restoreSession() {
 5. **Предложения**: опрашивать `GET /drivers/me/offers`; в `items` не больше одного предложения с `expires_at` (30 с) — показать отсчёт по серверному `expires_at`. `POST /ride-offers/{offer_id}/accept` → `RideResponse` (`assigned`), сохранить `id` поездки. `POST /ride-offers/{offer_id}/reject` → предложение уходит следующему водителю; повтор reject возвращает то же отклонённое предложение. Предложение пропадает из списка, когда на него ответили, оно истекло или отозвано. Ошибки: `409 offer_expired` (не успел — убрать карточку), `409 driver_busy`, `409 invalid_offer_transition`, `409 invalid_ride_transition` (пассажир уже отменил), `404 offer_not_found`. Повтор accept — тот же ответ.
 6. **Поездка**: `POST /rides/{ride_id}/arrive` → `/start` → `/complete`; повтор уже применённой команды возвращает поездку без изменений. Состояние и данные пассажира берутся из `GET /rides/{ride_id}`; опрашивать его, чтобы увидеть отмену пассажиром (`cancelled`). Во время поездки нельзя уйти offline и менять профиль (`409 driver_on_active_ride`).
 7. **Освободить заказ** до начала: `POST /rides/{ride_id}/release {"reason": "..."}` (причина обязательна, 1–200 символов). Ответ — поездка, какой её оставил release: `searching` без водителя или сразу `no_driver`; дальнейшие изменения в него не попадают. После этого поездка водителю недоступна (`404`), повторно её не предложат.
-8. **Наличные**: после `completed` — `POST /rides/{ride_id}/payment/confirm` (тело необязательно, `{"reference": "..."}`). Kaspi водитель не подтверждает (`403 payment_action_forbidden`).
+8. **Оплата**: после `completed` водитель может смотреть `GET /rides/{ride_id}/payment` (сумма, способ, статус); отмечает оплату только пассажир.
 9. **Активная поездка после перезагрузки**: `GET /rides?status=assigned&status=arrived&status=in_progress&limit=1`. История — `GET /rides`: поездки, где он сейчас водитель (освобождённая уходит из истории).
 10. **Конец смены**: `PUT /drivers/me/availability {"online": false}` — открытое предложение отзывается.
 
@@ -206,7 +205,7 @@ Admin создаётся только локальной командой (`scri
 
 - Допуск водителей: `GET /admin/drivers?approval_status=pending` (новые регистрации сначала; водитель без профиля — тоже `pending`) → `POST /admin/drivers/{driver_id}/approve` (`driver_id` — id пользователя). Неполный профиль — `409 driver_profile_incomplete` с `details.missing_fields`; повторный допуск возвращает первый.
 - Чтение: `GET /admin/rides` (фильтры истории, `passenger_id`, `driver_id`; неизвестный id — пустая страница), `GET /admin/users?role=driver`, любая поездка `GET /rides/{ride_id}` (без карточки водителя) и её оплата.
-- Сверка Kaspi: `POST /rides/{ride_id}/payment/confirm {"reference": "POS receipt 0042"}` — заметка обязательна. Командами поездки admin не управляет (`403 ride_command_forbidden`); `GET /rides` для admin — `403 forbidden`.
+- Командами поездки и оплаты admin не управляет (`403 ride_command_forbidden`, `403 payment_action_forbidden`); `GET /rides` для admin — `403 forbidden`.
 
 ## Опрос (polling)
 
@@ -218,25 +217,26 @@ WebSocket и SSE нет. Сервер обрабатывает истечени�
 | `GET /rides/{ride_id}` | водитель | 3–5 с во время поездки (видеть отмену) | `completed`, `cancelled`, `404` после release |
 | `GET /drivers/me/offers` | водитель | 2 с, пока online и нет активной поездки | offline или принятая поездка |
 | `PUT /drivers/me/location` | водитель | ~10 с, пока online (порог свежести 60 с) | offline |
-| `GET /rides/{ride_id}/payment` | пассажир | 5 с после «Я оплатил», пока `reported` | `confirmed` |
 | `GET /drivers/me` | водитель | 10–30 с, пока `pending` | `approved` |
 
 Отсчёт времени предложения и quote считайте от серверных `expires_at`, не от локального времени нажатия.
 
 ## Оплата
 
-Запись оплаты появляется при `completed`: `cash`, `unpaid`, сумма = `amount_kzt` поездки. До завершения `GET /rides/{ride_id}/payment` и команды отвечают `409 ride_not_completed`.
+Учебная оплата без проверки ([ADR 0009](decisions/0009-simple-payments.md)): пассажир сам отмечает «Оплатил», и платёж сразу засчитан. Реальных платежей нет, сервер не проверяет поступление денег.
 
-- **Наличные** (по умолчанию): показать `notice` и сумму; водитель (или admin) подтверждает → `confirmed`.
-- **Kaspi**: если `kaspi_available: true`, пассажир может выбрать `PUT /rides/{ride_id}/payment/method {"method": "kaspi_link"}` (до подтверждения; без ссылки на сервере — `503 kaspi_unavailable`). Тогда `payment_url` — ссылка точки продаж Kaspi (`https://pay.kaspi.kz/pay/...`).
-  - **QR строит фронтенд** из `payment_url` (любая библиотека QR); на телефоне можно просто открыть ссылку. Сумма в ссылку не подставляется: `amount_entered_by_buyer: true` — покупатель вводит `amount_kzt` в Kaspi сам, это нужно явно показать.
-  - Кнопка **«Я оплатил»** → `POST /rides/{ride_id}/payment/report` → `reported`. Это **не подтверждение**: показывайте «ожидает проверки», а не «оплачено». Подтверждает только admin после сверки в Kaspi POS (`confirmed`). Открытие ссылки, сканирование QR и возврат из Kaspi статус не меняют.
-  - Вернуться к наличным — `PUT .../method {"method": "cash"}`: статус снова `unpaid`.
-- `payment_url` приходит только для `kaspi_link` до `confirmed`; после подтверждения ссылка скрыта.
-- `confirmed_by` и `confirmation_reference` заполнены только в ответах для admin; пассажир и водитель получают их как `null` (статус и `confirmed_at` видны всем участникам).
-- Ответ команд содержит `changed`: `false` — команда уже была применена (повтор безопасен).
-- В истории (`GET /rides`) у завершённой поездки есть `payment_status` и `payment_method`.
-- Ошибки: `403 payment_action_forbidden` (роль без права), `409 invalid_payment_transition` (например, `report` для наличных, смена метода после подтверждения), `422 confirmation_reference_required` / `invalid_confirmation_reference` (admin, Kaspi).
+Запись оплаты появляется при `completed`: `cash`, `unpaid`, сумма = `amount_kzt` поездки. До завершения `GET` и команды отвечают `409 ride_not_completed`.
+
+Поток пассажира:
+
+1. **Поездка завершена** (`completed`) → `GET /rides/{ride_id}/payment`: показать `amount_kzt` и способ.
+2. **Выбрать способ**: `PUT /rides/{ride_id}/payment/method {"method": "kaspi_link"}` или `{"method": "cash"}` — пока `unpaid`. `503 kaspi_unavailable` — Kaspi на сервере не настроен: скрыть кнопку Kaspi, оставить наличные. Тот же метод — `200` без изменений; после `paid` любая смена — `409`.
+3. **Kaspi**: открыть `payment_url` (`https://pay.kaspi.kz/pay/...`) на телефоне или показать QR, построенный фронтендом. Сумма в ссылку не подставляется — покажите `amount_kzt`, покупатель вводит её в Kaspi сам. Наличные — просто отдать водителю.
+4. **«Оплатил»**: `POST /rides/{ride_id}/payment/pay` → `status: "paid"`, `paid_at`. Повтор — `200` с тем же ответом. После этого смена способа — `409 invalid_payment_transition`.
+
+- `GET` видят пассажир, назначенный водитель и admin; посторонний — `404 ride_not_found`. Команды `PUT /method` и `POST /pay` — только пассажир, водитель и admin получают `403 payment_action_forbidden`. Команды требуют `X-CSRF-Token`.
+- `payment_url` приходит при `kaspi_link` (и после `paid`), у `cash` — `null`.
+- В истории (`GET /rides`) у завершённой поездки есть `payment_status` (`unpaid`/`paid`) и `payment_method`.
 
 ## Карта и маршрут
 
@@ -282,10 +282,9 @@ WebSocket и SSE нет. Сервер обрабатывает истечени�
 | 422 | `invalid_date_range` | история | `created_from` позже `created_to` |
 | 409 | `ride_not_completed` | оплата | поездка ещё не завершена |
 | 404 | `payment_not_found` | оплата | при нормальной работе не возникает |
-| 403 | `payment_action_forbidden` | оплата | `details.action` |
-| 409 | `invalid_payment_transition` | оплата | `details.action`, `method`, `status` |
+| 403 | `payment_action_forbidden` | команды оплаты | команды доступны только пассажиру |
+| 409 | `invalid_payment_transition` | смена метода | оплата уже `paid` |
 | 503 | `kaspi_unavailable` | смена метода | Kaspi не настроен, только наличные |
-| 422 | `confirmation_reference_required`, `invalid_confirmation_reference` | confirm (admin) | заметка сверки обязательна / до 200 символов без управляющих |
 | 422 | `validation_error` | любой маршрут | `details.errors[].loc` — поле |
 | 404 / 405 | `not_found`, `method_not_allowed` | неизвестный путь или метод | ошибка клиента |
 | 500 | `internal_error` | любой маршрут | сообщить с `request_id` |

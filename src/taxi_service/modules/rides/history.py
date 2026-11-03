@@ -12,8 +12,7 @@ from sqlalchemy.orm import defer
 
 from taxi_service.database.session import read_transaction
 from taxi_service.modules.auth.exceptions import ForbiddenError
-from taxi_service.modules.payments.models import Payment
-from taxi_service.modules.payments.rules import PaymentMethod, PaymentStatus
+from taxi_service.modules.payments.models import Payment, PaymentMethod, PaymentStatus
 from taxi_service.modules.rides.models import Ride
 from taxi_service.modules.rides.states import RideStatus
 from taxi_service.modules.users.models import UserRole

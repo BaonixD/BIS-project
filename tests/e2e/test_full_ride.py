@@ -32,7 +32,6 @@ from support.e2e import (
 )
 from support.history import ADMIN_RIDES_URL
 from support.lifecycle import Event, ride_events
-from support.payments import AuditEvent, payment_events
 from support.rides import RIDES_URL
 from support.routing import FAKE_PROVIDER_NAME, FakeRoutingProvider
 from taxi_service.database.session import SessionFactory
@@ -118,25 +117,24 @@ async def test_cash_ride_from_registration_to_history(
             assert expect(await ride_command(far, ride_id, command))["status"] == status
         expect_error(await ride_command(pat, ride_id, "cancel"), 409, "invalid_ride_transition")
 
-        # Cash is open and unpaid; only the driver (or admin) confirms it.
+        # Cash is open and unpaid; the passenger presses "Paid" and it counts.
         opened = await payment(pat, ride_id)
-        assert {k: opened[k] for k in ("amount_kzt", "method", "status", "verification")} == {
+        assert {k: opened[k] for k in ("amount_kzt", "method", "status", "payment_url")} == {
             "amount_kzt": 2200,
             "method": "cash",
             "status": "unpaid",
-            "verification": "manual",
+            "payment_url": None,
         }
-        assert opened["kaspi_available"] is False
         expect_error(
             await pay(pat, ride_id, "method", {"method": "kaspi_link"}), 503, "kaspi_unavailable"
         )
-        expect_error(await pay(pat, ride_id, "confirm"), 403, "payment_action_forbidden")
-        confirmed = expect(await pay(far, ride_id, "confirm"))
-        assert (confirmed["status"], confirmed["changed"]) == ("confirmed", True)
-        assert expect(await pay(far, ride_id, "confirm"))["changed"] is False
+        expect_error(await pay(far, ride_id, "pay"), 403, "payment_action_forbidden")
+        paid = expect(await pay(pat, ride_id, "pay"))
+        assert (paid["status"], paid["method"]) == ("paid", "cash")
+        assert expect(await pay(pat, ride_id, "pay")) == paid
 
         # History of both sides and the admin list show the paid ride.
-        expected = (ride_id, "completed", "confirmed", "cash")
+        expected = (ride_id, "completed", "paid", "cash")
         assert summary(expect(await pat.get(RIDES_URL))) == expected
         assert summary(expect(await far.get(RIDES_URL))) == expected
         assert expect(await near.get(RIDES_URL))["total"] == 0
@@ -157,8 +155,4 @@ async def test_cash_ride_from_registration_to_history(
         Event("assigned", "arrived", "arrive", far.id, None),
         Event("arrived", "in_progress", "start", far.id, None),
         Event("in_progress", "completed", "complete", far.id, None),
-    ]
-    assert await payment_events(session_factory, ride_uuid) == [
-        AuditEvent("open", None, "unpaid", None, "cash", None, None),
-        AuditEvent("confirm", "unpaid", "confirmed", "cash", "cash", far.id, None),
     ]

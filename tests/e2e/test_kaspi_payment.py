@@ -1,10 +1,11 @@
-"""MVP_SPEC §7 acceptance through the API: Kaspi by the controlled link, confirmed only by admin.
+"""MVP_SPEC §7 acceptance through the API: Kaspi by the controlled link, paid on "Paid".
 
 The link is ``TEST_KASPI_URL`` (``support.payments``), never the owner's real
 one; no request leaves the test process and no payment is made.
 """
 
 import uuid
+from datetime import datetime
 
 import pytest
 from fastapi import FastAPI
@@ -25,7 +26,7 @@ from support.e2e import (
     ride_command,
 )
 from support.history import ADMIN_RIDES_URL
-from support.payments import REFERENCE, TEST_KASPI_URL, AuditEvent, kaspi_on, payment_events
+from support.payments import TEST_KASPI_URL, kaspi_on, stored_payment
 from support.rides import RIDES_URL
 from taxi_service.database.session import SessionFactory
 from taxi_service.modules.payments.config import PaymentSettings
@@ -50,53 +51,35 @@ async def completed_ride(town: Town) -> tuple[str, Participant, Participant]:
     return ride_id, pat, dana
 
 
-async def test_kaspi_report_is_not_payment_until_admin_confirms(
+async def test_passenger_pays_by_kaspi_link_and_it_counts(
     app: FastAPI, session_factory: SessionFactory, clock: ManualClock
 ) -> None:
     async with open_town(app, session_factory, clock) as town:
         admin = await town.admin()
         ride_id, pat, dana = await completed_ride(town)
         cash = await payment(pat, ride_id)
-        assert (cash["method"], cash["kaspi_available"], cash["payment_url"]) == (
-            "cash",
-            True,
-            None,
-        )
+        assert (cash["method"], cash["status"], cash["payment_url"]) == ("cash", "unpaid", None)
 
         switched = expect(await pay(pat, ride_id, "method", KASPI))
         assert (switched["method"], switched["status"]) == ("kaspi_link", "unpaid")
         assert switched["payment_url"] == TEST_KASPI_URL
-        assert switched["amount_entered_by_buyer"] is True
+        assert (await payment(pat, ride_id))["payment_url"] == TEST_KASPI_URL
+        expect_error(await pay(dana, ride_id, "pay"), 403, "payment_action_forbidden")
+        expect_error(await pay(admin, ride_id, "pay"), 403, "payment_action_forbidden")
 
-        reported = expect(await pay(pat, ride_id, "report"))
-        assert (reported["status"], reported["confirmed_at"]) == ("reported", None)
-        assert expect(await pay(pat, ride_id, "report"))["changed"] is False
-        expect_error(await pay(dana, ride_id, "confirm"), 403, "payment_action_forbidden")
-        expect_error(await pay(admin, ride_id, "confirm"), 422, "confirmation_reference_required")
-        history = only_item(expect(await pat.get(RIDES_URL)))
-        assert (history["payment_status"], history["payment_method"]) == ("reported", "kaspi_link")
-        assert (await payment(dana, ride_id))["status"] == "reported"
-
-        confirmed = expect(await pay(admin, ride_id, "confirm", {"reference": REFERENCE}))
-        assert (confirmed["status"], confirmed["verification"]) == ("confirmed", "manual")
-        assert confirmed["confirmation_reference"] == REFERENCE
-        assert confirmed["payment_url"] is None
-        seen_by_passenger = await payment(pat, ride_id)
-        assert (seen_by_passenger["status"], seen_by_passenger["confirmation_reference"]) == (
-            "confirmed",
-            None,
-        )
+        paid = expect(await pay(pat, ride_id, "pay"))
+        assert (paid["method"], paid["status"]) == ("kaspi_link", "paid")
+        assert datetime.fromisoformat(paid["paid_at"]) == clock.now()
+        assert expect(await pay(pat, ride_id, "pay")) == paid
+        assert (await payment(dana, ride_id))["status"] == "paid"
         expect_error(
             await pay(pat, ride_id, "method", {"method": "cash"}), 409, "invalid_payment_transition"
         )
+        history = only_item(expect(await pat.get(RIDES_URL)))
+        assert (history["payment_status"], history["payment_method"]) == ("paid", "kaspi_link")
         listed = only_item(expect(await admin.get(ADMIN_RIDES_URL, status="completed")))
-        assert (listed["payment_status"], listed["payment_method"]) == ("confirmed", "kaspi_link")
+        assert (listed["payment_status"], listed["payment_method"]) == ("paid", "kaspi_link")
 
-    assert await payment_events(session_factory, uuid.UUID(ride_id)) == [
-        AuditEvent("open", None, "unpaid", None, "cash", None, None),
-        AuditEvent("change_method", "unpaid", "unpaid", "cash", "kaspi_link", pat.id, None),
-        AuditEvent("report", "unpaid", "reported", "kaspi_link", "kaspi_link", pat.id, None),
-        AuditEvent(
-            "confirm", "reported", "confirmed", "kaspi_link", "kaspi_link", admin.id, REFERENCE
-        ),
-    ]
+    stored = await stored_payment(session_factory, uuid.UUID(ride_id))
+    assert stored is not None
+    assert (stored.method, stored.status, stored.paid_at) == ("kaspi_link", "paid", clock.now())

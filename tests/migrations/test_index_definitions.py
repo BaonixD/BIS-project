@@ -28,7 +28,6 @@ REQUIRED_INDEXES = {
     "uq_ride_offers_pending_driver_id",
     "ix_ride_offers_pending_expires_at",
     "ix_ride_events_ride_id_created_at",
-    "ix_payment_events_payment_id_created_at",
 }
 TIME_FUNCTIONS = re.compile(r"now|current_|date|time|julianday", re.IGNORECASE)
 
