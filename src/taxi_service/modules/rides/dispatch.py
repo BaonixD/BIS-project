@@ -84,10 +84,7 @@ async def start_search(
     clock: Clock,
     policy: DispatchPolicy = DEFAULT_DISPATCH_POLICY,
 ) -> Ride:
-    """First step after commit; a failure is logged and the loop continues the search.
-
-    Takes the id: a rolled-back step expires every object of the session.
-    """
+    """Takes the id: a rolled-back step expires every object of the session."""
     processed: Ride | None
     try:
         processed = await process_ride(db, ride_id, clock=clock, policy=policy)

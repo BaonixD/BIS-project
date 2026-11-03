@@ -1,8 +1,4 @@
-"""Quotes, rides and idempotency records (MVP_SPEC §5, §6).
-
-A ride copies the route and the fare of its quote: later tariff changes never
-reach a stored quote or ride, ``tariff_version`` says which tariff priced it.
-"""
+"""A ride copies its quote's route and fare; ``tariff_version`` names the tariff."""
 
 import uuid
 from datetime import datetime, timedelta
@@ -121,10 +117,7 @@ ROUTE_SNAPSHOT_COLUMNS: Final = tuple(RouteSnapshot.__annotations__)
 
 
 class RideQuote(RouteSnapshot, Base):
-    """Server-side price offer for a route of one passenger; valid until ``expires_at``.
-
-    A quote is used by at most one ride (``rides.quote_id`` is unique).
-    """
+    """Used by at most one ride (``rides.quote_id`` is unique)."""
 
     __tablename__ = "ride_quotes"
     __table_args__ = (
@@ -139,17 +132,7 @@ class RideQuote(RouteSnapshot, Base):
 
 
 class Ride(RouteSnapshot, Base):
-    """A passenger's order with the route and fare copied from its quote.
-
-    The database enforces the limits of MVP_SPEC §6: one active ride per
-    passenger, one accepted active ride per driver (partial unique indexes),
-    and a driver that matches the status — none while ``searching`` or
-    ``no_driver``, one from ``assigned`` on; a ``cancelled`` ride keeps
-    whatever it had, because it is cancelled before or after assignment.
-
-    ``search_started_at``/``search_deadline`` bound the current driver search
-    (MVP_SPEC §6: 180 seconds); a release starts a new window (ADR 0006).
-    """
+    """Partial unique indexes: one active ride per passenger, one accepted per driver."""
 
     __tablename__ = "rides"
     __table_args__ = (
@@ -207,10 +190,6 @@ class Ride(RouteSnapshot, Base):
 
     @classmethod
     def from_quote(cls, quote: RideQuote, now: datetime, *, search_budget: timedelta) -> "Ride":
-        """New ``searching`` ride without a driver; route and fare copied from the quote.
-
-        Its driver search starts now and lasts ``search_budget``.
-        """
         snapshot = {name: getattr(quote, name) for name in ROUTE_SNAPSHOT_COLUMNS}
         return cls(
             id=uuid.uuid4(),
@@ -227,17 +206,7 @@ class Ride(RouteSnapshot, Base):
 
 
 class RideOffer(Base):
-    """A ride offered to one driver until ``expires_at`` (MVP_SPEC §6: 30 seconds).
-
-    ``pending`` changes once to ``accepted``, ``rejected``, ``expired`` or
-    ``revoked`` (``states.next_offer_status``), with ``responded_at`` set. The
-    database allows one pending offer per ride and one per driver (partial
-    unique indexes on the status only, never on the current time: an overdue
-    pending offer still blocks until it is marked expired) and at most one
-    offer per driver in one search of a ride (``search_started_at`` copies
-    ``rides.search_started_at`` of the search that made it), so a search never
-    asks the same driver twice; a new search after release may (ADR 0006).
-    """
+    """Unique by status, not time: an overdue pending offer blocks until marked expired."""
 
     __tablename__ = "ride_offers"
     __table_args__ = (
@@ -285,13 +254,7 @@ class RideOffer(Base):
 
 
 class RideEvent(Base):
-    """One status change of a ride: who issued which command, and why (ADR 0007).
-
-    Written in the transaction of the change itself, so the history never
-    disagrees with ``rides.status``. ``actor_id`` is the user whose request
-    caused it (the accepting driver for ``assign``), ``NULL`` for the dispatch
-    loop. No coordinates or secrets are stored.
-    """
+    """``actor_id`` is ``NULL`` for the dispatch loop."""
 
     __tablename__ = "ride_events"
     __table_args__ = (
@@ -316,13 +279,7 @@ class RideEvent(Base):
 
 
 class IdempotencyRecord(Base):
-    """Result of a successful idempotent command, scoped by user and operation.
-
-    ``request_fingerprint`` is the SHA-256 of the canonical request body;
-    ``resource_id`` is what the first request created (a ride id for
-    ``create_ride``). Kept at least 24 hours; cleanup is a later task, until
-    then records stay (ADR 0005).
-    """
+    """Kept at least 24 hours; cleanup is a later task (ADR 0005)."""
 
     __tablename__ = "idempotency_records"
     __table_args__ = (

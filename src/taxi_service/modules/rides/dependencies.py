@@ -74,4 +74,3 @@ def ride_filters(
 
 
 RideFiltersDep = Annotated[RideFilters, Depends(ride_filters)]
-
