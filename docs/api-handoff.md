@@ -117,7 +117,7 @@ export async function restoreSession() {
 
 ### Idempotency-Key для `POST /rides`
 
-- Заголовок обязателен: `Idempotency-Key: <UUID>` (1–128 видимых ASCII). Без него — `422 idempotency_key_required`, неверный формат — `422 idempotency_key_invalid`. В OpenAPI заголовок помечен необязательным только ради своего кода ошибки.
+- Заголовок обязателен: `Idempotency-Key: <UUID>` (1–128 видимых ASCII). Без него — `422 idempotency_key_required`, неверный формат — `422 idempotency_key_invalid`. В OpenAPI он помечен обязательным; изменяющие запросы там требуют cookie сессии и `X-CSRF-Token` вместе, чтения — только cookie.
 - Генерируйте новый ключ на каждую попытку заказа (нажатие «Заказать») и **переиспользуйте тот же ключ** при сетевом повторе этого же заказа. Повтор с тем же ключом и телом возвращает ту же поездку (`201`, заголовок `Idempotent-Replayed: true`) с её текущим состоянием; тот же ключ с другим `quote_id` — `409 idempotency_key_reused`.
 - Ошибка (например, `409 quote_expired`) ключ не занимает: повтор с ним выполнится заново.
 
