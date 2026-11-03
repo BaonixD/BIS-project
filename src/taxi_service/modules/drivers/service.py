@@ -26,7 +26,7 @@ from taxi_service.modules.drivers.repository import DriverRepository
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate, VehicleInput
 from taxi_service.modules.geo.schemas import Coordinates
 from taxi_service.modules.rides.dispatch import revoke_driver_offers
-from taxi_service.modules.rides.repository import driver_has_active_ride
+from taxi_service.modules.rides.service import driver_has_active_ride
 from taxi_service.modules.users.models import User
 
 # Changing these after approval needs a new approval; the phone is only a contact.
