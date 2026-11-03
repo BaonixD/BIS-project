@@ -23,12 +23,13 @@
 Имеют приоритет над остальным текстом пакета. Подробности: [docs/decisions/0001-sqlite-without-docker.md](docs/decisions/0001-sqlite-without-docker.md).
 
 - Текущий этап работает на **SQLite** (SQLAlchemy async + aiosqlite), без PostgreSQL/PostGIS. Код остаётся переносимым на PostgreSQL/PostGIS: стандартные типы SQLAlchemy, ограничения и partial indexes с `sqlite_where` и `postgresql_where`.
-- **Без Docker, Dockerfile и docker compose.** Приложение и тесты запускаются через `uv`.
+- **Без Docker, Dockerfile и docker compose**, кроме сервера маршрутов OSRM ([ADR 0014](docs/decisions/0014-osrm-in-docker.md)). Приложение, миграции и тесты запускаются через `uv`.
 - Ближайший водитель — геодезическое расстояние (haversine) с bounding-box предфильтром в SQL; детерминированный порядок сохраняется.
 - Ссылка Kaspi получена и хранится в локальном `.env` как `KASPI_PAYMENT_URL`, в Git не попадает. Допустимый хост — `pay.kaspi.kz`.
 - Оплата «как в такси» ([ADR 0010](docs/decisions/0010-pay-before-order.md)): способ (наличные или ссылка Kaspi) выбирается до заказа; Kaspi списывается (имитация) в момент назначения водителя, при отмене или `no_driver` после назначения — `refunded`; наличные после поездки подтверждает водитель. Без сверки и журнала событий.
 - Четыре тарифа `economy/comfort/comfort_plus/business` (`edu-v2`, [ADR 0012](docs/decisions/0012-tariffs-and-car-classes.md)): quote отдаёт цены всех тарифов и `kaspi_payment_url`, заказ выбирает `tariff`; класс машины задаёт admin, предложение получает машина класса не ниже тарифа.
 - Оценки после поездки ([ADR 0013](docs/decisions/0013-ride-ratings.md)): по одной на сторону, 1–5 звёзд, теги своей стороны, средний рейтинг в карточке водителя, предложении и профилях.
+- Маршруты по умолчанию строит свой **OSRM** в Docker ([ADR 0014](docs/decisions/0014-osrm-in-docker.md)): openrouteservice игнорирует запреты поворотов OSM. Docker — только для сервера маршрутов (`infra/osrm/docker-compose.yml`, `127.0.0.1:5001`); карта — агломерация Алматы, `scripts/osrm_prepare.sh` (повторный запуск обновляет карту). Настройки: `ROUTING_PROVIDER=osrm|openrouteservice`, `OSRM_BASE_URL`. Pytest к OSRM не обращается.
 - Интерфейс — точь-в-точь по макету Figma `6VHeDBRKk6RWdTYqH0r66K` (фронтенд в `frontend/`).
 - Пассажиры могут входить через Google ([ADR 0011](docs/decisions/0011-google-login.md)); Client ID владелец даст позже, до этого вход выключен.
 - Не нагружать ноутбук: без нагрузочных тестов и высоких RPS; конкурентные тесты — с малым числом одновременных операций; не более двух одновременно работающих исполнителей.
