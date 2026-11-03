@@ -1,59 +1,56 @@
-import { useState, type FormEvent } from 'react'
-import type { MyProfile } from '@/api'
+import { KeyRound, LogOut, Phone, Settings, User } from 'lucide-react'
+import { useSession } from '@/auth/use-session'
 import { ErrorAlert } from '@/components/common/ErrorAlert'
-import { LogoutButton } from '@/components/common/LogoutButton'
-import { PageHeader } from '@/components/common/PageHeader'
-import { PageContainer } from '@/components/layout/PageContainer'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Skeleton } from '@/components/ui/skeleton'
-import { useMyProfile, useUpdateMyProfile } from '@/hooks/use-profile'
+import { RoundButton } from '@/components/passenger/layout'
+import { ListRow, Skeleton } from '@/components/ui-kit'
+import { useMyProfile } from '@/hooks/use-profile'
+import { ROLE_LABELS } from '@/lib/labels'
+import { initials } from './model/format'
 
-function ProfileForm({ profile }: { profile: MyProfile }) {
-  const update = useUpdateMyProfile()
-  const [displayName, setDisplayName] = useState(profile.display_name ?? '')
-  const [phone, setPhone] = useState(profile.phone ?? '')
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    update.mutate({
-      ...(displayName.trim() && { display_name: displayName.trim() }),
-      ...(phone.trim() && { phone: phone.trim() }),
-    })
-  }
-
-  return (
-    <form className="grid gap-4" onSubmit={submit}>
-      <p className="text-sm text-muted-foreground">Логин: {profile.username}</p>
-      <div className="grid gap-2">
-        <Label htmlFor="display_name">Имя</Label>
-        <Input id="display_name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="phone">Телефон</Label>
-        <Input id="phone" type="tel" placeholder="+7…" value={phone} onChange={(e) => setPhone(e.target.value)} />
-      </div>
-      <ErrorAlert error={update.error} />
-      {update.isSuccess && <p className="text-sm text-muted-foreground">Сохранено</p>}
-      <Button type="submit" disabled={update.isPending}>Сохранить</Button>
-    </form>
-  )
-}
-
+/** Figma Profile 5:623. */
 export function ProfilePage() {
   const profile = useMyProfile()
+  const { logout } = useSession()
+  const data = profile.data
+  const name = data?.display_name || data?.username || ''
+
   return (
-    <PageContainer>
-      <PageHeader title="Профиль" action={<LogoutButton />} />
-      <Card>
-        <CardContent>
-          {profile.isPending && <Skeleton className="h-40" />}
-          {profile.isError && <ErrorAlert error={profile.error} />}
-          {profile.data && <ProfileForm profile={profile.data} />}
-        </CardContent>
-      </Card>
-    </PageContainer>
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 pt-[17px] pb-6 lg:pt-8">
+      <div className="flex w-full items-center gap-4">
+        <span className="flex size-18 shrink-0 items-center justify-center rounded-full bg-bg-muted text-headline text-text-primary">
+          {data ? initials(name) : ''}
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          {data ? (
+            <>
+              <h1 className="truncate text-title text-text-primary">{name.split(/\s+/)[0]}</h1>
+              <p className="truncate text-callout text-text-secondary">
+                @{data.username} · {ROLE_LABELS[data.role].toLowerCase()}
+              </p>
+            </>
+          ) : (
+            <Skeleton className="h-12 w-40" />
+          )}
+        </div>
+        <RoundButton to="/profile/settings" icon={Settings} label="Настройки" />
+      </div>
+      <ErrorAlert error={profile.error} />
+      {data && (
+        <div className="flex w-full flex-col">
+          <ListRow icon={User} title="Имя" subtitle={data.display_name || 'Не указано'} />
+          <ListRow icon={Phone} title="Телефон" subtitle={data.phone || 'Не указан'} />
+          <ListRow icon={KeyRound} title="Вход" subtitle={`Логин и пароль · @${data.username}`} />
+        </div>
+      )}
+      <button
+        type="button"
+        disabled={logout.isPending}
+        onClick={() => logout.mutate()}
+        className="flex w-full items-center gap-3 rounded-md py-3 text-left text-body-medium text-accent-danger outline-none transition-opacity active:opacity-60 focus-visible:ring-2 focus-visible:ring-bg-inverse disabled:opacity-40"
+      >
+        <LogOut className="size-6 shrink-0" strokeWidth={2} aria-hidden />
+        Выйти из аккаунта
+      </button>
+    </div>
   )
 }
