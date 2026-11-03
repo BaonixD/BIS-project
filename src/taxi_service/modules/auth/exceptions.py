@@ -1,5 +1,3 @@
-"""Named authentication and authorization errors (rendered by the API error handler)."""
-
 from taxi_service.core.errors import AppError
 
 

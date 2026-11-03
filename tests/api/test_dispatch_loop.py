@@ -27,7 +27,7 @@ from support.routing import FakeRoutingProvider
 from taxi_service.core.config import Settings
 from taxi_service.main import create_app
 from taxi_service.modules.geo.schemas import Coordinates
-from taxi_service.modules.rides.dispatch import DispatchService
+from taxi_service.modules.rides import dispatch
 from taxi_service.modules.rides.states import OfferStatus, RideStatus
 
 NEAR_PICKUP = Coordinates(longitude=76.9580, latitude=43.2389)
@@ -111,13 +111,13 @@ async def test_loop_keeps_running_after_a_failed_pass(
 ) -> None:
     calls: list[int] = []
 
-    async def flaky(self: DispatchService, *args: object) -> int:
+    async def flaky(*args: object, **kwargs: object) -> int:
         calls.append(1)
         if len(calls) == 1:
             raise RuntimeError("database hiccup")
         return 0
 
-    monkeypatch.setattr(DispatchService, "process_due", flaky)
+    monkeypatch.setattr(dispatch, "process_due", flaky)
 
     handler = RecordingHandler()
     loop_logger = logging.getLogger("taxi_service.modules.rides.dispatch_loop")

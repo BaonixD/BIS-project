@@ -1,5 +1,3 @@
-"""OpenAPI corrections for requirements FastAPI cannot express from dependencies."""
-
 from collections.abc import Callable
 from typing import Any
 
@@ -14,7 +12,6 @@ CSRF_SCHEME = "CsrfToken"
 
 
 def install_openapi(app: FastAPI) -> None:
-    """Replace ``app.openapi`` with a cached schema that states real requirements."""
     app.openapi = _openapi_builder(app)  # type: ignore[method-assign]
 
 
@@ -35,12 +32,7 @@ def _openapi_builder(app: FastAPI) -> Callable[[], dict[str, Any]]:
 
 
 def describe_requirements(schema: dict[str, Any]) -> None:
-    """Session AND CSRF for state changes, session only for reads; required Idempotency-Key.
-
-    FastAPI lists each API-key dependency as an alternative security
-    requirement, and the Idempotency-Key header is optional in the signature
-    only so that a missing key gets its own ``idempotency_key_required`` code.
-    """
+    # FastAPI lists API-key dependencies as alternatives and cannot mark Idempotency-Key required.
     for item in schema.get("paths", {}).values():
         for method, operation in item.items():
             _describe_security(method, operation)

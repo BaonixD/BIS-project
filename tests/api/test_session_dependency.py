@@ -9,7 +9,7 @@ from fastapi import APIRouter, FastAPI
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from taxi_service.database.session import SessionDep, SessionFactory, read_transaction
+from taxi_service.database.session import DbSession, SessionFactory, read_transaction
 
 seen_sessions: list[AsyncSession] = []
 
@@ -18,13 +18,13 @@ def _probe_router() -> APIRouter:
     router = APIRouter(prefix="/_probe")
 
     @router.post("/without-transaction/{value}")
-    async def write_without_transaction(value: int, session: SessionDep) -> dict[str, int]:
+    async def write_without_transaction(value: int, session: DbSession) -> dict[str, int]:
         seen_sessions.append(session)
         await session.execute(text("INSERT INTO probe (value) VALUES (:value)"), {"value": value})
         return {"value": value}
 
     @router.post("/committed/{value}")
-    async def write_in_transaction(value: int, session: SessionDep) -> dict[str, int]:
+    async def write_in_transaction(value: int, session: DbSession) -> dict[str, int]:
         seen_sessions.append(session)
         async with session.begin():
             await session.execute(

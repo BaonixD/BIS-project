@@ -22,11 +22,11 @@ from support.auth import PASSWORD, LoggedInUser, current_session, login, registe
 from support.clock import ManualClock
 from taxi_service.database.session import SessionFactory
 from taxi_service.modules.auth.passwords import PasswordHasher
+from taxi_service.modules.drivers import service as driver_service
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate
-from taxi_service.modules.drivers.service import DriverAdminService, DriverService
 from taxi_service.modules.geo.schemas import Coordinates
+from taxi_service.modules.users import service as users_service
 from taxi_service.modules.users.models import UserRole
-from taxi_service.modules.users.service import UserService
 
 DRIVERS_ME_URL = "/api/v1/drivers/me"
 AVAILABILITY_URL = f"{DRIVERS_ME_URL}/availability"
@@ -70,8 +70,14 @@ async def create_admin(
 ) -> uuid.UUID:
     """Admin account as ``scripts/create_admin.py`` makes it (not via the public API)."""
     async with session_factory() as session:
-        service = UserService(session, clock, app.state.password_hasher)
-        user = await service.create_user(username=username, password=PASSWORD, role=UserRole.ADMIN)
+        user = await users_service.create_user(
+            session,
+            username,
+            PASSWORD,
+            UserRole.ADMIN,
+            clock=clock,
+            hasher=app.state.password_hasher,
+        )
     return user.id
 
 
@@ -159,29 +165,30 @@ class DriverFactory:
         self._plates += 1
         profile = DriverProfileUpdate.model_validate(complete_profile(f"{self._plates:03d}TST02"))
         async with self.session_factory() as session:
-            await DriverService(session, self.clock).update_profile(driver_id, profile)
+            await driver_service.update_profile(session, driver_id, profile, clock=self.clock)
         if approved:
             admin_id = await self.admin_id()
             async with self.session_factory() as session:
-                await DriverAdminService(session, self.clock).approve(driver_id, admin_id=admin_id)
+                await driver_service.approve_driver(session, driver_id, admin_id, clock=self.clock)
         if location is not None:
             await self.move(driver_id, location)
         if approved and online:
             async with self.session_factory() as session:
-                await DriverService(session, self.clock).set_availability(driver_id, online=True)
+                await driver_service.set_availability(session, driver_id, True, clock=self.clock)
         return driver_id
 
     async def go_offline(self, driver_id: uuid.UUID) -> None:
         async with self.session_factory() as session:
-            await DriverService(session, self.clock).set_availability(driver_id, online=False)
+            await driver_service.set_availability(session, driver_id, False, clock=self.clock)
 
     async def move(self, driver_id: uuid.UUID, location: Coordinates) -> None:
         """New location stamped with the current test clock."""
         async with self.session_factory() as session:
-            await DriverService(session, self.clock).update_location(driver_id, location)
+            await driver_service.update_location(session, driver_id, location, clock=self.clock)
 
     async def _create_user(self, username: str, role: UserRole) -> uuid.UUID:
         async with self.session_factory() as session:
-            service = UserService(session, self.clock, self.hasher)
-            user = await service.create_user(username=username, password=PASSWORD, role=role)
+            user = await users_service.create_user(
+                session, username, PASSWORD, role, clock=self.clock, hasher=self.hasher
+            )
         return user.id

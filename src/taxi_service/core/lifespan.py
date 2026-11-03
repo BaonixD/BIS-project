@@ -23,17 +23,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Acquire application resources on startup and release them on shutdown.
-
-    Sets ``app.state.engine``, ``app.state.session_factory``,
-    ``app.state.migration_heads``, ``app.state.routing_provider``,
-    ``app.state.routing_http_client`` and ``app.state.dispatch_loop`` (``None``
-    when ``DISPATCH_LOOP_ENABLED`` is false). Never runs migrations or seed;
-    those are separate commands. Connecting is lazy: startup succeeds without a
-    database and without a routing key (routing then answers
-    ``routing_unavailable``). On shutdown the dispatch loop is cancelled and
-    awaited before the engine is disposed.
-    """
+    # Never runs migrations or seed; startup works without a database or routing key.
     settings: Settings = app.state.settings
     configure_logging(settings.log_level)
     engine = create_database_engine(settings.database_url)

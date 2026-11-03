@@ -1,15 +1,9 @@
-"""Browser origins (``scheme://host[:port]``) in the form browsers send them."""
-
 from urllib.parse import urlsplit
 
 _DEFAULT_PORTS = {"http": 80, "https": 443}
 
 
 def normalize_origin(value: str) -> str:
-    """Lower-cased origin without a default port; ``ValueError`` if it is not one.
-
-    Wildcards, ``null`` and values with a path, query or credentials are rejected.
-    """
     try:
         parts = urlsplit(value.strip())
         port = parts.port

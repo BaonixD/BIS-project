@@ -1,10 +1,6 @@
-"""Timing and matching limits of the driver search (MVP_SPEC §6, ADR 0006)."""
-
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Annotated, Final
-
-from fastapi import Depends, Request
+from typing import Final
 
 from taxi_service.core.config import Settings
 from taxi_service.modules.drivers.candidates import (
@@ -18,8 +14,6 @@ DEFAULT_SEARCH_BUDGET: Final = timedelta(seconds=180)
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class DispatchPolicy:
-    """``offer_ttl`` per driver, ``search_budget`` per search, candidate radius and freshness."""
-
     offer_ttl: timedelta = DEFAULT_OFFER_TTL
     search_budget: timedelta = DEFAULT_SEARCH_BUDGET
     radius_m: float = DEFAULT_RADIUS_M
@@ -38,12 +32,3 @@ class DispatchPolicy:
 
 
 DEFAULT_DISPATCH_POLICY: Final = DispatchPolicy()
-
-
-def get_dispatch_policy(request: Request) -> DispatchPolicy:
-    """FastAPI dependency: the policy built from the settings in ``create_app``."""
-    policy: DispatchPolicy = request.app.state.dispatch_policy
-    return policy
-
-
-DispatchPolicyDep = Annotated[DispatchPolicy, Depends(get_dispatch_policy)]

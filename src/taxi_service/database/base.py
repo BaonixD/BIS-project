@@ -15,18 +15,11 @@ NAMING_CONVENTION = {
 
 
 class Base(DeclarativeBase):
-    """Declarative base of every ORM model; models register in ``Base.metadata``."""
-
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
 class UtcDateTime(TypeDecorator[datetime]):
-    """Timestamp stored in UTC and always returned as an aware UTC ``datetime``.
-
-    SQLite keeps no offset, so values are normalized to UTC before storage; that
-    also keeps text comparisons in SQL chronological. On PostgreSQL the column is
-    ``TIMESTAMP WITH TIME ZONE``. Naive values are rejected instead of guessed.
-    """
+    # SQLite keeps no offset: store UTC so text comparison stays chronological.
 
     impl = DateTime(timezone=True)
     cache_ok = True

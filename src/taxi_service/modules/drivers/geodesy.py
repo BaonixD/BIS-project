@@ -1,9 +1,4 @@
-"""Great-circle distance in metres and a bounding box for the SQL prefilter (ADR 0001).
-
-The Earth is a sphere with the mean radius here: within a 5 km search the
-error against the WGS 84 ellipsoid is well below a metre per kilometre and
-the same for every candidate, so the nearest-first order is unaffected.
-"""
+"""Spherical Earth: within 5 km the error is far below a metre per km (ADR 0001)."""
 
 import math
 from dataclasses import dataclass
@@ -34,12 +29,7 @@ def haversine_m(a: Coordinates, b: Coordinates) -> float:
 
 
 def bounding_box(center: Coordinates, radius_m: float) -> BoundingBox:
-    """Smallest latitude/longitude box containing every point within ``radius_m``.
-
-    Longitude half-width is ``asin(sin(r) / cos(lat))`` (J. P. Matuschek,
-    "Finding Points Within a Distance of a Latitude/Longitude Using Bounding
-    Coordinates"); if the circle reaches a pole, every longitude is inside.
-    """
+    """Longitude half-width ``asin(sin(r) / cos(lat))`` (Matuschek); a pole takes all longitudes."""
     angular = radius_m / EARTH_RADIUS_M
     delta_lat = math.degrees(angular) + _BOX_MARGIN_DEG
     min_lat = center.latitude - delta_lat

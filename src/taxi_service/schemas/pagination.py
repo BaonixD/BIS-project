@@ -1,5 +1,3 @@
-"""List pages (MVP_SPEC section 3): items, limit, offset, total."""
-
 from dataclasses import dataclass
 from typing import Annotated
 

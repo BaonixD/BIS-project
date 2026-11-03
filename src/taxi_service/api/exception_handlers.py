@@ -23,8 +23,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(Exception, handle_unexpected_error)
 
 
-# Starlette types every handler by Exception; each one below is registered
-# for a single exception class, so the cast only narrows the declared type.
+# Each handler is registered for one exception class, so the cast is safe.
 
 
 async def handle_app_error(request: Request, exc: Exception) -> JSONResponse:
@@ -52,7 +51,6 @@ async def handle_http_exception(request: Request, exc: Exception) -> JSONRespons
 
 
 def _describe_status(status_code: int) -> tuple[str, str]:
-    """Snake-case status phrase: 404 -> ``not_found``; unknown codes -> ``http_error``."""
     try:
         phrase = HTTPStatus(status_code).phrase
     except ValueError:

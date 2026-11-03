@@ -26,7 +26,7 @@ from support.rides import (
     ride_url,
 )
 from taxi_service.modules.geo.schemas import Coordinates
-from taxi_service.modules.rides.dispatch import DispatchService
+from taxi_service.modules.rides import dispatch
 from taxi_service.modules.rides.states import OfferStatus
 
 NEAR_PICKUP = Coordinates(longitude=76.9580, latitude=43.2389)
@@ -127,11 +127,11 @@ async def test_a_failing_first_search_step_still_returns_the_searching_ride(
     """The ride is committed before the step; the loop takes it up later."""
     await driver_factory.driver("near", location=NEAR_PICKUP)
 
-    async def broken_step(self: DispatchService, *args: object) -> None:
+    async def broken_step(*args: object) -> None:
         raise RuntimeError("search step failed")
 
     with monkeypatch.context() as patch:
-        patch.setattr(DispatchService, "_step", broken_step)
+        patch.setattr(dispatch, "_step", broken_step)
         passenger = await register_and_login(client, "pat")
         quote = await request_quote(client, passenger)
         response = await client.post(

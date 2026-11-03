@@ -116,10 +116,7 @@ IDEMPOTENT_RIDE_COMMANDS: Final = frozenset(_APPLIED_STATUS)
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Actor:
-    """Who issues a command, relative to one ride; the service fills the flags from the row.
-
-    ``role=None`` is the system (dispatch loop, offer acceptance); use ``SYSTEM_ACTOR``.
-    """
+    """``role=None`` is the system; use ``SYSTEM_ACTOR``."""
 
     role: UserRole | None
     is_ride_passenger: bool = False
@@ -152,12 +149,7 @@ class CommandOutcome:
 
 
 def authorize_command(command: RideCommand, actor: Actor) -> None:
-    """Raise unless ``actor`` may issue ``command`` on this ride, whatever its status.
-
-    A user who is not a participant gets 404 ``ride_not_found``: by MVP_SPEC §3 a foreign
-    object looks absent, and checking access first keeps its status hidden. Admin and
-    participants may see the ride, so a command they lack gets 403 ``ride_command_forbidden``.
-    """
+    """Before the status: a non-participant gets 404 so the ride's status stays hidden."""
     if actor.is_system:
         allowed = command in SYSTEM_COMMANDS
     else:
@@ -171,21 +163,13 @@ def authorize_command(command: RideCommand, actor: Actor) -> None:
 
 
 def next_status(current: RideStatus, command: RideCommand, actor: Actor) -> RideStatus:
-    """Status after ``command``; strict: a repeat on the target status is 409 too.
-
-    Raises 404/403 from ``authorize_command`` first, then 409 ``invalid_ride_transition``.
-    """
+    """Strict: a repeat on the target status is 409 too."""
     authorize_command(command, actor)
     return _transition(current, command)
 
 
 def is_already_applied(current: RideStatus, command: RideCommand) -> bool:
-    """True when ``current`` is exactly what this idempotent command leaves behind.
-
-    Idempotent: arrive, start, complete, cancel, mark_no_driver. Not idempotent at ride
-    level: ``assign`` (the ride cannot tell which driver accepted; accepting the same offer
-    again is the offer's rule) and ``release`` (``searching`` is also the initial status).
-    """
+    """``assign`` and ``release`` are never repeats: ``searching`` is also the initial status."""
     return _APPLIED_STATUS.get(command) is current
 
 
@@ -230,10 +214,7 @@ _OFFER_DECISION: Final[Mapping[OfferCommand, OfferStatus]] = {
 
 
 def next_offer_status(current: OfferStatus, command: OfferCommand) -> OfferStatus:
-    """Only a pending offer is decided; otherwise 409 ``invalid_offer_transition``.
-
-    Time is not checked here: an ``accept`` must also pass ``can_accept_offer``.
-    """
+    """Time is not checked here: an accept must also pass ``can_accept_offer``."""
     if current is not OfferStatus.PENDING:
         raise InvalidOfferTransitionError(current_status=current.value, command=command.value)
     return _OFFER_DECISION[command]
@@ -253,9 +234,5 @@ def can_accept_offer(status: OfferStatus, *, now: datetime, expires_at: datetime
 
 
 def is_offer_command_already_applied(current: OfferStatus, command: OfferCommand) -> bool:
-    """A repeat of the decision already stored (e.g. second accept of an accepted offer).
-
-    The caller still checks that the offer belongs to the same driver before answering
-    with the previous result.
-    """
+    """The caller still checks that the offer is the same driver's."""
     return _OFFER_DECISION[command] is current

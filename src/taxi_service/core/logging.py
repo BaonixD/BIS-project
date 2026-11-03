@@ -9,8 +9,6 @@ APP_LOGGER_NAME = "taxi_service"
 
 
 class RequestIdFilter(logging.Filter):
-    """Adds the current request ID unless the caller already passed one in ``extra``."""
-
     def filter(self, record: logging.LogRecord) -> bool:
         if getattr(record, "request_id", None) is None:
             record.request_id = current_request_id()
@@ -18,8 +16,6 @@ class RequestIdFilter(logging.Filter):
 
 
 class JsonFormatter(logging.Formatter):
-    """One JSON object per line: time (UTC), level, logger, message, request_id."""
-
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, object] = {
             "time": datetime.fromtimestamp(record.created, UTC).isoformat(),
@@ -34,7 +30,6 @@ class JsonFormatter(logging.Formatter):
 
 
 def configure_logging(level: str) -> None:
-    """Configure the application logger; safe to call repeatedly."""
     handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(JsonFormatter())
     handler.addFilter(RequestIdFilter())

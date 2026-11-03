@@ -1,58 +1,55 @@
 import uuid
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Response, status
 
 from taxi_service.core.clock import ClockDep
-from taxi_service.database.session import SessionDep
-from taxi_service.modules.auth.dependencies import CurrentUser, require_roles
-from taxi_service.modules.auth.service import AuthenticatedUser
+from taxi_service.database.session import DbSession
+from taxi_service.modules.auth.dependencies import CurrentUser
 from taxi_service.modules.geo.dependencies import RoutingProviderDep
-from taxi_service.modules.rides.dispatch_dependencies import DispatchServiceDep
-from taxi_service.modules.rides.idempotency import REPLAYED_HEADER, IdempotencyKeyDep
-from taxi_service.modules.rides.policy import DispatchPolicyDep
+from taxi_service.modules.rides import dispatch, history, lifecycle, service
+from taxi_service.modules.rides.dependencies import (
+    CompletionHookDep,
+    DispatchPolicyDep,
+    DriverUser,
+    IdempotencyKeyDep,
+    ParticipantUser,
+    PassengerUser,
+    RideFiltersDep,
+)
+from taxi_service.modules.rides.idempotency import REPLAYED_HEADER
 from taxi_service.modules.rides.schemas import (
+    CancelRequest,
+    OfferResponse,
     QuoteRequest,
     QuoteResponse,
+    ReleaseRequest,
     RideCreateRequest,
     RideDetailsResponse,
     RideResponse,
+    RideSummary,
 )
-from taxi_service.modules.rides.service import RideService
-from taxi_service.modules.users.models import UserRole
+from taxi_service.modules.rides.states import RideCommand
 from taxi_service.schemas.errors import error_responses
+from taxi_service.schemas.pagination import Page, PageParamsDep
 
 router = APIRouter(prefix="/rides", tags=["rides"])
+offers_router = APIRouter(tags=["offers"])
 
-PassengerUser = Annotated[AuthenticatedUser, Depends(require_roles(UserRole.PASSENGER))]
-
-
-def get_ride_service(
-    session: SessionDep, clock: ClockDep, policy: DispatchPolicyDep
-) -> RideService:
-    return RideService(session, clock, policy)
-
-
-RideServiceDep = Annotated[RideService, Depends(get_ride_service)]
+COMMAND_ERRORS = error_responses(401, 403, 404, 409)
 
 
 @router.post(
     "/quotes", status_code=status.HTTP_201_CREATED, responses=error_responses(401, 403, 503)
 )
 async def create_quote(
-    body: QuoteRequest, user: PassengerUser, rides: RideServiceDep, routing: RoutingProviderDep
+    body: QuoteRequest,
+    user: PassengerUser,
+    db: DbSession,
+    clock: ClockDep,
+    routing: RoutingProviderDep,
 ) -> QuoteResponse:
-    """Price a road route from `pickup` to `dropoff` (passenger only).
-
-    The server builds the route with the external provider and prices it with
-    the tariff `tariff_version`; the quote is valid for five minutes
-    (`expires_at`) and is used by `POST /rides`. Sending a price is a 422.
-
-    Errors: `422 validation_error`; `422 route_points_identical`; `422
-    route_not_found`; `503 routing_unavailable`; `503 routing_provider_error`
-    (`details.reason`). A failed route stores no quote.
-    """
-    return QuoteResponse.build(await rides.create_quote(user.id, body, routing))
+    quote = await service.create_quote(db, user.id, body, clock=clock, routing=routing)
+    return QuoteResponse.build(quote)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, responses=error_responses(401, 403, 404, 409))
@@ -60,49 +57,141 @@ async def create_ride(
     body: RideCreateRequest,
     user: PassengerUser,
     key: IdempotencyKeyDep,
-    rides: RideServiceDep,
-    dispatch: DispatchServiceDep,
+    db: DbSession,
+    clock: ClockDep,
+    policy: DispatchPolicyDep,
     response: Response,
 ) -> RideResponse:
-    """Order a ride from the passenger's own quote (passenger only).
-
-    The ride starts in `searching` without a driver, with the route and the
-    price copied from the quote; the price is never taken from the body.
-    Header `Idempotency-Key` is required: repeating the same key with the
-    same body returns the same ride (201, header `Idempotent-Replayed: true`)
-    instead of a second one.
-
-    Errors: `422 idempotency_key_required` / `idempotency_key_invalid`;
-    `422 validation_error`; `404 quote_not_found` (unknown or another
-    passenger's quote); `409 quote_expired` (five minutes passed);
-    `409 quote_already_used`; `409 active_ride_exists`;
-    `409 idempotency_key_reused` (same key, different body).
-
-    The driver search starts right after the ride is stored: the nearest
-    driver gets a 30-second offer, or the ride is already `no_driver` when
-    nobody is available. A replay returns the current state and does not
-    search again.
-    """
-    creation = await rides.create_ride(user.id, body, key)
+    creation = await service.order_ride(db, user.id, body, key, clock=clock, policy=policy)
     if creation.replayed:
         response.headers[REPLAYED_HEADER] = "true"
-        return RideResponse.build(creation.ride)
-    return RideResponse.build(await dispatch.start_search(creation.ride.id))
+    return RideResponse.build(creation.ride)
+
+
+@router.get("", responses=error_responses(401, 403))
+async def list_my_rides(
+    user: ParticipantUser, db: DbSession, page: PageParamsDep, filters: RideFiltersDep
+) -> Page[RideSummary]:
+    result = await history.list_history(
+        db, user.id, user.role, filters, limit=page.limit, offset=page.offset
+    )
+    return RideSummary.page(result, page)
 
 
 @router.get("/{ride_id}", responses=error_responses(401, 404))
-async def read_ride(
-    ride_id: uuid.UUID, user: CurrentUser, rides: RideServiceDep
-) -> RideDetailsResponse:
-    """A ride with its status, stage times, route and fixed price.
-
-    Visible to its passenger, the driver assigned to it and admins. Anyone
-    else gets `404 ride_not_found`, as for an id that does not exist.
-
-    While the ride is `assigned`, `arrived` or `in_progress` its passenger
-    and driver also get `driver`: name, phone, car and the last location
-    with `location_updated_at` (poll this endpoint). An old location is
-    shown as it is and never ends the ride.
-    """
-    details = await rides.get_ride(ride_id, viewer_id=user.id, viewer_role=user.role)
+async def read_ride(ride_id: uuid.UUID, user: CurrentUser, db: DbSession) -> RideDetailsResponse:
+    details = await service.get_ride(db, ride_id, viewer_id=user.id, viewer_role=user.role)
     return RideDetailsResponse.with_driver(details.ride, details.driver)
+
+
+@router.post("/{ride_id}/arrive", responses=COMMAND_ERRORS)
+async def arrive(
+    ride_id: uuid.UUID, user: CurrentUser, db: DbSession, clock: ClockDep
+) -> RideResponse:
+    ride = await lifecycle.execute_command(
+        db, ride_id, RideCommand.ARRIVE, user_id=user.id, role=user.role, clock=clock
+    )
+    return RideResponse.build(ride)
+
+
+@router.post("/{ride_id}/start", responses=COMMAND_ERRORS)
+async def start(
+    ride_id: uuid.UUID, user: CurrentUser, db: DbSession, clock: ClockDep
+) -> RideResponse:
+    ride = await lifecycle.execute_command(
+        db, ride_id, RideCommand.START, user_id=user.id, role=user.role, clock=clock
+    )
+    return RideResponse.build(ride)
+
+
+@router.post("/{ride_id}/complete", responses=COMMAND_ERRORS)
+async def complete(
+    ride_id: uuid.UUID,
+    user: CurrentUser,
+    db: DbSession,
+    clock: ClockDep,
+    on_completed: CompletionHookDep,
+) -> RideResponse:
+    ride = await lifecycle.execute_command(
+        db,
+        ride_id,
+        RideCommand.COMPLETE,
+        user_id=user.id,
+        role=user.role,
+        clock=clock,
+        on_completed=on_completed,
+    )
+    return RideResponse.build(ride)
+
+
+@router.post("/{ride_id}/cancel", responses=COMMAND_ERRORS)
+async def cancel(
+    ride_id: uuid.UUID,
+    user: CurrentUser,
+    db: DbSession,
+    clock: ClockDep,
+    body: CancelRequest | None = None,
+) -> RideResponse:
+    ride = await lifecycle.execute_command(
+        db,
+        ride_id,
+        RideCommand.CANCEL,
+        user_id=user.id,
+        role=user.role,
+        reason=body.reason if body is not None else None,
+        clock=clock,
+    )
+    return RideResponse.build(ride)
+
+
+@router.post("/{ride_id}/release", responses=COMMAND_ERRORS)
+async def release(
+    ride_id: uuid.UUID,
+    body: ReleaseRequest,
+    user: CurrentUser,
+    db: DbSession,
+    clock: ClockDep,
+    policy: DispatchPolicyDep,
+) -> RideResponse:
+    ride = await lifecycle.execute_command(
+        db,
+        ride_id,
+        RideCommand.RELEASE,
+        user_id=user.id,
+        role=user.role,
+        reason=body.reason,
+        clock=clock,
+        policy=policy,
+    )
+    return RideResponse.build(ride)
+
+
+@offers_router.get("/drivers/me/offers", responses=error_responses(401, 403))
+async def list_my_offers(
+    user: DriverUser, db: DbSession, clock: ClockDep, page: PageParamsDep
+) -> Page[OfferResponse]:
+    result = await dispatch.list_pending_offers(
+        db, user.id, clock=clock, limit=page.limit, offset=page.offset
+    )
+    return Page(
+        items=[OfferResponse.build(offer, ride) for offer, ride in result.rows],
+        limit=page.limit,
+        offset=page.offset,
+        total=result.total,
+    )
+
+
+@offers_router.post("/ride-offers/{offer_id}/accept", responses=error_responses(401, 403, 404, 409))
+async def accept_offer(
+    offer_id: uuid.UUID, user: DriverUser, db: DbSession, clock: ClockDep, policy: DispatchPolicyDep
+) -> RideResponse:
+    ride = await dispatch.accept_offer(db, offer_id, user.id, clock=clock, policy=policy)
+    return RideResponse.build(ride)
+
+
+@offers_router.post("/ride-offers/{offer_id}/reject", responses=error_responses(401, 403, 404, 409))
+async def reject_offer(
+    offer_id: uuid.UUID, user: DriverUser, db: DbSession, clock: ClockDep, policy: DispatchPolicyDep
+) -> OfferResponse:
+    offer, ride = await dispatch.reject_offer(db, offer_id, user.id, clock=clock, policy=policy)
+    return OfferResponse.build(offer, ride)

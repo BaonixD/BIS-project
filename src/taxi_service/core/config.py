@@ -12,18 +12,6 @@ LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 
 class Settings(BaseSettings):
-    """Application settings read from environment variables and an optional ``.env``.
-
-    Keys consumed by later tasks are ignored until the corresponding field is
-    introduced. ``database_url`` is required and kept out of ``repr``: it may
-    carry credentials once a server database is used.
-
-    Security defaults are safe for a deployed HTTPS service; local HTTP
-    development switches ``session_cookie_secure`` off explicitly (``.env.example``).
-    The Argon2id defaults are argon2-cffi's RFC 9106 low-memory profile; tests
-    lower them only to save time.
-    """
-
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

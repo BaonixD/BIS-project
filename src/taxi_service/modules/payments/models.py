@@ -1,11 +1,4 @@
-"""Payment record of a completed ride and its audit history (MVP_SPEC §7, ADR 0004).
-
-One payment per ride, opened unpaid in cash by the completion of the ride
-with the amount of the ride's server snapshot. Its CHECK constraints keep the
-state consistent on their own: only a Kaspi payment is ever ``reported``, a
-``confirmed`` one says who confirmed it and when, and a confirmed Kaspi
-payment carries the reconciliation note. Verification is always manual.
-"""
+"""CHECK constraints keep a payment consistent on their own (ADR 0004)."""
 
 import uuid
 from datetime import datetime
@@ -61,12 +54,7 @@ _KASPI: Final = f"method = '{PaymentMethod.KASPI_LINK.value}'"
 
 
 class Payment(Base):
-    """The payment of one ride: amount copied from the ride, method, status, who confirmed.
-
-    ``reported_at`` is the passenger's statement for Kaspi (cleared when the
-    method changes back to cash); ``confirmed_at``/``confirmed_by`` and the
-    optional ``confirmation_reference`` record the manual confirmation.
-    """
+    """``reported_at`` is cleared when the method changes back to cash."""
 
     __tablename__ = "payments"
     __table_args__ = (
@@ -115,12 +103,7 @@ class Payment(Base):
 
 
 class PaymentEvent(Base):
-    """One audited change of a payment, written in the transaction of the change.
-
-    ``open`` has no previous state and no actor (the completion of the ride);
-    every other row names the user who acted. Only a confirmation carries the
-    reconciliation note. An idempotent repeat writes no row.
-    """
+    """An idempotent repeat writes no row."""
 
     __tablename__ = "payment_events"
     __table_args__ = (

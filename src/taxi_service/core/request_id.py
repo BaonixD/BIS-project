@@ -13,17 +13,10 @@ _request_id: ContextVar[str | None] = ContextVar("request_id", default=None)
 
 
 def current_request_id() -> str | None:
-    """Request ID of the HTTP request being handled in this context, if any."""
     return _request_id.get()
 
 
 class RequestIdMiddleware:
-    """Assigns a request ID, exposes it in ``request.state`` and the response header.
-
-    A client-supplied ``X-Request-ID`` is reused only if it is short and limited to
-    ``[A-Za-z0-9._-]``, so it is safe to put into logs and headers.
-    """
-
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
 

@@ -1,7 +1,10 @@
 from fastapi import APIRouter
 
-from taxi_service.modules.auth.dependencies import CurrentUser, UserServiceDep
+from taxi_service.core.clock import ClockDep
+from taxi_service.database.session import DbSession
+from taxi_service.modules.auth.dependencies import CurrentUser
 from taxi_service.modules.auth.service import AuthenticatedUser
+from taxi_service.modules.users import service
 from taxi_service.modules.users.models import UserProfile
 from taxi_service.modules.users.schemas import MyProfileResponse, MyProfileUpdate
 from taxi_service.schemas.errors import error_responses
@@ -10,17 +13,15 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.get("/me", responses=error_responses(401))
-async def read_my_profile(user: CurrentUser, users: UserServiceDep) -> MyProfileResponse:
-    """The caller's own account and contact details; any role."""
-    return _response(user, await users.get_profile(user.id))
+async def read_my_profile(user: CurrentUser, db: DbSession) -> MyProfileResponse:
+    return _response(user, await service.get_profile(db, user.id))
 
 
 @router.patch("/me", responses=error_responses(401, 403))
 async def update_my_profile(
-    body: MyProfileUpdate, user: CurrentUser, users: UserServiceDep
+    body: MyProfileUpdate, user: CurrentUser, db: DbSession, clock: ClockDep
 ) -> MyProfileResponse:
-    """Change ``display_name`` and/or ``phone``. Role, username and approval are not writable."""
-    return _response(user, await users.update_profile(user.id, body))
+    return _response(user, await service.update_profile(db, user.id, body, clock=clock))
 
 
 def _response(user: AuthenticatedUser, profile: UserProfile | None) -> MyProfileResponse:

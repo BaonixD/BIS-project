@@ -24,13 +24,13 @@ MVP_SPEC §6: назначенный водитель отмечает arrived, 
 
 ### Порядок проверки (одна транзакция на команду)
 
-1. `SELECT ... FOR UPDATE` поездки (`RideRepository.lock_ride`; на SQLite — `BEGIN IMMEDIATE`). Нет строки — `404 ride_not_found`.
+1. `SELECT ... FOR UPDATE` поездки (`transitions.lock_ride`; на SQLite — `BEGIN IMMEDIATE`). Нет строки — `404 ride_not_found`.
 2. `Actor` из строки поездки и роли пользователя: пассажир — `passenger_id`, назначенный водитель — `driver_id`.
 3. `resolve_command`: не участник и не admin — `404 ride_not_found`; участник или admin без права — `403 ride_command_forbidden` (admin жизненным циклом не управляет); уже применённая идемпотентная команда (arrive на arrived, start на in_progress, complete на completed, cancel на cancelled) — `200` с текущим состоянием, без эффектов и без события; иначе переход по таблице или `409 invalid_ride_transition` (`details.current_status`, `details.command`). `release` не идемпотентен: после release водитель уже не участник (`404`).
 4. `transitions.move_ride`: условный `UPDATE rides ... WHERE id = ? AND status = <прочитанный>` со временем этапа и строка `ride_events` — вместе. Под блокировкой промах невозможен; если он всё же случится, это `409`, а не тихая запись.
 5. Эффекты в той же транзакции: cancel — `revoke_pending_offers` (порядок блокировок rides → ride_offers); release — `driver_id = NULL`, `assigned_at`/`arrived_at = NULL`, `restart_search` (новое окно строго позже прежнего, `deadline = start + 180 с`); complete — хук завершения.
 
-После коммита release выполняется первый шаг поиска через `DispatchService.start_search`: сбой шага логируется, ответ остаётся `200` с поездкой `searching`, поиск продолжит фоновый цикл. Ответ release — снимок, зафиксированный самим release (`searching`, `driver_id = null`), либо `no_driver`, если именно этот поиск (то же `search_started_at`) сразу никого не нашёл. Освободивший водитель больше не участник (MVP_SPEC §3), поэтому изменения, сделанные другими между коммитом release и ответом (отмена пассажира с причиной, принятие следующим водителем), в ответ не попадают (ревью T07B). Освободивший водитель исключён из всех будущих поисков этой поездки (его `accepted` предложение, ADR 0006).
+После коммита release выполняется первый шаг поиска через `dispatch.start_search`: сбой шага логируется, ответ остаётся `200` с поездкой `searching`, поиск продолжит фоновый цикл. Ответ release — снимок, зафиксированный самим release (`searching`, `driver_id = null`), либо `no_driver`, если именно этот поиск (то же `search_started_at`) сразу никого не нашёл. Освободивший водитель больше не участник (MVP_SPEC §3), поэтому изменения, сделанные другими между коммитом release и ответом (отмена пассажира с причиной, принятие следующим водителем), в ответ не попадают (ревью T07B). Освободивший водитель исключён из всех будущих поисков этой поездки (его `accepted` предложение, ADR 0006).
 
 ### Данные
 
@@ -62,14 +62,14 @@ MVP_SPEC §6: назначенный водитель отмечает arrived, 
 
 ### Контракт завершения для T08B
 
-`modules/rides/completion.py`:
+`modules/rides/lifecycle.py`:
 
 ```python
 CompletionHook = Callable[[AsyncSession, Ride, datetime], Awaitable[None]]
-async def on_ride_completed(session: AsyncSession, ride: Ride, now: datetime) -> None: ...
+async def on_ride_completed(db: AsyncSession, ride: Ride, now: datetime) -> None: ...
 ```
 
-- `create_app` кладёт хук в `app.state.ride_completion_hook` (по умолчанию `on_ride_completed`; с T08 часть B открывает cash/unpaid-оплату и событие `open` в той же транзакции, ADR 0004); `RideLifecycleService(..., on_completed=...)` получает его через зависимость `CompletionHookDep`. Тесты подменяют `app.state.ride_completion_hook`.
+- `create_app` кладёт хук в `app.state.ride_completion_hook` (по умолчанию `on_ride_completed`; с T08 часть B открывает cash/unpaid-оплату и событие `open` в той же транзакции, ADR 0004); `lifecycle.execute_command(..., on_completed=...)` получает его через зависимость `CompletionHookDep` (`rides/dependencies.py`). Тесты подменяют `app.state.ride_completion_hook`.
 - Вызывается ровно один раз на поездку — только при реальном переходе `in_progress → completed`, внутри транзакции complete, после `UPDATE` и события: `ride.status == completed`, `ride.completed_at == now`, `ride.amount_kzt` — зафиксированная цена; строка поездки заблокирована. Повтор complete хук не вызывает.
 - Всё, что хук записал через `session`, коммитится вместе с завершением; исключение откатывает и завершение (поездка остаётся `in_progress`, клиент получает `500`/доменную ошибку). Хук не коммитит, не открывает новую транзакцию и не ждёт внешних вызовов.
 - T08B: в `on_ride_completed` (или своей функции, назначенной в `create_app`) добавить `Payment(ride_id=ride.id, amount_kzt=ride.amount_kzt, method=cash, status=unpaid, created_at=now)` через `session.add` + `flush`; `UNIQUE(payments.ride_id)` — защита от второй записи. Фальшивых подтверждений нет.

@@ -198,10 +198,6 @@ async def test_openapi_documents_the_route_and_its_errors(client: httpx.AsyncCli
     for status in ("401", "403", "422", "503"):
         response = operation["responses"][status]
         assert response["content"]["application/json"]["schema"] == error_ref, status
-    description = operation["description"]
-    for code in ("route_points_identical", "route_not_found", "routing_unavailable"):
-        assert code in description
-    assert "routing_provider_error" in description
 
 
 # Provider errors

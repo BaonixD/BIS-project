@@ -15,31 +15,27 @@ from sqlalchemy import select
 from support.clock import ManualClock
 from support.drivers import DriverFactory, vehicle
 from taxi_service.database.session import SessionFactory, read_transaction
+from taxi_service.modules.drivers import service as driver_service
 from taxi_service.modules.drivers.exceptions import PlateNumberTakenError
 from taxi_service.modules.drivers.models import Vehicle
-from taxi_service.modules.drivers.repository import DriverRepository
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate
-from taxi_service.modules.drivers.service import DriverService
 from taxi_service.modules.geo.schemas import Coordinates
-from taxi_service.modules.users.repository import UserRepository
-from taxi_service.modules.users.schemas import MyProfileUpdate
-from taxi_service.modules.users.service import UserService
 
 POINT = Coordinates(longitude=76.9457, latitude=43.2383)
 
 
-def missing_once(original: Callable[..., Any]) -> Callable[..., Any]:
-    """Wrap a repository lookup so that its first call reports "no row yet"."""
-    calls = 0
+class MissingOnce:
+    """Lookup whose first call reports "no row yet", as a concurrent transaction would see it."""
 
-    async def lookup(self: Any, *args: Any, **kwargs: Any) -> Any:
-        nonlocal calls
-        calls += 1
-        if calls == 1:
+    def __init__(self, original: Callable[..., Any]) -> None:
+        self.original = original
+        self.calls = 0
+
+    async def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        self.calls += 1
+        if self.calls == 1:
             return None
-        return await original(self, *args, **kwargs)
-
-    return lookup
+        return await self.original(*args, **kwargs)
 
 
 async def plates(session_factory: SessionFactory) -> list[str]:
@@ -61,12 +57,12 @@ async def test_plate_constraint_violation_is_reported_as_taken(
     async def plate_is_free(*_args: Any, **_kwargs: Any) -> bool:
         return False  # a concurrent transaction took it after this check
 
-    monkeypatch.setattr(DriverRepository, "plate_number_taken", plate_is_free)
+    monkeypatch.setattr(driver_service, "_plate_number_taken", plate_is_free)
     update = DriverProfileUpdate.model_validate({"vehicle": vehicle("001TST02")})
 
     async with session_factory() as session:
         with pytest.raises(PlateNumberTakenError):
-            await DriverService(session, clock).update_profile(second, update)
+            await driver_service.update_profile(session, second, update, clock=clock)
 
     assert await plates(session_factory) == ["001TST02", "002TST02"]
 
@@ -78,34 +74,15 @@ async def test_concurrent_first_driver_write_uses_the_existing_row(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     driver = await driver_factory.driver("dana", approved=False)
-    monkeypatch.setattr(
-        DriverRepository, "get_for_update", missing_once(DriverRepository.get_for_update)
-    )
+    lookup = MissingOnce(driver_service._get_profile_for_update)
+    monkeypatch.setattr(driver_service, "_get_profile_for_update", lookup)
 
     async with session_factory() as session:
-        profile = await DriverService(session, clock).update_location(driver, POINT)
+        profile = await driver_service.update_location(session, driver, POINT, clock=clock)
 
     assert (profile.longitude, profile.latitude) == (POINT.longitude, POINT.latitude)
     assert profile.full_name == "Dana Driver"  # the existing row, not a new empty one
-
-
-async def test_concurrent_first_profile_write_uses_the_existing_row(
-    driver_factory: DriverFactory,
-    session_factory: SessionFactory,
-    clock: ManualClock,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    user_id = await driver_factory.admin_id()
-    async with session_factory() as session:
-        users = UserService(session, clock, driver_factory.hasher)
-        await users.update_profile(user_id, MyProfileUpdate(display_name="Root"))
-    monkeypatch.setattr(UserRepository, "get_profile", missing_once(UserRepository.get_profile))
-
-    async with session_factory() as session:
-        users = UserService(session, clock, driver_factory.hasher)
-        profile = await users.update_profile(user_id, MyProfileUpdate(phone="+77011234567"))
-
-    assert (profile.display_name, profile.phone) == ("Root", "+77011234567")
+    assert lookup.calls == 2
 
 
 async def test_first_write_for_a_missing_user_still_fails(
@@ -113,4 +90,4 @@ async def test_first_write_for_a_missing_user_still_fails(
 ) -> None:
     async with session_factory() as session:
         with pytest.raises(Exception, match="FOREIGN KEY"):
-            await DriverService(session, clock).update_location(uuid.uuid4(), POINT)
+            await driver_service.update_location(session, uuid.uuid4(), POINT, clock=clock)

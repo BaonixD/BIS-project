@@ -1,5 +1,3 @@
-"""Alembic integration: configuration, expected head and the current revision."""
-
 from pathlib import Path
 from typing import Literal
 
@@ -12,18 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from taxi_service.database.base import UtcDateTime
 
-# Repository root (src/taxi_service/database -> root): works only when running from
-# the source tree (editable install), not from a built wheel.
+# Works only from the source tree (editable install).
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 ALEMBIC_INI = PROJECT_ROOT / "alembic.ini"
 
 
 def alembic_config(database_url: str | None = None, *, configure_logging: bool = True) -> Config:
-    """Alembic configuration of this project.
-
-    ``database_url`` overrides ``DATABASE_URL``; tests always pass one.
-    ``configure_logging=False`` keeps the caller's logging configuration.
-    """
     config = Config(ALEMBIC_INI)
     config.attributes["database_url"] = database_url
     config.attributes["configure_logging"] = configure_logging
@@ -31,24 +23,18 @@ def alembic_config(database_url: str | None = None, *, configure_logging: bool =
 
 
 def expected_heads(config: Config | None = None) -> frozenset[str]:
-    """Head revisions of the migration scripts (reads files, no database access)."""
     script = ScriptDirectory.from_config(config or alembic_config())
     return frozenset(script.get_heads())
 
 
 def render_item(type_: str, obj: object, autogen_context: AutogenContext) -> str | Literal[False]:
-    """Autogenerate hook: render project column types as plain SQLAlchemy types.
-
-    Migration scripts stay independent of application code; the type decorator
-    only adds Python-side conversion, the stored column type is the same.
-    """
+    # Migrations must not import application types.
     if type_ == "type" and isinstance(obj, UtcDateTime):
         return "sa.DateTime(timezone=True)"
     return False
 
 
 async def current_revisions(connection: AsyncConnection) -> frozenset[str]:
-    """Revisions recorded in ``alembic_version``; empty if never migrated."""
     return await connection.run_sync(_current_revisions)
 
 

@@ -1,11 +1,4 @@
-"""Opt-in smoke check of a real openrouteservice road route in Almaty.
-
-Usage: ``ROUTING_API_KEY=... uv run python scripts/routing_smoke.py`` (or set the
-key in the local ``.env``). Makes one real provider request; never run by pytest.
-
-Exit codes: 0 route received, 1 provider/validation failure, 2 ``external_pending``
-(no key configured, nothing was requested).
-"""
+"""Usage: uv run python scripts/routing_smoke.py — one real ORS route; exit 2 = external_pending."""
 
 import asyncio
 import sys
@@ -22,7 +15,7 @@ EXIT_EXTERNAL_PENDING = 2
 
 ABAY_DOSTYK = Coordinates(longitude=76.9572, latitude=43.2389)
 AL_FARABI_ESENTAI = Coordinates(longitude=76.9286, latitude=43.2187)
-# Generous Almaty envelope used only to catch swapped lon/lat in the geometry.
+# Catches swapped lon/lat in the geometry.
 ALMATY_LON = (76.6, 77.3)
 ALMATY_LAT = (43.0, 43.5)
 
