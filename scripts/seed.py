@@ -1,23 +1,4 @@
-"""Load the demonstration data into the configured database (local command).
-
-Usage::
-
-    uv run python scripts/seed.py [--refresh-locations]
-
-Creates the missing demo accounts (``taxi_service.seeds.demo``): demo_admin,
-demo_passenger_1..2 and demo_driver_1..3, approved and online near central
-Almaty. Existing demo accounts are skipped and never changed; nothing is
-deleted. ``--refresh-locations`` additionally re-stamps the location of the
-existing demo drivers and puts them online (a location counts for 60 s).
-
-The database comes from DATABASE_URL (environment or ``.env``); it must be an
-existing SQLite file migrated to head (``uv run alembic upgrade head``). The
-password of created accounts is DEMO_PASSWORD (environment or ``.env``),
-otherwise asked twice without echo; it is needed only when something is
-created and is never printed.
-
-Exit codes: 0 done, 1 environment or database not suitable, 2 invalid input.
-"""
+"""Usage: uv run python scripts/seed.py [--refresh-locations] (password: DEMO_PASSWORD)."""
 
 import argparse
 import asyncio
@@ -55,7 +36,7 @@ _PASSWORD = TypeAdapter[SecretStr](NewPassword)
 
 
 class InputError(Exception):
-    """Invalid command input; the message never contains the password."""
+    pass
 
 
 class DatabaseNotReadyError(Exception):
@@ -136,7 +117,6 @@ def _is_sqlite_file(url: URL) -> bool:
 
 
 def _configured_password() -> str | None:
-    """DEMO_PASSWORD from the environment or ``.env``, validated; empty counts as unset."""
     configured = _SeedEnvironment().demo_password
     if configured is None or not configured.get_secret_value():
         return None

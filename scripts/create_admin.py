@@ -1,16 +1,4 @@
-"""Create an admin account in the configured database (local command).
-
-Usage::
-
-    uv run python scripts/create_admin.py --username NAME
-
-The password is read from the ADMIN_PASSWORD environment variable if set,
-otherwise asked twice without echo. It is never printed or stored in plain
-text. The database comes from DATABASE_URL (environment or ``.env``) and must
-already be migrated (``uv run alembic upgrade head``).
-
-Exit codes: 0 created, 1 username exists or database not ready, 2 invalid input.
-"""
+"""Usage: uv run python scripts/create_admin.py --username NAME (password: ADMIN_PASSWORD)."""
 
 import argparse
 import asyncio
@@ -40,7 +28,7 @@ _PASSWORD = TypeAdapter[SecretStr](NewPassword)
 
 
 class InputError(Exception):
-    """Invalid command input; the message never contains the password."""
+    pass
 
 
 def main(argv: list[str] | None = None) -> int:

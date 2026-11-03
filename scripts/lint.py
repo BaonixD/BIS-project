@@ -1,8 +1,4 @@
-"""Run Ruff checks without modifying files.
-
-Usage: ``uv run python scripts/lint.py``. Fix explicitly with
-``uv run ruff check --fix .`` and ``uv run ruff format .``.
-"""
+"""Usage: uv run python scripts/lint.py — ruff check and format --check, no changes."""
 
 import subprocess
 import sys
