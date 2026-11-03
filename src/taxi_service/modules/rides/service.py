@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from taxi_service.core.clock import Clock
 from taxi_service.database.session import read_transaction
+from taxi_service.modules.drivers import service as drivers_service
 from taxi_service.modules.drivers.models import DriverProfile
-from taxi_service.modules.drivers.service import get_driver_profile
 from taxi_service.modules.geo.client import RoutingProvider
 from taxi_service.modules.geo.schemas import Coordinates, RouteResult
 from taxi_service.modules.geo.service import plan_road_route
@@ -139,7 +139,7 @@ async def get_ride(
             raise RideNotFoundError
         driver = None
         if ride.driver_id is not None and shows_driver(ride, viewer_id):
-            driver = await get_driver_profile(db, ride.driver_id)
+            driver = await drivers_service.get_driver_profile(db, ride.driver_id)
     return RideDetails(ride, driver)
 
 
