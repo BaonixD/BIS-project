@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from taxi_service.core.clock import Clock
 from taxi_service.database.session import read_transaction
 from taxi_service.modules.drivers.models import DriverProfile
-from taxi_service.modules.drivers.repository import DriverRepository
+from taxi_service.modules.drivers.service import get_driver_profile
 from taxi_service.modules.geo.client import RoutingProvider
 from taxi_service.modules.geo.schemas import Coordinates, RouteResult
 from taxi_service.modules.geo.service import plan_road_route
@@ -76,7 +76,7 @@ class RideService:
         Routing errors propagate unchanged and store nothing. The five minutes
         of validity start once the route is known.
         """
-        route = await plan_road_route(routing, request.pickup, request.dropoff)
+        route = await plan_road_route(request.pickup, request.dropoff, routing=routing)
         fare = calculate_fare(distance_m=route.distance_m, duration_s=route.duration_s)
         now = self._clock.now()
         quote = RideQuote(
@@ -136,7 +136,7 @@ class RideService:
                 raise RideNotFoundError
             driver = None
             if ride.driver_id is not None and shows_driver(ride, viewer_id):
-                driver = await DriverRepository(self._session).get(ride.driver_id)
+                driver = await get_driver_profile(self._session, ride.driver_id)
         return RideDetails(ride, driver)
 
     async def _replay(self, user_id: uuid.UUID, key: str, fingerprint: str) -> Ride | None:

@@ -630,16 +630,16 @@ async def test_losing_approval_revokes_the_pending_offer(
     session_factory: SessionFactory,
     clock: ManualClock,
 ) -> None:
+    from taxi_service.modules.drivers import service as driver_service
     from taxi_service.modules.drivers.schemas import DriverProfileUpdate
-    from taxi_service.modules.drivers.service import DriverService
 
     driver = await driver_factory.driver("driver", location=east(100))
     ride = await ride_factory.searching_ride(pickup=PICKUP)
     await dispatcher.process(ride.id)
 
     async with session_factory() as session:
-        await DriverService(session, clock).update_profile(
-            driver, DriverProfileUpdate(full_name="Another Name")
+        await driver_service.update_profile(
+            session, driver, DriverProfileUpdate(full_name="Another Name"), clock=clock
         )
 
     assert await statuses(dispatcher, ride.id) == [(driver.hex, OfferStatus.REVOKED)]

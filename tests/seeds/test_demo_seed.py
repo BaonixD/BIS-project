@@ -11,10 +11,10 @@ from support.drivers import DriverFactory
 from taxi_service.core.config import Settings
 from taxi_service.database.session import SessionFactory, read_transaction
 from taxi_service.modules.auth.passwords import PasswordHasher
+from taxi_service.modules.drivers import service as driver_service
 from taxi_service.modules.drivers.candidates import find_nearby_candidates
 from taxi_service.modules.drivers.models import ApprovalStatus, DriverProfile, Vehicle
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate
-from taxi_service.modules.drivers.service import DriverService
 from taxi_service.modules.geo.schemas import Coordinates
 from taxi_service.modules.users.models import User, UserProfile, UserRole
 from taxi_service.modules.users.schemas import MyProfileUpdate
@@ -65,7 +65,7 @@ async def users_by_name(session_factory: SessionFactory) -> dict[str, User]:
 async def driver_profile(session_factory: SessionFactory, username: str) -> DriverProfile:
     user = (await users_by_name(session_factory))[username]
     async with session_factory() as session:
-        profile = await DriverService(session, ManualClock()).get(user.id)
+        profile = await driver_service.read_driver_profile(session, user.id)
     assert profile is not None
     return profile
 
@@ -188,16 +188,19 @@ async def test_rerun_keeps_changes_made_through_the_application(
     await run_seed(session_factory, clock, hasher)
     users = await users_by_name(session_factory)
     async with session_factory() as session:
-        await DriverService(session, clock).update_profile(
-            users["demo_driver_1"].id, DriverProfileUpdate(phone="+77019998877")
+        await driver_service.update_profile(
+            session,
+            users["demo_driver_1"].id,
+            DriverProfileUpdate(phone="+77019998877"),
+            clock=clock,
         )
     async with session_factory() as session:
         await UserService(session, clock, hasher).update_profile(
             users["demo_passenger_1"].id, MyProfileUpdate(display_name="Aigerim")
         )
     async with session_factory() as session:
-        await DriverService(session, clock).set_availability(
-            users["demo_driver_3"].id, online=False
+        await driver_service.set_availability(
+            session, users["demo_driver_3"].id, False, clock=clock
         )
 
     await run_seed(session_factory, clock, hasher)
@@ -219,10 +222,10 @@ async def test_refresh_locations_restamps_demo_drivers_with_the_clock(
     users = await users_by_name(session_factory)
     moved = Coordinates(longitude=76.90, latitude=43.30)
     async with session_factory() as session:
-        await DriverService(session, clock).update_location(users["demo_driver_2"].id, moved)
+        await driver_service.update_location(session, users["demo_driver_2"].id, moved, clock=clock)
     async with session_factory() as session:
-        await DriverService(session, clock).set_availability(
-            users["demo_driver_3"].id, online=False
+        await driver_service.set_availability(
+            session, users["demo_driver_3"].id, False, clock=clock
         )
     clock.advance(timedelta(minutes=5))
     assert await nearby_driver_ids(session_factory, clock) == []
@@ -257,8 +260,8 @@ async def test_refresh_locations_never_reapproves_or_rewrites_a_profile(
         }
     )
     async with session_factory() as session:
-        await DriverService(session, clock).update_profile(
-            users["demo_driver_1"].id, changed_vehicle
+        await driver_service.update_profile(
+            session, users["demo_driver_1"].id, changed_vehicle, clock=clock
         )
 
     report = await run_seed(session_factory, clock, hasher, refresh_locations=True)
@@ -285,7 +288,7 @@ async def test_refresh_locations_touches_only_demo_drivers(
     await run_seed(session_factory, clock, hasher, refresh_locations=True)
 
     async with session_factory() as session:
-        profile = await DriverService(session, clock).get(other)
+        profile = await driver_service.read_driver_profile(session, other)
     assert profile is not None
     assert profile.location_updated_at == stamped
 
@@ -312,7 +315,8 @@ async def test_demo_plate_used_by_another_driver_is_a_conflict(
 ) -> None:
     other = await driver_factory.driver("someone_else", approved=False)
     async with session_factory() as session:
-        await DriverService(session, clock).update_profile(
+        await driver_service.update_profile(
+            session,
             other,
             DriverProfileUpdate.model_validate(
                 {
@@ -325,6 +329,7 @@ async def test_demo_plate_used_by_another_driver_is_a_conflict(
                     }
                 }
             ),
+            clock=clock,
         )
     before = await row_counts(session_factory)
 
