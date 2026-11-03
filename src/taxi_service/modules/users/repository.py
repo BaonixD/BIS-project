@@ -1,1 +1,1 @@
-from taxi_service.modules.users._legacy import UserRepository as UserRepository
+from taxi_service.modules.users.service import UserRepository as UserRepository
