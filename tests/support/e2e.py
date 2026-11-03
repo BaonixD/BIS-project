@@ -41,7 +41,7 @@ from support.drivers import (
 )
 from support.lifecycle import body_for, command_url
 from support.payments import payment_url
-from support.rides import QUOTE_BODY, QUOTES_URL, RIDES_URL, ride_url
+from support.rides import QUOTE_BODY, QUOTES_URL, RIDES_URL, ride_body, ride_url
 from taxi_service.database.session import SessionFactory
 from taxi_service.modules.rides import dispatch
 from taxi_service.modules.rides.idempotency import IDEMPOTENCY_HEADER
@@ -192,16 +192,19 @@ async def quote(passenger: Participant, body: Json | None = None) -> Json:
     return expect(await passenger.post(QUOTES_URL, body or QUOTE_BODY), 201)
 
 
-async def create_ride(passenger: Participant, quote_id: str, key: str) -> httpx.Response:
+async def create_ride(
+    passenger: Participant, quote_id: str, key: str, payment_method: str | None = None
+) -> httpx.Response:
     return await passenger.post(
-        RIDES_URL, {"quote_id": quote_id}, headers={IDEMPOTENCY_HEADER: key}
+        RIDES_URL, ride_body(quote_id, payment_method), headers={IDEMPOTENCY_HEADER: key}
     )
 
 
-async def order(passenger: Participant) -> Json:
-    """A new quote, then a ride from it with a fresh ``Idempotency-Key``."""
+async def order(passenger: Participant, payment_method: str | None = None) -> Json:
+    """A new quote, then a ride from it with a fresh ``Idempotency-Key`` (cash by default)."""
     quoted = await quote(passenger)
-    return expect(await create_ride(passenger, quoted["quote_id"], uuid.uuid4().hex), 201)
+    key = uuid.uuid4().hex
+    return expect(await create_ride(passenger, quoted["quote_id"], key, payment_method), 201)
 
 
 async def offers(driver: Participant) -> list[Json]:
@@ -231,12 +234,6 @@ async def payment(participant: Participant, ride_id: str) -> Json:
     return expect(await participant.get(payment_url(ride_id)))
 
 
-async def pay(
-    participant: Participant, ride_id: str, action: str, json: Json | None = None
-) -> httpx.Response:
-    """``method`` (PUT, body required) or ``pay`` (POST)."""
-    url = payment_url(ride_id, action)
-    if action == "method":
-        assert json is not None
-        return await participant.put(url, json)
-    return await participant.post(url, json)
+async def cash_received(driver: Participant, ride_id: str) -> httpx.Response:
+    """The assigned driver confirms the cash of a completed ride."""
+    return await driver.post(payment_url(ride_id, "cash-received"))

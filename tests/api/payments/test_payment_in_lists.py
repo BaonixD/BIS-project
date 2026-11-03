@@ -1,13 +1,14 @@
-"""Ride history and the admin ride list show each ride's payment status and method (T09 + T08).
+"""Ride history and the admin ride list show each ride's payment status and method.
 
-Both are null until the ride is completed; one JOIN keeps a page at the same
-number of SQL statements whatever its size.
+The payment exists from the order on (ADR 0010); one JOIN keeps a page at the
+same number of SQL statements whatever its size.
 """
 
 import uuid
 from typing import Any
 
 import httpx
+import pytest
 from fastapi import FastAPI
 
 from support.dispatch import Dispatcher
@@ -20,9 +21,8 @@ from support.history import (
     past_rides,
 )
 from support.lifecycle import trip_in
-from support.payments import ADMIN, expect_paid_ok
+from support.payments import ADMIN, expect_cash_received, kaspi_on
 from support.rides import RIDES_URL, RideFactory
-from support.rows import insert_payment
 from taxi_service.modules.rides.states import RideStatus
 
 MAX_QUERIES = 3  # authentication, the page with its payments, the total
@@ -39,23 +39,39 @@ async def test_history_shows_the_payment_of_a_completed_ride(
 
     await login_as(client, trip.passenger)
     [unpaid] = (await get_page(client, RIDES_URL))["items"]
-    await expect_paid_ok(client, trip.ride_id, "pay", trip.passenger)
+    await expect_cash_received(client, trip.ride_id, trip.driver)
+    await login_as(client, trip.passenger)
     [paid] = (await get_page(client, RIDES_URL))["items"]
 
     assert payment_of(unpaid) == ("unpaid", "cash")
     assert payment_of(paid) == ("paid", "cash")
 
 
-async def test_rides_without_payment_show_null(
-    client: httpx.AsyncClient, driver_factory: DriverFactory, dispatcher: Dispatcher
+@pytest.mark.parametrize(
+    ("status", "method", "expected"),
+    [
+        ("in_progress", None, ("unpaid", "cash")),
+        ("searching", "kaspi_link", ("paid", "kaspi_link")),
+        ("cancelled", "kaspi_link", ("refunded", "kaspi_link")),
+    ],
+)
+async def test_unfinished_rides_show_their_payment(
+    app: FastAPI,
+    client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    status: str,
+    method: str | None,
+    expected: tuple[str, str],
 ) -> None:
-    trip = await trip_in("in_progress", client, driver_factory, dispatcher)
-    await login_as(client, trip.driver)
+    app.state.payment_settings = kaspi_on()
+    trip = await trip_in(status, client, driver_factory, dispatcher, payment_method=method)
+    await login_as(client, trip.passenger)
 
     [item] = (await get_page(client, RIDES_URL))["items"]
 
-    assert item["status"] == "in_progress"
-    assert payment_of(item) == (None, None)
+    assert item["status"] == status
+    assert payment_of(item) == expected
 
 
 async def test_admin_list_shows_the_payment(
@@ -63,7 +79,7 @@ async def test_admin_list_shows_the_payment(
 ) -> None:
     trip = await trip_in("completed", client, driver_factory, dispatcher)
     await driver_factory.admin_id()
-    await expect_paid_ok(client, trip.ride_id, "pay", trip.passenger)
+    await expect_cash_received(client, trip.ride_id, trip.driver)
     await login_as(client, ADMIN)
 
     [item] = (await get_page(client, ADMIN_RIDES_URL))["items"]
@@ -75,11 +91,10 @@ async def test_admin_list_shows_the_payment(
 async def seed_paid_rides(
     ride_factory: RideFactory, passenger_id: uuid.UUID, driver_id: uuid.UUID, count: int
 ) -> None:
-    ids = await past_rides(
+    """Completed rides with the cash payment their order opened."""
+    await past_rides(
         ride_factory, passenger_id, count, status=RideStatus.COMPLETED, driver_id=driver_id
     )
-    for ride_id in ids:
-        await insert_payment(ride_factory.session_factory, ride_id.hex)
 
 
 async def page_statements(

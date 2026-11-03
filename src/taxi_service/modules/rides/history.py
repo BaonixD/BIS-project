@@ -8,7 +8,7 @@ from datetime import datetime
 
 from sqlalchemy import ColumnElement, Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import defer
+from sqlalchemy.orm import defer, raiseload
 
 from taxi_service.database.session import read_transaction
 from taxi_service.modules.auth.exceptions import ForbiddenError
@@ -92,7 +92,7 @@ def _page(
     return (
         select(Ride, Payment.status, Payment.method)
         .outerjoin(Payment, Payment.ride_id == Ride.id)
-        .options(defer(Ride.route_geometry, raiseload=True))
+        .options(defer(Ride.route_geometry, raiseload=True), raiseload(Ride.payment))
         .where(*conditions)
         .order_by(Ride.created_at.desc(), Ride.id.desc())
         .limit(limit)

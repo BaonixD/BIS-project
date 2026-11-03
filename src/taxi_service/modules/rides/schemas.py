@@ -57,6 +57,12 @@ class RideCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     quote_id: uuid.UUID
+    payment_method: PaymentMethod = Field(
+        default=PaymentMethod.CASH,
+        description="Chosen with the order. kaspi_link counts as paid at once (a simulated "
+        "charge, no money is checked) and needs KASPI_PAYMENT_URL; its link is the "
+        "payment_url of GET /rides/{ride_id}/payment.",
+    )
 
 
 def _without_control_characters(value: str) -> str:
@@ -105,9 +111,12 @@ class RideResponse(BaseModel):
     completed_at: datetime | None
     cancelled_at: datetime | None
     cancel_reason: str | None
+    payment_method: PaymentMethod | None
+    payment_status: PaymentStatus | None
 
     @classmethod
     def build(cls, ride: Ride) -> "RideResponse":
+        payment = ride.payment
         return cls(
             id=ride.id,
             status=ride.status,
@@ -128,6 +137,8 @@ class RideResponse(BaseModel):
             completed_at=ride.completed_at,
             cancelled_at=ride.cancelled_at,
             cancel_reason=ride.cancel_reason,
+            payment_method=None if payment is None else payment.method,
+            payment_status=None if payment is None else payment.status,
         )
 
 
@@ -212,7 +223,7 @@ class OfferResponse(BaseModel):
 
 
 class RideSummary(BaseModel):
-    """A list item without the route geometry; payment fields are null before completion."""
+    """A list item without the route geometry; payment fields are null only without a payment."""
 
     id: uuid.UUID
     status: RideStatus

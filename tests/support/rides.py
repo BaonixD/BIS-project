@@ -58,13 +58,27 @@ async def request_quote(
     return quote
 
 
+def ride_body(quote_id: str, payment_method: str | None = None) -> dict[str, Any]:
+    """``POST /rides`` body; without ``payment_method`` the server takes cash."""
+    body: dict[str, Any] = {"quote_id": quote_id}
+    if payment_method is not None:
+        body["payment_method"] = payment_method
+    return body
+
+
 async def order_ride(
-    client: httpx.AsyncClient, user: LoggedInUser, *, key: str | None = None
+    client: httpx.AsyncClient,
+    user: LoggedInUser,
+    *,
+    key: str | None = None,
+    payment_method: str | None = None,
 ) -> dict[str, Any]:
     """New quote, then a ride from it; the client must be logged in as ``user``."""
     quote = await request_quote(client, user)
     response = await client.post(
-        RIDES_URL, json={"quote_id": quote["quote_id"]}, headers=ride_headers(user, key)
+        RIDES_URL,
+        json=ride_body(quote["quote_id"], payment_method),
+        headers=ride_headers(user, key),
     )
     assert response.status_code == 201, response.text
     ride: dict[str, Any] = response.json()

@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime, timedelta
-from typing import Any, Final
+from typing import TYPE_CHECKING, Any, Final
 
 from sqlalchemy import (
     JSON,
@@ -16,7 +16,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql.elements import TextClause
 
 from taxi_service.database.base import Base, UtcDateTime
@@ -26,6 +26,9 @@ from taxi_service.modules.rides.states import (
     RideCommand,
     RideStatus,
 )
+
+if TYPE_CHECKING:
+    from taxi_service.modules.payments.models import Payment
 
 PROVIDER_MAX_LENGTH: Final = 32
 TARIFF_VERSION_MAX_LENGTH: Final = 16
@@ -187,6 +190,8 @@ class Ride(RouteSnapshot, Base):
     completed_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
     cancelled_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
     cancel_reason: Mapped[str | None] = mapped_column(String(REASON_MAX_LENGTH))
+    # Opened with the order (ADR 0010); loaded with the ride for its responses.
+    payment: Mapped["Payment | None"] = relationship(lazy="selectin")
 
     @classmethod
     def from_quote(cls, quote: RideQuote, now: datetime, *, search_budget: timedelta) -> "Ride":

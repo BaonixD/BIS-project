@@ -19,7 +19,7 @@
 - **Модульный монолит** на FastAPI: один процесс, один пакет `taxi_service` (`src/`), предметные модули в `modules/`. Без микросервисов, брокеров, Redis и Celery.
 - **БД — файловая SQLite** через SQLAlchemy 2 async и `aiosqlite` ([ADR 0001](decisions/0001-sqlite-without-docker.md)). Типы и ограничения переносимы на PostgreSQL: `Uuid`, целые KZT, `UtcDateTime`, `CHECK`, частичные индексы с `sqlite_where` и `postgresql_where`.
 - **Схема — только миграциями Alembic** (`render_as_batch=True`), отдельной командой до запуска API. Seed и создание admin — отдельные скрипты в `scripts/`; приложение их не вызывает.
-- **Внешние сервисы**: openrouteservice для дорожного маршрута ([ADR 0002](decisions/0002-routing-provider.md)); Kaspi — только ссылка из настроек, без обращений к Kaspi ([ADR 0009](decisions/0009-simple-payments.md)).
+- **Внешние сервисы**: openrouteservice для дорожного маршрута ([ADR 0002](decisions/0002-routing-provider.md)); Kaspi — только ссылка из настроек, без обращений к Kaspi ([ADR 0010](decisions/0010-pay-before-order.md)).
 - **Время** — внедряемый `Clock`; **назначение водителя** — фоновый цикл внутри процесса, всё его состояние в БД ([ADR 0006](decisions/0006-dispatch.md)).
 
 ```text
@@ -80,7 +80,7 @@ flowchart LR
 - Сессии без autobegin (`autobegin=False`, `expire_on_commit=False`): запрос вне явной транзакции — ошибка, а не скрытая транзакция.
 - Соединение: `foreign_keys=ON`, `journal_mode=WAL`, `busy_timeout=5000`; engine создаётся с `hide_parameters=True`.
 - Внешний HTTP внутри транзакции запрещён: quote сначала получает маршрут у провайдера, затем открывает короткую транзакцию; первый шаг поиска водителя выполняется отдельной транзакцией после коммита создания поездки.
-- Защита от гонок — условные `UPDATE ... WHERE status = <прочитанный>`, уникальные и частичные уникальные индексы, а не проверки в памяти процесса. Порядок блокировок: `rides → ride_offers` (dispatch, accept, reject, cancel), `rides → payments` (команды оплаты). Пути водителя блокируют `driver_profiles` через `FOR NO KEY UPDATE` ([ADR 0006](decisions/0006-dispatch.md)). На SQLite `FOR UPDATE` не выводится, сериализацию даёт `BEGIN IMMEDIATE`; для PostgreSQL блокирующие `SELECT` проверены компиляцией.
+- Защита от гонок — условные `UPDATE ... WHERE status = <прочитанный>`, уникальные и частичные уникальные индексы, а не проверки в памяти процесса. Порядок блокировок: `rides → ride_offers` (dispatch, accept, reject, cancel), `rides → ride_offers → payments` (cancel и `no_driver` с возвратом, `cash-received`). Пути водителя блокируют `driver_profiles` через `FOR NO KEY UPDATE` ([ADR 0006](decisions/0006-dispatch.md)). На SQLite `FOR UPDATE` не выводится, сериализацию даёт `BEGIN IMMEDIATE`; для PostgreSQL блокирующие `SELECT` проверены компиляцией.
 
 **Clock** (`core/clock.py`): протокол `Clock.now() -> datetime` (aware UTC), `SystemClock` в приложении, `ManualClock` в тестах (`clock.advance(...)`). Через него идут срок сессии, ограничитель входа, срок quote, предложения, окно поиска, время координат, этапы поездки и оплаты. `datetime.now()` в бизнес-правилах не вызывается.
 
@@ -125,7 +125,7 @@ flowchart TB
     rides -->|"UserRole"| users
     rides -->|"Coordinates, RouteResult, провайдер маршрута"| geo
     rides -->|"find_nearby_candidates, DriverProfile, drivers.service.get_driver_profile"| drivers
-    rides -->|"open_payment, Payment для LEFT JOIN истории"| payments
+    rides -->|"records.open_payment, records.refund_if_paid, Payment для LEFT JOIN истории"| payments
     payments -->|"CurrentUser"| auth
     payments -->|"UserRole"| users
     payments -->|"Ride, lock_ride, can_view_ride, RideStatus, RideNotFoundError"| rides
@@ -141,7 +141,7 @@ flowchart TB
 Правила зависимостей:
 
 - `core/`, `database/`, `schemas/` не импортируют предметные модули (исключение — `core/lifespan.py`, который собирает провайдер маршрута и цикл dispatch, и `database/metadata.py`, который импортирует все `models.py` для Alembic).
-- Модуль обращается к другому через названные функции и контракты, а не через чужие роутеры: `users.service.get_user_by_username`, `users.service.create_user`, `users.service.list_users`, `drivers.service.get_driver_profile`, `drivers.candidates.find_nearby_candidates`, `geo.service.plan_road_route`, `rides.dispatch.revoke_driver_offers`, `rides.service.driver_has_active_ride`, `rides.service.can_view_ride`, `rides.transitions.lock_ride`, `rides.history.list_all_rides`, `rides.lifecycle.on_ride_completed → payments.service.open_payment`.
+- Модуль обращается к другому через названные функции и контракты, а не через чужие роутеры: `users.service.get_user_by_username`, `users.service.create_user`, `users.service.list_users`, `drivers.service.get_driver_profile`, `drivers.candidates.find_nearby_candidates`, `geo.service.plan_road_route`, `rides.dispatch.revoke_driver_offers`, `rides.service.driver_has_active_ride`, `rides.service.can_view_ride`, `rides.transitions.lock_ride`, `rides.history.list_all_rides`, `rides.service.create_ride → payments.records.open_payment`, `rides.lifecycle`/`rides.dispatch → payments.records.refund_if_paid`.
 - На уровне пакетов есть взаимные зависимости `auth ↔ users`, `drivers ↔ rides`, `rides ↔ payments`. Обычно пару связывают разные файлы (`drivers/service.py → rides/dispatch.py`, а `rides/dispatch.py → drivers/candidates.py`). Единственный цикл файлов — `drivers/service.py ↔ rides/service.py` (`get_driver_profile` и `driver_has_active_ride`): оба импортируют чужой модуль целиком (`from taxi_service.modules.rides import service as rides_service`) и обращаются к функции при вызове, поэтому порядок импорта не важен. Это осознанный компромисс MVP; при росте связей выделяется отдельный контракт.
 - `admin` — только чтение (история поездок и пользователи); допуск водителей живёт в модуле `drivers`: `admin_router` (`/admin/drivers`) в `drivers/router.py` и функции `drivers.service.list_drivers`, `approve_driver`.
 - `seeds` вызывает функции сервисов `users` и `drivers`, а не прямой SQL; приложение `seeds` не импортирует.
@@ -296,8 +296,9 @@ erDiagram
         int amount_kzt "копия суммы поездки"
         varchar currency "KZT"
         varchar method "cash, kaspi_link"
-        varchar status "unpaid, paid"
-        datetime paid_at "только у paid"
+        varchar status "unpaid, paid, refunded"
+        datetime paid_at "у paid и refunded"
+        datetime refunded_at "только у refunded"
         datetime created_at
         datetime updated_at
     }
@@ -342,7 +343,7 @@ erDiagram
 | `ride_events` | статусы и команда из перечней, длина `reason` 1–200 | журнал без мусора |
 | `idempotency_records` | длина `key` 1–128, `request_fingerprint` 64 | формат ключа и SHA-256 |
 | `payments` | `amount_kzt > 0`, `currency = 'KZT'`, перечни `method`/`status` | базовые значения |
-| `payments` | `paid` ⇔ задан `paid_at` | время оплаты есть ровно у оплаченной записи |
+| `payments` | `unpaid` — без времён, `paid` — только `paid_at`, `refunded` — `paid_at` и `refunded_at` | времена соответствуют статусу |
 
 ### История миграций
 
@@ -359,10 +360,11 @@ dea9719c6061 baseline (пустая)
 → 5d2e4cb65b5e ride_offers
 → b42082a5b952 этапы поездки, ride_events
 → 272671ab4753 payments, payment_events (+ записи оплаты для уже завершённых поездок)
-→ 4fdb9385a8e5 (ADR 0009): payments без сверки, удаление payment_events, reported/confirmed → paid  ← head
+→ 4fdb9385a8e5 (ADR 0009): payments без сверки, удаление payment_events, reported/confirmed → paid
+→ 80db0ba7c3f3 (ADR 0010): refunded, refunded_at, cash/unpaid для поездок без оплаты  ← head
 ```
 
-Миграция ADR 0009 удаляет `payment_events` и колонки сверки; откат не восстанавливает удалённые события и данные сверки. Откат `272671ab4753` удаляет `payments` вместе с данными. Перед ними нужна резервная копия (README).
+Миграция ADR 0009 удаляет `payment_events` и колонки сверки; откат не восстанавливает удалённые события и данные сверки. Откат `80db0ba7c3f3` удаляет оплаты незавершённых поездок. Откат `272671ab4753` удаляет `payments` вместе с данными. Перед ними нужна резервная копия (README).
 
 ## Состояния
 
@@ -392,7 +394,7 @@ stateDiagram-v2
 - Не участник поездки получает `404 ride_not_found` раньше проверки статуса; переход не по таблице — `409 invalid_ride_transition`.
 - Повтор применённой команды (`arrive` на `arrived`, `start` на `in_progress`, `complete` на `completed`, `cancel` на `cancelled`) — `200` без события. `release` и `assign` не идемпотентны.
 - `release` очищает `driver_id`, `assigned_at`, `arrived_at` и начинает новое окно поиска; освободивший водитель исключён из всех будущих поисков этой поездки. `cancel` отзывает открытое предложение; `driver_id` отменённой поездки остаётся как история.
-- `complete` в той же транзакции вызывает `on_ride_completed`, который открывает оплату; сбой откатывает завершение.
+- `complete` в той же транзакции вызывает хук `on_ride_completed` (по умолчанию пустой: оплата создана при заказе); сбой откатывает завершение. `cancel` и `mark_no_driver` в своей транзакции переводят оплаченную запись в `refunded`.
 
 ### Предложение водителю
 
@@ -417,18 +419,20 @@ stateDiagram-v2
 
 ### Оплата
 
-Правила и хранение — `modules/payments/` ([ADR 0009](decisions/0009-simple-payments.md)).
+Правила и хранение — `modules/payments/` ([ADR 0010](decisions/0010-pay-before-order.md)). Списание и возврат Kaspi — учебная имитация.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> unpaid : complete поездки, метод cash
-    unpaid --> unpaid : method, пассажир
-    unpaid --> paid : pay, пассажир
+    [*] --> unpaid : заказ, cash
+    [*] --> paid : заказ, kaspi_link
+    unpaid --> paid : cash-received, водитель после completed
+    paid --> refunded : cancel пассажиром или no_driver
     paid --> [*]
+    refunded --> [*]
 ```
 
-- Методы `cash` и `kaspi_link`; смена метода — только в `unpaid` (после — `409 invalid_payment_transition`); на `kaspi_link` — только при настроенной ссылке, иначе `503 kaspi_unavailable`. Тот же метод, пока `unpaid`, — без изменений.
-- `pay` («Оплатил») сразу даёт `paid` без проверки; повтор — `200` с тем же ответом. Команды доступны только пассажиру поездки.
+- Способ выбирается в `POST /rides` и дальше не меняется; `kaspi_link` без ссылки — `503 kaspi_unavailable`.
+- `cash-received` — только назначенный водитель завершённой `cash`-поездки; повтор — `200` с тем же ответом.
 
 ## Единицы и форматы
 
@@ -465,14 +469,15 @@ amount_kzt = ROUND_HALF_UP( max(800, 500 + 120 * distance_m / 1000 + 20 * durati
 | [0006](decisions/0006-dispatch.md) | поиск по одному водителю, предложения 30 с, бюджет 180 с, фоновый цикл в процессе, порядок блокировок | `rides/dispatch.py`, `rides/dispatch_loop.py` |
 | [0007](decisions/0007-ride-lifecycle.md) | команды поездки, журнал `ride_events`, гонки, карточка водителя, хук завершения | `rides/lifecycle.py` (с `on_ride_completed`), `rides/transitions.py` |
 | [0008](decisions/0008-functional-services.md) | сервисы — функции модуля, SQL в сервисе без слоя репозиториев, зависимости через `Depends`, тонкие роутеры без docstring | `modules/*/service.py`, `modules/*/dependencies.py`, `modules/*/router.py` |
-| [0009](decisions/0009-simple-payments.md) | лёгкая оплата: `cash` или `kaspi_link`, «Оплатил» пассажира сразу даёт `paid` без проверки | `modules/payments/` |
+| [0009](decisions/0009-simple-payments.md) | поток заменён ADR 0010; правила ссылки Kaspi | `modules/payments/config.py` |
+| [0010](decisions/0010-pay-before-order.md) | способ оплаты при заказе, Kaspi сразу `paid`, `refunded` при отмене или `no_driver`, наличные подтверждает водитель | `modules/payments/`, `rides/service.py` |
 
 ## Ограничения
 
 - **SQLite вместо PostgreSQL/PostGIS.** Запись сериализована на уровне всей БД, пространственного индекса нет, `SELECT ... FOR UPDATE` опускается. Конкурентные тесты доказывают инварианты при сериализованной записи, а не при пересечении транзакций; PostgreSQL проверен только компиляцией DDL и блокирующих запросов. Переход — отдельная задача (asyncpg, geography, повтор тестов).
 - **Один процесс.** Ограничитель входа хранится в памяти и сбрасывается при перезапуске; несколько воркеров ослабят лимит. Фоновый цикл безопасен и при двух процессах (состояние в БД, индексы), но рассчитан на один.
 - **Маршрутизация — `external_pending`.** Без `ROUTING_API_KEY` quote и `/geo/route` отвечают `503 routing_unavailable`; подставного маршрута нет. Реальный маршрут по Алматы не запрашивался (`scripts/routing_smoke.py`).
-- **Оплата без проверки.** «Оплатил» пассажира сразу даёт `paid`; сервер не получает статусов от Kaspi и не проверяет поступление денег. Реальная оплата по ссылке не проверялась (`external_pending`). Возвратов, эквайринга и webhook нет.
+- **Оплата без проверки.** Заказ с Kaspi сразу даёт `paid`, отмена — `refunded`; это имитация, сервер не получает статусов от Kaspi и не проверяет движение денег. Реальная оплата по ссылке не проверялась (`external_pending`). Эквайринга и webhook нет.
 - **Polling без WebSocket/SSE.** Клиент опрашивает `GET /rides/{id}` и `GET /drivers/me/offers`; движение водителя видно по последней координате и её времени.
 - **Нет фоновой очистки** истёкших сессий, quote, записей идемпотентности, старых предложений и событий.
 - **Ближайший водитель — по прямой**, не по времени подачи по дорогам.

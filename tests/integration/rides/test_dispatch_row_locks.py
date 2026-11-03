@@ -1,8 +1,9 @@
-"""Dispatch and ride commands lock the ride row before its offers (ADR 0006, 0007).
+"""Dispatch and ride commands lock the ride row before its offers and payment (ADR 0006, 0010).
 
 SQLite ignores FOR UPDATE (writers are serialized by BEGIN IMMEDIATE), so the
 executed SELECTs are captured and compiled for PostgreSQL, where the order
-rides -> ride_offers keeps concurrent accept, reject and expiry from deadlocking.
+rides -> ride_offers -> payments keeps concurrent accept, reject, expiry and
+cancel from deadlocking. Ending a ride without a trip locks its payment for the refund.
 """
 
 import re
@@ -45,13 +46,21 @@ def locking_selects(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return locked
 
 
-@pytest.mark.parametrize("answer", ["accept", "reject"])
+@pytest.mark.parametrize(
+    ("answer", "locked"),
+    [
+        ("accept", ["rides", "ride_offers"]),
+        # The only driver declined: the search ends with no_driver and refunds.
+        ("reject", ["rides", "ride_offers", "payments"]),
+    ],
+)
 async def test_answers_lock_the_ride_then_the_offer(
     driver_factory: DriverFactory,
     ride_factory: RideFactory,
     dispatcher: Dispatcher,
     locking_selects: list[str],
     answer: str,
+    locked: list[str],
 ) -> None:
     driver = await driver_factory.driver("driver", location=PICKUP)
     ride = await ride_factory.searching_ride()
@@ -61,21 +70,21 @@ async def test_answers_lock_the_ride_then_the_offer(
 
     await getattr(dispatcher, answer)(offer.id, driver)
 
-    assert locking_selects == ["rides", "ride_offers"]
+    assert locking_selects == locked
 
 
-async def test_a_search_step_locks_the_ride(
+async def test_a_search_step_locks_the_ride_then_the_payment_it_refunds(
     ride_factory: RideFactory, dispatcher: Dispatcher, locking_selects: list[str]
 ) -> None:
-    ride = await ride_factory.searching_ride()
+    ride = await ride_factory.searching_ride()  # no driver: the step ends the search
     locking_selects.clear()
 
     await dispatcher.process(ride.id)
 
-    assert locking_selects == ["rides"]
+    assert locking_selects == ["rides", "payments"]
 
 
-async def test_cancel_locks_the_ride_before_revoking_its_offer(
+async def test_cancel_locks_the_ride_before_its_payment(
     driver_factory: DriverFactory,
     ride_factory: RideFactory,
     dispatcher: Dispatcher,
@@ -97,7 +106,7 @@ async def test_cancel_locks_the_ride_before_revoking_its_offer(
             clock=dispatcher.clock,
         )
 
-    assert locking_selects == ["rides"]
+    assert locking_selects == ["rides", "payments"]
     [offer] = await dispatcher.offers(ride.id)
     assert offer.status is OfferStatus.REVOKED
 

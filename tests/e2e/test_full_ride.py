@@ -1,5 +1,7 @@
 """MVP_SPEC §9 acceptance: the whole cash ride, only through the public HTTP API.
 
+Cash is chosen with the order (the default) and the driver confirms it after completion.
+
 Admin, passenger and three drivers each have a browser of their own. The route
 is the controlled ``FakeRoutingProvider`` (10 km / 25 min -> 2200 KZT); the
 background loop is off and the test runs its step after moving the clock.
@@ -18,13 +20,13 @@ from support.e2e import (
     Participant,
     Town,
     answer,
+    cash_received,
     create_ride,
     expect,
     expect_error,
     offers,
     only_item,
     open_town,
-    pay,
     payment,
     quote,
     ride,
@@ -86,6 +88,12 @@ async def test_cash_ride_from_registration_to_history(
             None,
             2200,
         )
+        assert (created["payment_method"], created["payment_status"]) == ("cash", "unpaid")
+        expect_error(
+            await create_ride(pat, quoted["quote_id"], uuid.uuid4().hex, "kaspi_link"),
+            503,
+            "kaspi_unavailable",
+        )
 
         # The nearest driver is asked first and declines; the next one is asked at once.
         [first] = await offers(near)
@@ -117,7 +125,7 @@ async def test_cash_ride_from_registration_to_history(
             assert expect(await ride_command(far, ride_id, command))["status"] == status
         expect_error(await ride_command(pat, ride_id, "cancel"), 409, "invalid_ride_transition")
 
-        # Cash is open and unpaid; the passenger presses "Paid" and it counts.
+        # Cash is unpaid until the driver confirms the money; a repeat changes nothing.
         opened = await payment(pat, ride_id)
         assert {k: opened[k] for k in ("amount_kzt", "method", "status", "payment_url")} == {
             "amount_kzt": 2200,
@@ -125,13 +133,12 @@ async def test_cash_ride_from_registration_to_history(
             "status": "unpaid",
             "payment_url": None,
         }
-        expect_error(
-            await pay(pat, ride_id, "method", {"method": "kaspi_link"}), 503, "kaspi_unavailable"
-        )
-        expect_error(await pay(far, ride_id, "pay"), 403, "payment_action_forbidden")
-        paid = expect(await pay(pat, ride_id, "pay"))
+        expect_error(await cash_received(pat, ride_id), 403, "payment_action_forbidden")
+        expect_error(await cash_received(near, ride_id), 404, "ride_not_found")
+        paid = expect(await cash_received(far, ride_id))
         assert (paid["status"], paid["method"]) == ("paid", "cash")
-        assert expect(await pay(pat, ride_id, "pay")) == paid
+        assert expect(await cash_received(far, ride_id)) == paid
+        assert (await payment(pat, ride_id))["status"] == "paid"
 
         # History of both sides and the admin list show the paid ride.
         expected = (ride_id, "completed", "paid", "cash")

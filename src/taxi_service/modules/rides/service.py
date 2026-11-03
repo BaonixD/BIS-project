@@ -14,6 +14,9 @@ from taxi_service.modules.drivers.models import DriverProfile
 from taxi_service.modules.geo.client import RoutingProvider
 from taxi_service.modules.geo.schemas import Coordinates, RouteResult
 from taxi_service.modules.geo.service import plan_road_route
+from taxi_service.modules.payments import records as payment_records
+from taxi_service.modules.payments.exceptions import KaspiUnavailableError
+from taxi_service.modules.payments.models import PaymentMethod
 from taxi_service.modules.rides import dispatch
 from taxi_service.modules.rides.exceptions import (
     ActiveRideExistsError,
@@ -87,9 +90,12 @@ async def order_ride(
     *,
     clock: Clock,
     policy: DispatchPolicy,
+    kaspi_enabled: bool,
 ) -> RideCreation:
     """Create the ride, then run its first search step; a replay does not search again."""
-    creation = await create_ride(db, passenger_id, request, key, clock=clock, policy=policy)
+    creation = await create_ride(
+        db, passenger_id, request, key, clock=clock, policy=policy, kaspi_enabled=kaspi_enabled
+    )
     if creation.replayed:
         return creation
     ride = await dispatch.start_search(db, creation.ride.id, clock=clock, policy=policy)
@@ -104,15 +110,20 @@ async def create_ride(
     *,
     clock: Clock,
     policy: DispatchPolicy = DEFAULT_DISPATCH_POLICY,
+    kaspi_enabled: bool = False,
 ) -> RideCreation:
-    """A ``searching`` ride from the passenger's own valid quote, once per key."""
-    fingerprint = request_fingerprint(request.model_dump(mode="json"))
+    """A ``searching`` ride from the passenger's own valid quote and its payment, once per key."""
+    # Defaults are left out: an omitted method and an explicit "cash" are the same request.
+    fingerprint = request_fingerprint(request.model_dump(mode="json", exclude_defaults=True))
     try:
         async with db.begin():
             replayed = await _replay(db, passenger_id, key, fingerprint)
             if replayed is not None:
                 return RideCreation(replayed, replayed=True)
+            if request.payment_method is PaymentMethod.KASPI_LINK and not kaspi_enabled:
+                raise KaspiUnavailableError
             ride = await _ride_from_quote(db, passenger_id, request.quote_id, clock, policy)
+            await payment_records.open_payment(db, ride, request.payment_method, ride.created_at)
             db.add(
                 IdempotencyRecord(
                     id=uuid.uuid4(),

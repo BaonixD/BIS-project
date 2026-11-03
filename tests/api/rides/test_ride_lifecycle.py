@@ -690,14 +690,14 @@ async def test_spent_search_budget_records_no_driver_once(
     ]
 
 
-# Completion and payment (T08)
+# Completion hook (the payment itself is opened with the order, ADR 0010)
 
 
 class CompletionRecorder:
-    """Stands in for the completion hook; T08 creates the payment record there.
+    """Stands in for the completion hook, an extension point inside the completion transaction.
 
-    With ``fail`` it first writes and flushes a row of its own, as a payment
-    record would be written, then raises: that row must vanish with the rollback.
+    With ``fail`` it first writes and flushes a row of its own, then raises:
+    that row must vanish with the rollback.
     """
 
     def __init__(self) -> None:
@@ -722,7 +722,7 @@ class CompletionRecorder:
             session.add(row)
             await session.flush()
             self.written = row.id
-            raise RuntimeError("payment record failed")
+            raise RuntimeError("completion hook failed")
 
 
 @pytest.fixture
@@ -758,7 +758,7 @@ async def test_failing_completion_hook_rolls_the_completion_back(
     completion.fail = True
 
     # The app answers 500; the test transport re-raises the unhandled error.
-    with pytest.raises(RuntimeError, match="payment record failed"):
+    with pytest.raises(RuntimeError, match="completion hook failed"):
         await send(client, trip.ride_id, "complete", trip.driver)
 
     ride = await dispatcher.ride(trip.ride_id)

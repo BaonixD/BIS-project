@@ -1,4 +1,4 @@
-"""Payment routes in OpenAPI: documented errors, session scheme, closed request bodies."""
+"""Payment routes in OpenAPI: documented errors, session scheme, the method in the order."""
 
 from typing import Any
 
@@ -7,6 +7,7 @@ import pytest
 
 ERROR_REF = "#/components/schemas/ErrorResponse"
 BASE = "/api/v1/rides/{ride_id}/payment"
+CASH_RECEIVED = f"{BASE}/cash-received"
 
 
 @pytest.fixture
@@ -27,9 +28,9 @@ def error_statuses(operation: dict[str, Any]) -> set[str]:
 @pytest.mark.parametrize(
     ("method", "path", "errors"),
     [
-        ("get", BASE, {"401", "404", "409", "422"}),
-        ("put", f"{BASE}/method", {"401", "403", "404", "409", "422", "503"}),
-        ("post", f"{BASE}/pay", {"401", "403", "404", "409", "422"}),
+        ("get", BASE, {"401", "404", "422"}),
+        ("post", CASH_RECEIVED, {"401", "403", "404", "409", "422"}),
+        ("post", "/api/v1/rides", {"401", "403", "404", "409", "422", "503"}),
     ],
 )
 def test_payment_operations_document_their_responses(
@@ -37,38 +38,41 @@ def test_payment_operations_document_their_responses(
 ) -> None:
     operation = schema["paths"][path][method]
 
-    assert "200" in operation["responses"]
+    assert {"200", "201"} & set(operation["responses"])
     assert errors <= error_statuses(operation)
     assert any("SessionCookie" in requirement for requirement in operation["security"])
 
 
-def test_report_and_confirm_are_gone(schema: dict[str, Any]) -> None:
-    assert {path for path in schema["paths"] if path.startswith(BASE)} == {
-        BASE,
-        f"{BASE}/method",
-        f"{BASE}/pay",
-    }
-    assert "requestBody" not in schema["paths"][f"{BASE}/pay"]["post"]
+def test_only_reading_and_cash_received_remain(schema: dict[str, Any]) -> None:
+    assert {path for path in schema["paths"] if path.startswith(BASE)} == {BASE, CASH_RECEIVED}
+    assert set(schema["paths"][CASH_RECEIVED]) == {"post"}
+    assert "requestBody" not in schema["paths"][CASH_RECEIVED]["post"]
+    assert "PaymentMethodRequest" not in schema["components"]["schemas"]
 
 
-def test_method_request_forbids_extra_fields(schema: dict[str, Any]) -> None:
-    body = schema["components"]["schemas"]["PaymentMethodRequest"]
+def test_order_takes_the_payment_method(schema: dict[str, Any]) -> None:
+    body = schema["components"]["schemas"]["RideCreateRequest"]
 
     assert body["additionalProperties"] is False
-    assert set(body["properties"]) == {"method"}
+    assert set(body["properties"]) == {"quote_id", "payment_method"}
+    assert body["required"] == ["quote_id"]
+    assert body["properties"]["payment_method"]["default"] == "cash"
 
 
-def test_response_has_the_simple_payment_fields(schema: dict[str, Any]) -> None:
-    response = schema["components"]["schemas"]["PaymentResponse"]
+def test_response_has_the_payment_fields(schema: dict[str, Any]) -> None:
+    components = schema["components"]["schemas"]
 
-    assert set(response["properties"]) == {
+    assert set(components["PaymentResponse"]["properties"]) == {
         "ride_id",
         "amount_kzt",
         "currency",
         "method",
         "status",
         "paid_at",
+        "refunded_at",
         "payment_url",
     }
-    status = schema["components"]["schemas"]["PaymentStatus"]
-    assert sorted(status["enum"]) == ["paid", "unpaid"]
+    assert sorted(components["PaymentStatus"]["enum"]) == ["paid", "refunded", "unpaid"]
+    assert sorted(components["PaymentMethod"]["enum"]) == ["cash", "kaspi_link"]
+    for name in ("RideResponse", "RideDetailsResponse", "RideSummary"):
+        assert {"payment_method", "payment_status"} <= set(components[name]["properties"])

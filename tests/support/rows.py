@@ -184,6 +184,7 @@ async def insert_payment(
         "method": "cash",
         "status": "unpaid",
         "paid_at": None,
+        "refunded_at": None,
         "created_at": NOW,
         "updated_at": NOW,
         **values,

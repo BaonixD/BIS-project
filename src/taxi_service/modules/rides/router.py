@@ -6,6 +6,7 @@ from taxi_service.core.clock import ClockDep
 from taxi_service.database.session import DbSession
 from taxi_service.modules.auth.dependencies import CurrentUser
 from taxi_service.modules.geo.dependencies import RoutingProviderDep
+from taxi_service.modules.payments.dependencies import PaymentSettingsDep
 from taxi_service.modules.rides import dispatch, history, lifecycle, service
 from taxi_service.modules.rides.dependencies import (
     CompletionHookDep,
@@ -52,7 +53,9 @@ async def create_quote(
     return QuoteResponse.build(quote)
 
 
-@router.post("", status_code=status.HTTP_201_CREATED, responses=error_responses(401, 403, 404, 409))
+@router.post(
+    "", status_code=status.HTTP_201_CREATED, responses=error_responses(401, 403, 404, 409, 503)
+)
 async def create_ride(
     body: RideCreateRequest,
     user: PassengerUser,
@@ -60,9 +63,12 @@ async def create_ride(
     db: DbSession,
     clock: ClockDep,
     policy: DispatchPolicyDep,
+    payments: PaymentSettingsDep,
     response: Response,
 ) -> RideResponse:
-    creation = await service.order_ride(db, user.id, body, key, clock=clock, policy=policy)
+    creation = await service.order_ride(
+        db, user.id, body, key, clock=clock, policy=policy, kaspi_enabled=payments.kaspi_enabled
+    )
     if creation.replayed:
         response.headers[REPLAYED_HEADER] = "true"
     return RideResponse.build(creation.ride)

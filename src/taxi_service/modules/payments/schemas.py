@@ -2,21 +2,18 @@ import uuid
 from datetime import datetime
 from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 from taxi_service.modules.payments.config import PaymentSettings
 from taxi_service.modules.payments.models import Payment, PaymentMethod, PaymentStatus
 from taxi_service.modules.rides.pricing import CURRENCY
 
 
-class PaymentMethodRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    method: PaymentMethod
-
-
 class PaymentResponse(BaseModel):
-    """``payment_url`` is the configured Kaspi link for ``kaspi_link``, otherwise null."""
+    """``payment_url`` is the configured Kaspi link for ``kaspi_link``, otherwise null.
+
+    ``paid`` never proves that money arrived: Kaspi is a simulated charge (ADR 0010).
+    """
 
     ride_id: uuid.UUID
     amount_kzt: int
@@ -24,6 +21,7 @@ class PaymentResponse(BaseModel):
     method: PaymentMethod
     status: PaymentStatus
     paid_at: datetime | None
+    refunded_at: datetime | None
     payment_url: str | None
 
     @classmethod
@@ -36,5 +34,6 @@ class PaymentResponse(BaseModel):
             method=payment.method,
             status=payment.status,
             paid_at=payment.paid_at,
+            refunded_at=payment.refunded_at,
             payment_url=settings.kaspi_payment_url if is_kaspi else None,
         )

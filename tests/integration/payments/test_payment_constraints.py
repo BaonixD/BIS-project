@@ -1,4 +1,4 @@
-"""Schema of payments (ADR 0004): only the database accepts or rejects rows.
+"""Schema of payments (ADR 0010): only the database accepts or rejects rows.
 
 Rows are inserted with raw SQL through ``support.rows``.
 """
@@ -26,6 +26,7 @@ async def completed_ride(session_factory: SessionFactory) -> str:
         {"method": "kaspi_link"},
         {"status": "paid", "paid_at": NOW},
         {"method": "kaspi_link", "status": "paid", "paid_at": NOW},
+        {"method": "kaspi_link", "status": "refunded", "paid_at": NOW, "refunded_at": NOW},
     ],
 )
 async def test_valid_payment_states_are_accepted(
@@ -58,9 +59,14 @@ async def test_payment_belongs_to_an_existing_ride(session_factory: SessionFacto
         {"method": "card"},
         {"status": "confirmed", "paid_at": NOW},
         {"status": "reported", "paid_at": NOW},
-        # paid <=> paid_at
+        # unpaid: no times; paid: paid_at only; refunded: both
         {"status": "paid"},
         {"paid_at": NOW},
+        {"refunded_at": NOW},
+        {"status": "paid", "paid_at": NOW, "refunded_at": NOW},
+        {"status": "refunded"},
+        {"status": "refunded", "paid_at": NOW},
+        {"status": "refunded", "refunded_at": NOW},
     ],
 )
 async def test_inconsistent_payment_is_rejected(

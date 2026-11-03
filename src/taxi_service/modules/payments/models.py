@@ -1,4 +1,4 @@
-"""CHECK constraints keep a payment consistent on their own (ADR 0004)."""
+"""CHECK constraints keep a payment consistent on their own (ADR 0010)."""
 
 import uuid
 from datetime import datetime
@@ -21,6 +21,7 @@ class PaymentMethod(StrEnum):
 class PaymentStatus(StrEnum):
     UNPAID = "unpaid"
     PAID = "paid"
+    REFUNDED = "refunded"
 
 
 def _values_in(column: str, enum: type[StrEnum]) -> str:
@@ -46,9 +47,13 @@ class Payment(Base):
         CheckConstraint(_values_in("method", PaymentMethod), name="method"),
         CheckConstraint(_values_in("status", PaymentStatus), name="status"),
         CheckConstraint(
-            f"(status = '{PaymentStatus.UNPAID.value}' AND paid_at IS NULL)"
-            f" OR (status = '{PaymentStatus.PAID.value}' AND paid_at IS NOT NULL)",
-            name="paid_matches_status",
+            f"(status = '{PaymentStatus.UNPAID.value}' AND paid_at IS NULL"
+            " AND refunded_at IS NULL)"
+            f" OR (status = '{PaymentStatus.PAID.value}' AND paid_at IS NOT NULL"
+            " AND refunded_at IS NULL)"
+            f" OR (status = '{PaymentStatus.REFUNDED.value}' AND paid_at IS NOT NULL"
+            " AND refunded_at IS NOT NULL)",
+            name="times_match_status",
         ),
     )
 
@@ -59,5 +64,6 @@ class Payment(Base):
     method: Mapped[PaymentMethod] = mapped_column(_string_enum(PaymentMethod))
     status: Mapped[PaymentStatus] = mapped_column(_string_enum(PaymentStatus))
     paid_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    refunded_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime())

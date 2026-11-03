@@ -90,12 +90,16 @@ async def send(
 
 
 async def searching_trip(
-    client: httpx.AsyncClient, driver_factory: DriverFactory, dispatcher: Dispatcher
+    client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    *,
+    payment_method: str | None = None,
 ) -> Trip:
     """``pat`` ordered a ride; ``dana`` (approved, online, nearby) has its pending offer."""
     driver_id = await driver_factory.driver(DRIVER, location=NEAR_PICKUP)
     passenger = await register_and_login(client, PASSENGER)
-    ride = await order_ride(client, passenger)
+    ride = await order_ride(client, passenger, payment_method=payment_method)
     ride_id = uuid.UUID(ride["id"])
     offer = await dispatcher.pending(ride_id)
     assert offer is not None
@@ -109,16 +113,22 @@ async def accept(client: httpx.AsyncClient, trip: Trip) -> httpx.Response:
 
 
 async def trip_in(
-    status: str, client: httpx.AsyncClient, driver_factory: DriverFactory, dispatcher: Dispatcher
+    status: str,
+    client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    *,
+    payment_method: str | None = None,
 ) -> Trip:
     """A trip of ``pat`` and ``dana`` brought to ``status`` through the API.
 
     ``searching``: dana's offer is pending; ``cancelled``: cancelled after dana
     accepted; ``no_driver``: no driver exists, the search ended at once.
+    ``payment_method`` is sent with the order (cash when omitted).
     """
     if status == "no_driver":
         passenger = await register_and_login(client, PASSENGER)
-        ride = await order_ride(client, passenger)
+        ride = await order_ride(client, passenger, payment_method=payment_method)
         assert ride["status"] == "no_driver"
         missing = uuid.UUID(int=0)
         return Trip(
@@ -127,7 +137,7 @@ async def trip_in(
             driver_id=missing,
             passenger_id=passenger.id,
         )
-    trip = await searching_trip(client, driver_factory, dispatcher)
+    trip = await searching_trip(client, driver_factory, dispatcher, payment_method=payment_method)
     if status == "searching":
         return trip
     accepted = await accept(client, trip)

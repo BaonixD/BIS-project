@@ -97,15 +97,15 @@ assigned / arrived → searching  (водитель освободил назн�
 
 ## 7. Оплата
 
-Решение владельца от 3 ноября 2026 года — [ADR 0009](decisions/0009-simple-payments.md) (заменяет ADR 0004).
+Решение владельца от 3 ноября 2026 года — [ADR 0010](decisions/0010-pay-before-order.md): способ выбирается до заказа (заменяет поток ADR 0009; ссылка Kaspi — как в ADR 0009).
 
-- Payment отдельно от Ride, одна запись на поездку: `id`, `ride_id` (unique), `amount_kzt`, `currency = KZT`, `method` (`cash`/`kaspi_link`), `status`, `paid_at`, `created_at`, `updated_at`. Журнала изменений оплаты нет.
-- Завершение поездки в той же транзакции открывает запись `cash`/`unpaid` с суммой поездки.
-- Статусы: `unpaid → paid`. Пассажир выбирает способ, пока `unpaid`, и нажимает «Оплатил» — платёж сразу `paid`. Подтверждения водителем или admin и сверки нет.
-- `GET /rides/{id}/payment` видят пассажир, назначенный водитель и admin; посторонний — 404 `ride_not_found`; до завершения — 409 `ride_not_completed`. Ответ: `ride_id`, `amount_kzt`, `currency`, `method`, `status`, `paid_at`, `payment_url` (только при `kaspi_link`).
-- `PUT .../method` и `POST .../pay` — только пассажир (иначе 403 `payment_action_forbidden`). Смена метода после `paid` — 409 `invalid_payment_transition`; Kaspi без ссылки — 503 `kaspi_unavailable`; тот же метод (пока `unpaid`) и повторный `pay` — 200 без изменений.
+- Payment отдельно от Ride, одна запись на поездку: `id`, `ride_id` (unique), `amount_kzt`, `currency = KZT`, `method` (`cash`/`kaspi_link`), `status` (`unpaid`/`paid`/`refunded`), `paid_at`, `refunded_at`, `created_at`, `updated_at`. CHECK: `unpaid` — без времён, `paid` — только `paid_at`, `refunded` — оба. Журнала изменений нет.
+- `POST /rides` принимает `payment_method` (`cash` по умолчанию); оплата создаётся в транзакции заказа с суммой поездки. `cash` → `unpaid`; `kaspi_link` → сразу `paid` (имитация списания; ссылку фронтенд открывает из `payment_url` сразу после заказа). `kaspi_link` без ссылки — 503 `kaspi_unavailable`, поездка не создаётся.
+- Отмена пассажиром или `no_driver` при `paid` → `refunded` (`refunded_at`) в той же транзакции (имитация возврата). Release водителем оплату не меняет.
+- Наличные: после `completed` назначенный водитель вызывает `POST /rides/{id}/payment/cash-received` → `paid`; повтор — 200 тот же ответ. Посторонний — 404 `ride_not_found`; пассажир и admin — 403 `payment_action_forbidden`; не завершена — 409 `ride_not_completed`; не `cash` — 409 `invalid_payment_transition`. Порядок блокировок `rides → payments`.
+- `GET /rides/{id}/payment` видят пассажир, назначенный водитель и admin с момента заказа; посторонний — 404 `ride_not_found`. Ответ: `ride_id`, `amount_kzt`, `currency`, `method`, `status`, `paid_at`, `refunded_at`, `payment_url` (только при `kaspi_link`). Ответы поездки, история и admin-список содержат `payment_method` и `payment_status`.
 - Ссылка приходит из `KASPI_PAYMENT_URL` (хост `pay.kaspi.kz`), не из тела запроса; параметр суммы не угадывается. Фронтенд строит QR из URL или открывает его на телефоне.
-- Реальных платежей и банковских API нет; `paid` — отметка пассажира, сервер не проверяет поступление денег. Возвраты, эквайринг, webhooks и автоматическая сверка вне объёма. Наличный сценарий не зависит от Kaspi.
+- Реальных платежей и банковских API нет; `paid` и `refunded` — учебные отметки, сервер не проверяет движение денег. Эквайринг, webhooks и автоматическая сверка вне объёма. Наличный сценарий не зависит от Kaspi.
 
 ## 8. Минимальная поверхность API
 
@@ -120,7 +120,7 @@ assigned / arrived → searching  (водитель освободил назн�
 | Quote/создание | POST `/rides/quotes`, POST `/rides`; GET `/rides/{id}` | T05 |
 | Предложения | GET `/drivers/me/offers`; POST `/ride-offers/{id}/accept`, `/ride-offers/{id}/reject` | T06 |
 | Поездка | POST `/rides/{id}/arrive`, `/start`, `/complete`, `/cancel`, `/release` | T07 |
-| Оплата | GET `/rides/{id}/payment`; PUT `/rides/{id}/payment/method`; POST `/rides/{id}/payment/pay` | T08, ADR 0009 |
+| Оплата | `payment_method` в POST `/rides`; GET `/rides/{id}/payment`; POST `/rides/{id}/payment/cash-received` | T08, ADR 0010 |
 | История | GET `/rides`; GET `/admin/rides`, `/admin/users` | T09 |
 
 Health endpoints вне префикса: `/health/live`, `/health/ready`. Они не раскрывают настройки или секреты.
@@ -129,7 +129,7 @@ Health endpoints вне префикса: `/health/live`, `/health/ready`. Он�
 
 ## 9. Приёмка и внешние зависимости
 
-Полный сценарий: регистрация пассажира и водителей → допуск/online/координаты → реальный маршрут и quote → поездка → отказ/timeout первого кандидата → принятие следующим → arrived/start/complete → «Оплатил» пассажира → история.
+Полный сценарий: регистрация пассажира и водителей → допуск/online/координаты → реальный маршрут и quote → поездка → отказ/timeout первого кандидата → принятие следующим → arrived/start/complete → водитель подтверждает наличные (или Kaspi, оплаченный при заказе) → история.
 
 Тесты сценария детерминированы и используют контролируемые ответы маршрутизации. Для признания реальной внешней интеграции нужен отдельный реальный запрос в Алматы с ключом владельца.
 

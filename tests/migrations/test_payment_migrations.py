@@ -1,7 +1,8 @@
 """Payment revisions on a database with rides.
 
 T08B (``272671ab4753``) opens an unpaid cash payment for every completed ride;
-the simple-payments revision folds ``reported``/``confirmed`` into ``paid``.
+the simple-payments revision folds ``reported``/``confirmed`` into ``paid``;
+pay-before-order (ADR 0010) adds ``refunded`` and a cash payment for every ride.
 """
 
 import asyncio
@@ -18,6 +19,7 @@ from taxi_service.database.session import create_database_engine
 
 T07_HEAD = "b42082a5b952"
 T08B_HEAD = "272671ab4753"
+SIMPLE_HEAD = "4fdb9385a8e5"
 USER = "0f1e2d3c4b5a69788796a5b4c3d2e1f0"
 DRIVER = "3f1e2d3c4b5a69788796a5b4c3d2e1f0"
 COMPLETED_RIDE = "2f1e2d3c4b5a69788796a5b4c3d2e1f0"
@@ -185,7 +187,10 @@ def test_downgrade_to_t07_drops_payments_and_keeps_rides(config: Config) -> None
         (CANCELLED_RIDE, "cancelled"),
     ]
     command.upgrade(config, "head")
-    assert execute(config, "SELECT ride_id, status FROM payments") == [(COMPLETED_RIDE, "unpaid")]
+    assert execute(config, "SELECT ride_id, status FROM payments ORDER BY ride_id") == [
+        (COMPLETED_RIDE, "unpaid"),
+        (CANCELLED_RIDE, "unpaid"),
+    ]
     command.check(config)
 
 
@@ -222,7 +227,7 @@ def payment_columns(config: Config) -> set[object]:
 def test_reported_and_confirmed_payments_become_paid(config: Config) -> None:
     insert_t08b_payments(config)
 
-    command.upgrade(config, "head")
+    command.upgrade(config, SIMPLE_HEAD)
 
     assert payment_columns(config) == PAYMENT_COLUMNS
     assert execute(
@@ -236,12 +241,11 @@ def test_reported_and_confirmed_payments_become_paid(config: Config) -> None:
         (CONFIRMED_CASH_RIDE, 3100, "cash", "paid", CONFIRMED_AT, COMPLETED_AT),
     ]
     assert execute(config, PAYMENT_TABLES) == [("payments",)]
-    command.check(config)
 
 
 def test_paid_requires_paid_at_after_the_upgrade(config: Config) -> None:
     insert_t08b_payments(config)
-    command.upgrade(config, "head")
+    command.upgrade(config, SIMPLE_HEAD)
 
     for values in ("status = 'paid'", f"paid_at = '{CONFIRMED_AT}'", "status = 'confirmed'"):
         with pytest.raises(IntegrityError, match="CHECK"):
@@ -280,4 +284,126 @@ def test_downgrade_to_t08b_restores_the_manual_schema_as_unpaid(config: Config) 
     command.upgrade(config, "head")
 
     assert execute(config, "SELECT count(*) FROM payments WHERE status = 'unpaid'") == [(4,)]
+    command.check(config)
+
+
+# Pay before the order (ADR 0010)
+
+ASSIGNED_RIDE = "8f1e2d3c4b5a69788796a5b4c3d2e1f0"
+PAID_AT = "2026-11-03 09:50:00.000000"
+REFUNDED_AT = "2026-11-03 09:55:00.000000"
+RIDE_CREATED_AT = "2026-11-03 09:01:00.000000"
+
+
+def insert_simple_payment_rides(config: Config) -> None:
+    """A paid completed ride and two rides without a payment: cancelled and assigned."""
+    command.upgrade(config, T07_HEAD)
+    insert_t07_rides(config)
+    command.upgrade(config, SIMPLE_HEAD)
+    insert_ride(config, ASSIGNED_RIDE, status="assigned", amount_kzt=4100)
+    execute(
+        config,
+        f"UPDATE payments SET status = 'paid', paid_at = '{PAID_AT}'"
+        f" WHERE ride_id = '{COMPLETED_RIDE}'",
+    )
+
+
+def test_rides_without_a_payment_get_an_unpaid_cash_one(config: Config) -> None:
+    insert_simple_payment_rides(config)
+
+    command.upgrade(config, "head")
+
+    assert payment_columns(config) == PAYMENT_COLUMNS | {"refunded_at"}
+    assert execute(
+        config,
+        "SELECT ride_id, amount_kzt, currency, method, status, paid_at, refunded_at,"
+        " created_at, updated_at FROM payments ORDER BY ride_id",
+    ) == [
+        (COMPLETED_RIDE, 3100, "KZT", "cash", "paid", PAID_AT, None, COMPLETED_AT, COMPLETED_AT),
+        (
+            CANCELLED_RIDE,
+            2200,
+            "KZT",
+            "cash",
+            "unpaid",
+            None,
+            None,
+            RIDE_CREATED_AT,
+            RIDE_CREATED_AT,
+        ),
+        (
+            ASSIGNED_RIDE,
+            4100,
+            "KZT",
+            "cash",
+            "unpaid",
+            None,
+            None,
+            RIDE_CREATED_AT,
+            RIDE_CREATED_AT,
+        ),
+    ]
+    command.check(config)
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        f"status = 'refunded', paid_at = '{PAID_AT}', refunded_at = '{REFUNDED_AT}'",
+        f"status = 'paid', paid_at = '{PAID_AT}'",
+    ],
+)
+def test_valid_states_after_the_upgrade(config: Config, values: str) -> None:
+    insert_simple_payment_rides(config)
+    command.upgrade(config, "head")
+
+    execute(config, f"UPDATE payments SET {values} WHERE ride_id = '{CANCELLED_RIDE}'")
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        "status = 'refunded'",
+        f"status = 'refunded', paid_at = '{PAID_AT}'",
+        f"status = 'refunded', refunded_at = '{REFUNDED_AT}'",
+        f"refunded_at = '{REFUNDED_AT}'",
+        f"status = 'paid', paid_at = '{PAID_AT}', refunded_at = '{REFUNDED_AT}'",
+        "status = 'reported'",
+    ],
+)
+def test_refunded_requires_both_times_after_the_upgrade(config: Config, values: str) -> None:
+    insert_simple_payment_rides(config)
+    command.upgrade(config, "head")
+
+    with pytest.raises(IntegrityError, match="CHECK"):
+        execute(config, f"UPDATE payments SET {values} WHERE ride_id = '{CANCELLED_RIDE}'")
+
+
+def test_downgrade_keeps_only_payments_of_completed_rides(config: Config) -> None:
+    insert_simple_payment_rides(config)
+    command.upgrade(config, "head")
+    execute(
+        config,
+        f"UPDATE payments SET method = 'kaspi_link', status = 'refunded', paid_at = '{PAID_AT}',"
+        f" refunded_at = '{REFUNDED_AT}' WHERE ride_id = '{CANCELLED_RIDE}'",
+    )
+
+    command.downgrade(config, SIMPLE_HEAD)
+
+    assert payment_columns(config) == PAYMENT_COLUMNS
+    assert execute(config, "SELECT ride_id, status, paid_at FROM payments") == [
+        (COMPLETED_RIDE, "paid", PAID_AT)
+    ]
+    with pytest.raises(IntegrityError, match="CHECK"):
+        execute(
+            config, f"UPDATE payments SET status = 'refunded' WHERE ride_id = '{COMPLETED_RIDE}'"
+        )
+
+    command.upgrade(config, "head")
+
+    assert execute(config, "SELECT ride_id, status FROM payments ORDER BY ride_id") == [
+        (COMPLETED_RIDE, "paid"),
+        (CANCELLED_RIDE, "unpaid"),
+        (ASSIGNED_RIDE, "unpaid"),
+    ]
     command.check(config)

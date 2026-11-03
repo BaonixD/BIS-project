@@ -20,7 +20,7 @@ from sqlalchemy import text
 
 from support.auth import PASSWORD
 from support.clock import ManualClock
-from support.e2e import expect, open_town, pay, ride_command
+from support.e2e import cash_received, expect, open_town, ride_command
 from support.history import ADMIN_RIDES_URL
 from support.lifecycle import commands_of
 from support.payments import kaspi_off
@@ -159,7 +159,7 @@ def t05_database(config: Config, test_settings: Settings) -> dict[str, object]:
     return counts(config)
 
 
-def test_t05_data_survives_the_upgrade_and_completed_rides_get_payments(
+def test_t05_data_survives_the_upgrade_and_every_ride_gets_a_payment(
     config: Config, t05_database: dict[str, object]
 ) -> None:
     rides_before = execute(config, f"SELECT {RIDE_COLUMNS} FROM rides ORDER BY id")
@@ -179,10 +179,17 @@ def test_t05_data_survives_the_upgrade_and_completed_rides_get_payments(
         )
         == [("2026-11-03 09:01:00.000000", "2026-11-03 09:04:00.000000", None, None)] * 3
     )
-    # Backfill: the completed ride (and only it) gets unpaid cash, opened at updated_at.
+    # Backfill: the completed ride gets unpaid cash at updated_at (T08B), the others at
+    # their order (ADR 0010).
     assert execute(
-        config, "SELECT ride_id, amount_kzt, method, status, paid_at, created_at FROM payments"
-    ) == [(COMPLETED, 2200, "cash", "unpaid", None, "2026-11-03 09:31:00.000000")]
+        config,
+        "SELECT ride_id, amount_kzt, method, status, paid_at, created_at FROM payments"
+        " ORDER BY ride_id",
+    ) == [
+        (COMPLETED, 2200, "cash", "unpaid", None, "2026-11-03 09:31:00.000000"),
+        (ASSIGNED, 1500, "cash", "unpaid", None, "2026-11-03 09:01:00.000000"),
+        (SEARCHING, 1800, "cash", "unpaid", None, "2026-11-03 09:01:00.000000"),
+    ]
     assert execute(config, "SELECT name FROM sqlite_master WHERE name = 'payment_events'") == []
     assert execute(config, "SELECT count(*) FROM ride_offers")[0][0] == 0
     assert execute(config, "SELECT count(*) FROM ride_events")[0][0] == 0
@@ -203,7 +210,11 @@ def test_downgrade_to_t07_and_back_keeps_t05_data(
 
     command.check(config)
     assert counts(config) == t05_database
-    assert execute(config, "SELECT ride_id, status FROM payments") == [(COMPLETED, "unpaid")]
+    assert execute(config, "SELECT ride_id, status FROM payments ORDER BY ride_id") == [
+        (COMPLETED, "unpaid"),
+        (ASSIGNED, "unpaid"),
+        (SEARCHING, "unpaid"),
+    ]
 
 
 def test_upgraded_rides_are_finished_and_paid_through_the_api(
@@ -228,13 +239,13 @@ async def finish_upgraded_rides(settings: Settings) -> None:
             history = expect(await dana.get(RIDES_URL))["items"]
             # Same created_at: the larger id comes first.
             assert [(item["id"], item["status"], item["payment_status"]) for item in history] == [
-                (str(uuid.UUID(ASSIGNED)), "assigned", None),
+                (str(uuid.UUID(ASSIGNED)), "assigned", "unpaid"),
                 (str(uuid.UUID(COMPLETED)), "completed", "unpaid"),
             ]
 
             for command_name in ("arrive", "start", "complete"):
                 expect(await ride_command(dana, str(uuid.UUID(ASSIGNED)), command_name))
-            paid = expect(await pay(pat, str(uuid.UUID(COMPLETED)), "pay"))
+            paid = expect(await cash_received(dana, str(uuid.UUID(COMPLETED))))
             assert (paid["status"], paid["amount_kzt"]) == ("paid", 2200)
             opened = expect(await dana.get(f"{RIDES_URL}/{uuid.UUID(ASSIGNED)}/payment"))
             assert (opened["status"], opened["amount_kzt"]) == ("unpaid", 1500)

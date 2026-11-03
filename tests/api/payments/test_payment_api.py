@@ -1,7 +1,8 @@
-"""Payment of a completed ride: the passenger picks cash or Kaspi and presses "Paid".
+"""Payment chosen before the order (ADR 0010): cash or the Kaspi link.
 
 Kaspi is on with ``TEST_KASPI_URL``; no request leaves the test process and no
-real payment is made. Passenger ``pat``, driver ``dana``, admin ``admin``.
+real payment is made: a Kaspi order is only a simulated charge.
+Passenger ``pat``, driver ``dana``, admin ``admin``.
 """
 
 import asyncio
@@ -16,13 +17,13 @@ from support.auth import register_and_login
 from support.clock import ManualClock
 from support.dispatch import Dispatcher
 from support.drivers import DriverFactory, login_as
-from support.lifecycle import Trip, trip_in
+from support.lifecycle import NEAR_PICKUP, Trip, expect_ok, send, trip_in
 from support.payments import (
     ADMIN,
     TEST_KASPI_URL,
-    expect_paid_ok,
+    cash_received,
+    expect_cash_received,
     kaspi_on,
-    pay,
     payment_url,
     read_payment,
     stored_payment,
@@ -31,8 +32,7 @@ from support.rows import insert_driver, insert_payment, insert_ride
 from taxi_service.database.session import SessionFactory
 from taxi_service.modules.payments.config import PaymentSettings
 
-KASPI = {"method": "kaspi_link"}
-CASH = {"method": "cash"}
+KASPI = "kaspi_link"
 
 
 @pytest.fixture
@@ -44,7 +44,7 @@ def payment_settings() -> PaymentSettings:
 async def completed(
     client: httpx.AsyncClient, driver_factory: DriverFactory, dispatcher: Dispatcher
 ) -> Trip:
-    """A completed trip of ``pat`` with ``dana``; the admin account exists."""
+    """A completed cash trip of ``pat`` with ``dana``; the admin account exists."""
     trip = await trip_in("completed", client, driver_factory, dispatcher)
     await driver_factory.admin_id()
     return trip
@@ -66,8 +66,8 @@ def expect_error(response: httpx.Response, status: int, code: str) -> dict[str, 
     return body
 
 
-def paid_at(body: dict[str, Any]) -> datetime:
-    return datetime.fromisoformat(body["paid_at"])
+def at(body: dict[str, Any], field: str) -> datetime:
+    return datetime.fromisoformat(body[field])
 
 
 async def expect_unpaid_cash(session_factory: SessionFactory, ride_id: uuid.UUID) -> None:
@@ -79,20 +79,36 @@ async def expect_unpaid_cash(session_factory: SessionFactory, ride_id: uuid.UUID
 # Reading
 
 
-async def test_passenger_sees_an_unpaid_cash_payment_after_completion(
-    client: httpx.AsyncClient, completed: Trip
+async def test_passenger_sees_an_unpaid_cash_payment_right_after_ordering(
+    client: httpx.AsyncClient, driver_factory: DriverFactory, dispatcher: Dispatcher
 ) -> None:
-    body = await read_payment(client, completed.ride_id, completed.passenger)
+    trip = await trip_in("searching", client, driver_factory, dispatcher)
+
+    body = await read_payment(client, trip.ride_id, trip.passenger)
 
     assert body == {
-        "ride_id": str(completed.ride_id),
+        "ride_id": str(trip.ride_id),
         "amount_kzt": 2200,
         "currency": "KZT",
         "method": "cash",
         "status": "unpaid",
         "paid_at": None,
+        "refunded_at": None,
         "payment_url": None,
     }
+
+
+@pytest.mark.parametrize(
+    "status", ["searching", "assigned", "arrived", "in_progress", "completed", "cancelled"]
+)
+async def test_payment_is_readable_in_every_ride_status(
+    client: httpx.AsyncClient, driver_factory: DriverFactory, dispatcher: Dispatcher, status: str
+) -> None:
+    trip = await trip_in(status, client, driver_factory, dispatcher)
+
+    body = await read_payment(client, trip.ride_id, trip.passenger)
+
+    assert (body["method"], body["status"]) == ("cash", "unpaid")
 
 
 @pytest.mark.parametrize("username", ["dana", ADMIN])
@@ -126,26 +142,157 @@ async def test_payment_needs_a_session(client: httpx.AsyncClient, completed: Tri
     expect_error(await client.get(payment_url(completed.ride_id)), 401, "not_authenticated")
 
 
-@pytest.mark.parametrize("status", ["assigned", "in_progress", "cancelled"])
-async def test_no_payment_before_the_ride_is_completed(
-    client: httpx.AsyncClient, driver_factory: DriverFactory, dispatcher: Dispatcher, status: str
+# Kaspi: paid with the order, refunded when the ride does not happen
+
+
+async def test_kaspi_order_is_paid_at_once(
+    client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    session_factory: SessionFactory,
+    clock: ManualClock,
+) -> None:
+    trip = await trip_in("searching", client, driver_factory, dispatcher, payment_method=KASPI)
+
+    body = await read_payment(client, trip.ride_id, trip.passenger)
+
+    assert body == {
+        "ride_id": str(trip.ride_id),
+        "amount_kzt": 2200,
+        "currency": "KZT",
+        "method": KASPI,
+        "status": "paid",
+        "paid_at": body["paid_at"],
+        "refunded_at": None,
+        "payment_url": TEST_KASPI_URL,
+    }
+    assert at(body, "paid_at") == clock.now()
+    stored = await stored_payment(session_factory, trip.ride_id)
+    assert stored is not None
+    assert (stored.status, stored.paid_at, stored.created_at) == ("paid", clock.now(), clock.now())
+
+
+@pytest.mark.parametrize("status", ["searching", "assigned", "arrived"])
+async def test_passenger_cancel_refunds_a_kaspi_payment(
+    client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    session_factory: SessionFactory,
+    clock: ManualClock,
+    status: str,
+) -> None:
+    trip = await trip_in(status, client, driver_factory, dispatcher, payment_method=KASPI)
+    paid = await read_payment(client, trip.ride_id, trip.passenger)
+    clock.advance(timedelta(minutes=1))
+
+    cancelled = await expect_ok(client, trip, "cancel")
+
+    assert (cancelled["payment_method"], cancelled["payment_status"]) == (KASPI, "refunded")
+    body = await read_payment(client, trip.ride_id, trip.passenger)
+    assert body["status"] == "refunded"
+    assert at(body, "refunded_at") == clock.now()
+    assert body["paid_at"] == paid["paid_at"]
+    stored = await stored_payment(session_factory, trip.ride_id)
+    assert stored is not None
+    assert (stored.status, stored.refunded_at, stored.updated_at) == (
+        "refunded",
+        clock.now(),
+        clock.now(),
+    )
+
+
+async def test_repeated_cancel_keeps_the_first_refund(
+    client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    clock: ManualClock,
+) -> None:
+    trip = await trip_in("assigned", client, driver_factory, dispatcher, payment_method=KASPI)
+    await expect_ok(client, trip, "cancel")
+    first = await read_payment(client, trip.ride_id, trip.passenger)
+    clock.advance(timedelta(minutes=1))
+
+    await expect_ok(client, trip, "cancel")
+
+    assert await read_payment(client, trip.ride_id, trip.passenger) == first
+
+
+async def test_no_driver_refunds_a_kaspi_payment(
+    client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    clock: ManualClock,
+) -> None:
+    trip = await trip_in("no_driver", client, driver_factory, dispatcher, payment_method=KASPI)
+
+    body = await read_payment(client, trip.ride_id, trip.passenger)
+
+    assert (body["method"], body["status"]) == (KASPI, "refunded")
+    assert at(body, "paid_at") == at(body, "refunded_at") == clock.now()
+
+
+async def test_search_running_out_refunds_a_kaspi_payment(
+    client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    clock: ManualClock,
+) -> None:
+    trip = await trip_in("searching", client, driver_factory, dispatcher, payment_method=KASPI)
+    clock.advance(timedelta(minutes=10))
+
+    await dispatcher.process(trip.ride_id)
+
+    body = await read_payment(client, trip.ride_id, trip.passenger)
+    assert body["status"] == "refunded"
+    assert at(body, "refunded_at") == clock.now()
+
+
+async def test_release_by_the_driver_keeps_the_kaspi_payment(
+    client: httpx.AsyncClient, driver_factory: DriverFactory, dispatcher: Dispatcher
+) -> None:
+    trip = await trip_in("assigned", client, driver_factory, dispatcher, payment_method=KASPI)
+    await driver_factory.driver("next_driver", location=NEAR_PICKUP)
+    paid = await read_payment(client, trip.ride_id, trip.passenger)
+
+    released = await expect_ok(client, trip, "release")
+
+    assert (released["status"], released["payment_status"]) == ("searching", "paid")
+    assert await read_payment(client, trip.ride_id, trip.passenger) == paid
+
+
+@pytest.mark.parametrize("status", ["cancelled", "no_driver"])
+async def test_an_unpaid_cash_payment_is_not_refunded(
+    client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    session_factory: SessionFactory,
+    status: str,
 ) -> None:
     trip = await trip_in(status, client, driver_factory, dispatcher)
-    await login_as(client, trip.passenger)
 
-    expect_error(await client.get(payment_url(trip.ride_id)), 409, "ride_not_completed")
-
-
-# Paying
+    await expect_unpaid_cash(session_factory, trip.ride_id)
 
 
-async def test_passenger_pays_cash_and_it_counts_at_once(
+async def test_completed_kaspi_ride_stays_paid(
+    client: httpx.AsyncClient, driver_factory: DriverFactory, dispatcher: Dispatcher
+) -> None:
+    trip = await trip_in("completed", client, driver_factory, dispatcher, payment_method=KASPI)
+
+    body = await read_payment(client, trip.ride_id, trip.passenger)
+
+    assert (body["method"], body["status"], body["refunded_at"]) == (KASPI, "paid", None)
+
+
+# Cash: the assigned driver confirms the money after completion
+
+
+async def test_driver_receives_cash_after_completion(
     client: httpx.AsyncClient,
     completed: Trip,
     session_factory: SessionFactory,
     clock: ManualClock,
 ) -> None:
-    body = await expect_paid_ok(client, completed.ride_id, "pay", completed.passenger)
+    body = await expect_cash_received(client, completed.ride_id, completed.driver)
 
     assert body == {
         "ride_id": str(completed.ride_id),
@@ -154,68 +301,47 @@ async def test_passenger_pays_cash_and_it_counts_at_once(
         "method": "cash",
         "status": "paid",
         "paid_at": body["paid_at"],
+        "refunded_at": None,
         "payment_url": None,
     }
-    assert paid_at(body) == clock.now()
+    assert at(body, "paid_at") == clock.now()
     stored = await stored_payment(session_factory, completed.ride_id)
     assert stored is not None
     assert (stored.status, stored.paid_at, stored.updated_at) == ("paid", clock.now(), clock.now())
-    for username in (completed.driver, ADMIN):
+    for username in (completed.passenger, ADMIN):
         assert (await read_payment(client, completed.ride_id, username))["status"] == "paid"
 
 
-async def test_repeated_pay_answers_the_same_payment(
+async def test_repeated_cash_received_answers_the_same_payment(
     client: httpx.AsyncClient,
     completed: Trip,
     session_factory: SessionFactory,
     clock: ManualClock,
 ) -> None:
-    first = await expect_paid_ok(client, completed.ride_id, "pay", completed.passenger)
+    first = await expect_cash_received(client, completed.ride_id, completed.driver)
     clock.advance(timedelta(minutes=5))
 
-    again = await expect_paid_ok(client, completed.ride_id, "pay", completed.passenger)
+    again = await expect_cash_received(client, completed.ride_id, completed.driver)
 
     assert again == first
     stored = await stored_payment(session_factory, completed.ride_id)
     assert stored is not None
-    assert stored.paid_at == stored.updated_at == paid_at(first)
+    assert stored.paid_at == stored.updated_at == at(first, "paid_at")
 
 
-async def test_passenger_pays_by_kaspi_link(
-    client: httpx.AsyncClient, completed: Trip, session_factory: SessionFactory
-) -> None:
-    switched = await expect_paid_ok(
-        client, completed.ride_id, "method", completed.passenger, json=KASPI
-    )
-    shown = await read_payment(client, completed.ride_id, completed.passenger)
-
-    body = await expect_paid_ok(client, completed.ride_id, "pay", completed.passenger)
-
-    assert (switched["method"], switched["status"]) == ("kaspi_link", "unpaid")
-    assert switched["payment_url"] == shown["payment_url"] == TEST_KASPI_URL
-    assert (body["method"], body["status"], body["payment_url"]) == (
-        "kaspi_link",
-        "paid",
-        TEST_KASPI_URL,
-    )
-    stored = await stored_payment(session_factory, completed.ride_id)
-    assert stored is not None
-    assert (stored.method, stored.status, stored.amount_kzt) == ("kaspi_link", "paid", 2200)
-
-
-@pytest.mark.parametrize("username", ["dana", ADMIN])
-async def test_only_the_passenger_pays(
+@pytest.mark.parametrize("username", ["pat", ADMIN])
+async def test_only_the_assigned_driver_receives_cash(
     client: httpx.AsyncClient, completed: Trip, session_factory: SessionFactory, username: str
 ) -> None:
-    response = await pay(client, completed.ride_id, "pay", username)
+    response = await cash_received(client, completed.ride_id, username)
 
     body = expect_error(response, 403, "payment_action_forbidden")
-    assert body["error"]["details"] == {"action": "pay"}
+    assert body["error"]["details"] == {"action": "cash_received"}
     await expect_unpaid_cash(session_factory, completed.ride_id)
 
 
 @pytest.mark.parametrize("role", ["passenger", "driver"])
-async def test_stranger_cannot_pay(
+async def test_stranger_cannot_receive_cash(
     client: httpx.AsyncClient,
     driver_factory: DriverFactory,
     completed: Trip,
@@ -224,50 +350,70 @@ async def test_stranger_cannot_pay(
 ) -> None:
     username = await stranger(client, driver_factory, role)
 
-    expect_error(await pay(client, completed.ride_id, "pay", username), 404, "ride_not_found")
+    expect_error(await cash_received(client, completed.ride_id, username), 404, "ride_not_found")
     await expect_unpaid_cash(session_factory, completed.ride_id)
 
 
-async def test_pay_for_an_unknown_ride(client: httpx.AsyncClient, completed: Trip) -> None:
-    response = await pay(client, uuid.uuid4(), "pay", completed.passenger)
+async def test_cash_received_for_an_unknown_ride(
+    client: httpx.AsyncClient, completed: Trip
+) -> None:
+    response = await cash_received(client, uuid.uuid4(), completed.driver)
 
     expect_error(response, 404, "ride_not_found")
 
 
-async def test_passenger_cannot_pay_before_completion(
+@pytest.mark.parametrize("status", ["assigned", "in_progress", "cancelled"])
+async def test_cash_is_received_only_after_completion(
+    client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    session_factory: SessionFactory,
+    status: str,
+) -> None:
+    trip = await trip_in(status, client, driver_factory, dispatcher)
+
+    response = await cash_received(client, trip.ride_id, trip.driver)
+
+    expect_error(response, 409, "ride_not_completed")
+    await expect_unpaid_cash(session_factory, trip.ride_id)
+
+
+async def test_cash_received_is_not_for_a_kaspi_payment(
     client: httpx.AsyncClient, driver_factory: DriverFactory, dispatcher: Dispatcher
 ) -> None:
-    trip = await trip_in("in_progress", client, driver_factory, dispatcher)
+    trip = await trip_in("completed", client, driver_factory, dispatcher, payment_method=KASPI)
+    before = await read_payment(client, trip.ride_id, trip.passenger)
 
-    expect_error(await pay(client, trip.ride_id, "pay", trip.passenger), 409, "ride_not_completed")
+    response = await cash_received(client, trip.ride_id, trip.driver)
+
+    body = expect_error(response, 409, "invalid_payment_transition")
+    assert body["error"]["details"] == {"action": "cash_received", "status": "paid"}
+    assert await read_payment(client, trip.ride_id, trip.passenger) == before
 
 
-async def test_a_body_cannot_change_what_is_paid(
+async def test_a_body_cannot_change_what_is_received(
     client: httpx.AsyncClient, completed: Trip, session_factory: SessionFactory
 ) -> None:
-    body = await expect_paid_ok(
-        client,
-        completed.ride_id,
-        "pay",
-        completed.passenger,
-        json={"amount_kzt": 1, "method": "kaspi_link"},
+    response = await cash_received(
+        client, completed.ride_id, completed.driver, json={"amount_kzt": 1, "method": KASPI}
     )
 
-    assert (body["amount_kzt"], body["method"]) == (2200, "cash")
+    assert response.status_code == 200, response.text
+    assert (response.json()["amount_kzt"], response.json()["method"]) == (2200, "cash")
     stored = await stored_payment(session_factory, completed.ride_id)
     assert stored is not None
     assert (stored.amount_kzt, stored.method, stored.status) == (2200, "cash", "paid")
 
 
-async def test_concurrent_pays_record_one_payment(
+async def test_concurrent_cash_received_record_one_payment(
     client: httpx.AsyncClient,
     other_client: httpx.AsyncClient,
     completed: Trip,
     session_factory: SessionFactory,
 ) -> None:
-    first = await login_as(client, completed.passenger)
-    second = await login_as(other_client, completed.passenger)
-    url = payment_url(completed.ride_id, "pay")
+    first = await login_as(client, completed.driver)
+    second = await login_as(other_client, completed.driver)
+    url = payment_url(completed.ride_id, "cash-received")
 
     responses = await asyncio.gather(
         client.post(url, headers=first.csrf_headers),
@@ -281,34 +427,7 @@ async def test_concurrent_pays_record_one_payment(
     assert stored.status == "paid"
 
 
-async def test_pay_against_switch_to_kaspi(
-    client: httpx.AsyncClient,
-    other_client: httpx.AsyncClient,
-    completed: Trip,
-    session_factory: SessionFactory,
-) -> None:
-    first = await login_as(client, completed.passenger)
-    second = await login_as(other_client, completed.passenger)
-
-    paid, switched = await asyncio.gather(
-        client.post(payment_url(completed.ride_id, "pay"), headers=first.csrf_headers),
-        other_client.put(
-            payment_url(completed.ride_id, "method"), json=KASPI, headers=second.csrf_headers
-        ),
-    )
-
-    assert paid.status_code == 200, paid.text
-    stored = await stored_payment(session_factory, completed.ride_id)
-    assert stored is not None
-    assert stored.status == "paid"
-    if switched.status_code == 200:  # the switch came first, then the payment
-        assert paid.json()["method"] == stored.method == "kaspi_link"
-    else:  # the payment came first: the method is final
-        expect_error(switched, 409, "invalid_payment_transition")
-        assert paid.json()["method"] == stored.method == "cash"
-
-
-async def test_paying_one_ride_leaves_other_rides_alone(
+async def test_receiving_cash_of_one_ride_leaves_other_rides_alone(
     client: httpx.AsyncClient, completed: Trip, session_factory: SessionFactory
 ) -> None:
     other_ride = await insert_ride(
@@ -316,142 +435,63 @@ async def test_paying_one_ride_leaves_other_rides_alone(
     )
     await insert_payment(session_factory, other_ride)
 
-    await expect_paid_ok(client, completed.ride_id, "pay", completed.passenger)
+    await expect_cash_received(client, completed.ride_id, completed.driver)
 
     await expect_unpaid_cash(session_factory, uuid.UUID(other_ride))
 
 
-# Choosing the method
-
-
-async def test_choosing_the_current_method_again_changes_nothing(
+async def test_cash_received_needs_the_csrf_token(
     client: httpx.AsyncClient, completed: Trip, session_factory: SessionFactory
 ) -> None:
-    before = await stored_payment(session_factory, completed.ride_id)
+    await login_as(client, completed.driver)
 
-    body = await expect_paid_ok(client, completed.ride_id, "method", completed.passenger, json=CASH)
+    response = await client.post(payment_url(completed.ride_id, "cash-received"))
 
-    assert (body["method"], body["status"], body["payment_url"]) == ("cash", "unpaid", None)
-    assert await stored_payment(session_factory, completed.ride_id) == before
-
-
-async def test_back_to_cash_hides_the_link(
-    client: httpx.AsyncClient, completed: Trip, session_factory: SessionFactory
-) -> None:
-    await expect_paid_ok(client, completed.ride_id, "method", completed.passenger, json=KASPI)
-
-    body = await expect_paid_ok(client, completed.ride_id, "method", completed.passenger, json=CASH)
-
-    assert (body["method"], body["status"], body["payment_url"]) == ("cash", "unpaid", None)
+    expect_error(response, 403, "csrf_failed")
     await expect_unpaid_cash(session_factory, completed.ride_id)
 
 
-@pytest.mark.parametrize("payload", [KASPI, CASH])
-async def test_method_cannot_change_after_payment(
-    client: httpx.AsyncClient,
-    completed: Trip,
-    session_factory: SessionFactory,
-    payload: dict[str, str],
-) -> None:
-    await expect_paid_ok(client, completed.ride_id, "pay", completed.passenger)
-
-    response = await pay(client, completed.ride_id, "method", completed.passenger, json=payload)
-
-    body = expect_error(response, 409, "invalid_payment_transition")
-    assert body["error"]["details"] == {"action": "change_method", "status": "paid"}
-    stored = await stored_payment(session_factory, completed.ride_id)
-    assert stored is not None
-    assert (stored.method, stored.status) == ("cash", "paid")
-
-
-@pytest.mark.parametrize("username", ["dana", ADMIN])
-async def test_only_the_passenger_chooses_the_method(
-    client: httpx.AsyncClient, completed: Trip, session_factory: SessionFactory, username: str
-) -> None:
-    response = await pay(client, completed.ride_id, "method", username, json=KASPI)
-
-    body = expect_error(response, 403, "payment_action_forbidden")
-    assert body["error"]["details"] == {"action": "change_method"}
-    await expect_unpaid_cash(session_factory, completed.ride_id)
-
-
-@pytest.mark.parametrize("role", ["passenger", "driver"])
-async def test_stranger_cannot_choose_the_method(
-    client: httpx.AsyncClient, driver_factory: DriverFactory, completed: Trip, role: str
-) -> None:
-    username = await stranger(client, driver_factory, role)
-
-    response = await pay(client, completed.ride_id, "method", username, json=KASPI)
-
-    expect_error(response, 404, "ride_not_found")
-
-
-async def test_method_cannot_be_chosen_before_completion(
-    client: httpx.AsyncClient, driver_factory: DriverFactory, dispatcher: Dispatcher
-) -> None:
-    trip = await trip_in("in_progress", client, driver_factory, dispatcher)
-
-    response = await pay(client, trip.ride_id, "method", trip.passenger, json=KASPI)
-
-    expect_error(response, 409, "ride_not_completed")
+# Removed commands
 
 
 @pytest.mark.parametrize(
-    "payload",
-    [
-        {"method": "kaspi_link", "payment_url": "https://pay.kaspi.kz/pay/evil"},
-        {"method": "kaspi_link", "amount_kzt": 1},
-        {"method": "cash", "status": "paid"},
-        {"method": "card"},
-        {},
-    ],
+    ("method", "action"),
+    [("put", "method"), ("post", "pay"), ("post", "report"), ("post", "confirm")],
 )
-async def test_forged_method_bodies_are_rejected(
-    client: httpx.AsyncClient,
-    completed: Trip,
-    session_factory: SessionFactory,
-    payload: dict[str, Any],
-) -> None:
-    response = await pay(client, completed.ride_id, "method", completed.passenger, json=payload)
-
-    expect_error(response, 422, "validation_error")
-    await expect_unpaid_cash(session_factory, completed.ride_id)
-
-
-# Removed commands and CSRF
-
-
-@pytest.mark.parametrize("action", ["report", "confirm"])
 @pytest.mark.parametrize("username", ["pat", "dana", ADMIN])
-async def test_report_and_confirm_no_longer_exist(
-    client: httpx.AsyncClient,
-    completed: Trip,
-    session_factory: SessionFactory,
-    action: str,
-    username: str,
-) -> None:
-    response = await pay(client, completed.ride_id, action, username)
-
-    assert response.status_code in (404, 405), response.text
-    await expect_unpaid_cash(session_factory, completed.ride_id)
-
-
-@pytest.mark.parametrize(
-    ("method", "action", "payload"), [("put", "method", KASPI), ("post", "pay", None)]
-)
-async def test_commands_need_the_csrf_token(
+async def test_old_payment_commands_no_longer_exist(
     client: httpx.AsyncClient,
     completed: Trip,
     session_factory: SessionFactory,
     method: str,
     action: str,
-    payload: dict[str, Any] | None,
+    username: str,
 ) -> None:
-    await login_as(client, completed.passenger)
+    user = await login_as(client, username)
 
     response = await client.request(
-        method.upper(), payment_url(completed.ride_id, action), json=payload
+        method.upper(),
+        payment_url(completed.ride_id, action),
+        json={"method": KASPI},
+        headers=user.csrf_headers,
     )
 
-    expect_error(response, 403, "csrf_failed")
+    assert response.status_code in (404, 405), response.text
     await expect_unpaid_cash(session_factory, completed.ride_id)
+
+
+async def test_cancel_of_a_cash_ride_after_release_changes_nothing(
+    client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    session_factory: SessionFactory,
+) -> None:
+    trip = await trip_in("assigned", client, driver_factory, dispatcher)
+    await driver_factory.driver("next_driver", location=NEAR_PICKUP)
+    await expect_ok(client, trip, "release")
+
+    response = await send(client, trip.ride_id, "cancel", trip.passenger)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["payment_status"] == "unpaid"
+    await expect_unpaid_cash(session_factory, trip.ride_id)

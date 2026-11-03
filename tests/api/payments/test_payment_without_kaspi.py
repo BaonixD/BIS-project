@@ -1,15 +1,19 @@
-"""Without ``KASPI_PAYMENT_URL`` cash works end to end and Kaspi is unavailable (503)."""
+"""Without ``KASPI_PAYMENT_URL`` cash works end to end and a Kaspi order is refused (503)."""
 
 import httpx
 import pytest
 
+from support.auth import register_and_login
 from support.dispatch import Dispatcher
 from support.drivers import DriverFactory
 from support.lifecycle import expect_ok, trip_in
-from support.payments import TEST_KASPI_URL, expect_paid_ok, pay, read_payment, stored_payment
+from support.payments import TEST_KASPI_URL, expect_cash_received, read_payment, stored_payment
+from support.rides import RIDES_URL, count_rows, request_quote, ride_body, ride_headers
 from taxi_service.core.config import Settings
 from taxi_service.database.session import SessionFactory
 from taxi_service.main import create_app
+from taxi_service.modules.payments.models import Payment
+from taxi_service.modules.rides.models import IdempotencyRecord, Ride
 
 
 async def test_cash_ride_is_paid_end_to_end_without_kaspi(
@@ -22,7 +26,7 @@ async def test_cash_ride_is_paid_end_to_end_without_kaspi(
     await expect_ok(client, trip, "complete")
 
     shown = await read_payment(client, trip.ride_id, trip.passenger)
-    paid = await expect_paid_ok(client, trip.ride_id, "pay", trip.passenger)
+    paid = await expect_cash_received(client, trip.ride_id, trip.driver)
 
     assert (shown["method"], shown["status"], shown["payment_url"]) == ("cash", "unpaid", None)
     assert (paid["method"], paid["status"], paid["payment_url"]) == ("cash", "paid", None)
@@ -31,27 +35,27 @@ async def test_cash_ride_is_paid_end_to_end_without_kaspi(
     assert stored.status == "paid"
 
 
-async def test_switching_to_kaspi_is_unavailable(
-    client: httpx.AsyncClient,
-    driver_factory: DriverFactory,
-    dispatcher: Dispatcher,
-    session_factory: SessionFactory,
+async def test_kaspi_order_is_unavailable_and_creates_nothing(
+    client: httpx.AsyncClient, session_factory: SessionFactory
 ) -> None:
-    trip = await trip_in("completed", client, driver_factory, dispatcher)
+    passenger = await register_and_login(client, "pat")
+    quote = await request_quote(client, passenger)
 
-    response = await pay(
-        client, trip.ride_id, "method", trip.passenger, json={"method": "kaspi_link"}
+    refused = await client.post(
+        RIDES_URL,
+        json=ride_body(quote["quote_id"], "kaspi_link"),
+        headers=ride_headers(passenger, "key-1"),
     )
 
-    assert response.status_code == 503, response.text
-    assert response.json()["error"]["code"] == "kaspi_unavailable"
-    stored = await stored_payment(session_factory, trip.ride_id)
-    assert stored is not None
-    assert (stored.method, stored.status, stored.updated_at) == (
-        "cash",
-        "unpaid",
-        stored.created_at,
+    assert refused.status_code == 503, refused.text
+    assert refused.json()["error"]["code"] == "kaspi_unavailable"
+    for model in (Ride, Payment, IdempotencyRecord):
+        assert await count_rows(session_factory, model) == 0
+    cash = await client.post(
+        RIDES_URL, json=ride_body(quote["quote_id"]), headers=ride_headers(passenger, "key-1")
     )
+    assert cash.status_code == 201, cash.text
+    assert cash.json()["payment_method"] == "cash"
 
 
 @pytest.mark.parametrize(("value", "enabled"), [("", False), (TEST_KASPI_URL, True)])

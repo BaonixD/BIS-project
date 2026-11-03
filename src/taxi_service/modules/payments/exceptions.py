@@ -6,7 +6,7 @@ class PaymentActionForbiddenError(AppError):
         super().__init__(
             status_code=403,
             code="payment_action_forbidden",
-            message="Only the ride's passenger can do this with its payment.",
+            message="Only the ride's assigned driver can do this with its payment.",
             details={"action": action},
         )
 
@@ -16,7 +16,7 @@ class RideNotCompletedError(AppError):
         super().__init__(
             status_code=409,
             code="ride_not_completed",
-            message="Payment is available only after the ride is completed.",
+            message="Cash can be received only after the ride is completed.",
         )
 
 
@@ -40,7 +40,7 @@ class KaspiUnavailableError(AppError):
 
 
 class PaymentNotFoundError(AppError):
-    """A completed ride without its payment record; completion always opens one."""
+    """A ride without its payment record; the order always opens one (ADR 0010)."""
 
     def __init__(self) -> None:
         super().__init__(

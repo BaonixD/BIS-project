@@ -8,7 +8,7 @@ from typing import Any, Final
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from taxi_service.core.clock import Clock
-from taxi_service.modules.payments.service import open_payment
+from taxi_service.modules.payments import records as payment_records
 from taxi_service.modules.rides import dispatch
 from taxi_service.modules.rides.exceptions import InvalidRideTransitionError, RideNotFoundError
 from taxi_service.modules.rides.models import Ride
@@ -29,7 +29,7 @@ _STAGE_TIME: Final = {
 
 
 async def on_ride_completed(db: AsyncSession, ride: Ride, now: datetime) -> None:
-    await open_payment(db, ride, now)
+    """The default hook: the payment was opened with the order."""
 
 
 def actor_for(ride: Ride, user_id: uuid.UUID, role: UserRole) -> Actor:
@@ -106,6 +106,7 @@ async def _apply(
         raise InvalidRideTransitionError(current_status=current.value, command=command.value)
     if command is RideCommand.CANCEL:
         await dispatch.revoke_pending_offers(db, ride.id, now)
+        await payment_records.refund_if_paid(db, ride, now)
     elif command is RideCommand.RELEASE:
         dispatch.restart_search(ride, now, policy)
         await db.flush()

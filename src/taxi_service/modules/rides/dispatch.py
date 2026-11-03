@@ -14,6 +14,7 @@ from taxi_service.core.clock import Clock
 from taxi_service.database.errors import violates_unique
 from taxi_service.database.session import read_transaction
 from taxi_service.modules.drivers.candidates import SearchScope, find_nearby_candidates
+from taxi_service.modules.payments import records as payment_records
 from taxi_service.modules.rides.exceptions import (
     DriverBusyError,
     InvalidOfferTransitionError,
@@ -289,14 +290,15 @@ async def _step(db: AsyncSession, ride: Ride, now: datetime, policy: DispatchPol
     if now < ride.search_deadline and await _offer_to_nearest(db, ride, now, policy):
         return
     no_driver = next_status(ride.status, RideCommand.MARK_NO_DRIVER, SYSTEM_ACTOR)
-    await move_ride(
+    if await move_ride(
         db,
         ride,
         command=RideCommand.MARK_NO_DRIVER,
         to_status=no_driver,
         now=now,
         actor_id=None,
-    )
+    ):
+        await payment_records.refund_if_paid(db, ride, now)
 
 
 async def _offer_to_nearest(

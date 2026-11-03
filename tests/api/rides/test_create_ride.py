@@ -14,11 +14,13 @@ from sqlalchemy import select, update
 from support.auth import CSRF_HEADER, LoggedInUser, register_and_login
 from support.clock import ManualClock
 from support.drivers import create_admin, login_as
+from support.payments import kaspi_on
 from support.rides import (
     RIDES_URL,
     count_rows,
     order_ride,
     request_quote,
+    ride_body,
     ride_headers,
 )
 from taxi_service.database.session import SessionFactory, read_transaction
@@ -47,10 +49,14 @@ def error_code(response: httpx.Response) -> str:
 
 
 async def post_ride(
-    client: httpx.AsyncClient, user: LoggedInUser, quote_id: str, key: str | None = None
+    client: httpx.AsyncClient,
+    user: LoggedInUser,
+    quote_id: str,
+    key: str | None = None,
+    payment_method: str | None = None,
 ) -> httpx.Response:
     return await client.post(
-        RIDES_URL, json={"quote_id": quote_id}, headers=ride_headers(user, key)
+        RIDES_URL, json=ride_body(quote_id, payment_method), headers=ride_headers(user, key)
     )
 
 
@@ -84,6 +90,8 @@ async def test_passenger_creates_a_searching_ride_from_the_quote(
         "created_at",
         "updated_at",
         *LIFECYCLE_FIELDS,
+        "payment_method",
+        "payment_status",
     }
     assert {name: ride[name] for name in LIFECYCLE_FIELDS} == dict.fromkeys(LIFECYCLE_FIELDS)
     assert ride["status"] == "searching"
@@ -96,6 +104,7 @@ async def test_passenger_creates_a_searching_ride_from_the_quote(
     assert (ride["amount_kzt"], ride["currency"], ride["tariff_version"]) == (2200, "KZT", "edu-v1")
     assert datetime.fromisoformat(ride["created_at"]) == clock.now()
     assert datetime.fromisoformat(ride["updated_at"]) == clock.now()
+    assert (ride["payment_method"], ride["payment_status"]) == ("cash", "unpaid")
 
 
 @pytest.mark.usefixtures("available_driver")
@@ -139,6 +148,24 @@ async def test_price_or_state_in_the_body_is_rejected(
 
     response = await client.post(
         RIDES_URL, json={"quote_id": quote["quote_id"], **extra}, headers=ride_headers(passenger)
+    )
+
+    assert response.status_code == 422
+    assert error_code(response) == "validation_error"
+    assert await count_rows(session_factory, Ride) == 0
+
+
+@pytest.mark.parametrize("payment_method", ["card", "", None, "CASH"])
+async def test_unknown_payment_method_is_rejected(
+    client: httpx.AsyncClient, session_factory: SessionFactory, payment_method: Any
+) -> None:
+    passenger = await register_and_login(client, "pat")
+    quote = await request_quote(client, passenger)
+
+    response = await client.post(
+        RIDES_URL,
+        json={"quote_id": quote["quote_id"], "payment_method": payment_method},
+        headers=ride_headers(passenger),
     )
 
     assert response.status_code == 422
@@ -341,6 +368,35 @@ async def test_same_key_with_another_quote_is_a_conflict(
     other_quote = await request_quote(client, passenger)
 
     response = await post_ride(client, passenger, other_quote["quote_id"], "key-1")
+
+    assert response.status_code == 409
+    assert error_code(response) == "idempotency_key_reused"
+    assert await count_rows(session_factory, Ride) == 1
+
+
+async def test_omitted_method_repeats_as_explicit_cash(
+    client: httpx.AsyncClient, session_factory: SessionFactory
+) -> None:
+    passenger = await register_and_login(client, "pat")
+    quote = await request_quote(client, passenger)
+    first = await post_ride(client, passenger, quote["quote_id"], "key-1")
+
+    repeat = await post_ride(client, passenger, quote["quote_id"], "key-1", "cash")
+
+    assert repeat.status_code == 201
+    assert repeat.headers[REPLAY_HEADER] == "true"
+    assert repeat.json()["id"] == first.json()["id"]
+
+
+async def test_same_key_with_another_payment_method_is_a_conflict(
+    app: FastAPI, client: httpx.AsyncClient, session_factory: SessionFactory
+) -> None:
+    app.state.payment_settings = kaspi_on()
+    passenger = await register_and_login(client, "pat")
+    quote = await request_quote(client, passenger)
+    await post_ride(client, passenger, quote["quote_id"], "key-1")
+
+    response = await post_ride(client, passenger, quote["quote_id"], "key-1", "kaspi_link")
 
     assert response.status_code == 409
     assert error_code(response) == "idempotency_key_reused"
