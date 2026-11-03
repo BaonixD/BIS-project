@@ -1,5 +1,3 @@
-"""SQLite connection setup shared by the application, tests and Alembic."""
-
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -10,39 +8,11 @@ from sqlalchemy.pool import ConnectionPoolEntry, PoolResetState
 
 BUSY_TIMEOUT_MS = 5000
 READ_ONLY_OPTION = "taxi_read_only"
-"""Execution option selecting the read path; set it before the transaction begins."""
 _QUERY_ONLY_KEY = "taxi_query_only"
 
 
 def configure_sqlite_engine(engine: Engine, *, enforce_foreign_keys: bool = True) -> None:
-    """Make SQLite transactions real and serialized; enforce foreign keys.
-
-    The ``sqlite3`` driver under aiosqlite defers ``BEGIN`` until the first
-    INSERT/UPDATE/DELETE, so a transaction's SELECTs run outside it and two
-    read-then-write transactions both act on stale data. Driver-managed
-    transactions are therefore switched off (``isolation_level = None``) and
-    SQLAlchemy emits ``BEGIN IMMEDIATE`` itself: it takes the write lock at the
-    start, so concurrent transactions wait (up to ``busy_timeout``) and run one
-    after another.
-
-    A connection with the ``READ_ONLY_OPTION`` execution option instead begins a
-    plain (DEFERRED) transaction with ``PRAGMA query_only=ON``: in WAL mode it
-    reads a committed snapshot without waiting for writers, and any write in it
-    fails. ``query_only`` is switched off again when the connection returns to
-    the pool and before any later write transaction on it.
-
-    The ``isolation_level`` execution option (AUTOCOMMIT included) is not
-    supported with this recipe and is rejected when a transaction begins.
-
-    Consequence for callers: every write transaction holds the database write
-    lock until it ends. Keep transactions short, never await external services
-    inside one, and never open a second write transaction while the current
-    task still has one open: it would wait for itself.
-
-    ``enforce_foreign_keys=False`` is only for migrations: rebuilding a table
-    (copy, DROP, RENAME) with enforcement on cascades the DROP to related rows.
-    Such a transaction must end with :func:`check_foreign_keys`.
-    """
+    # BEGIN IMMEDIATE serializes writers; READ_ONLY_OPTION reads a WAL snapshot with query_only.
     event.listen(engine, "connect", partial(_on_connect, enforce_foreign_keys=enforce_foreign_keys))
     event.listen(engine, "begin", _on_begin)
     event.listen(engine, "reset", _on_reset)
@@ -57,12 +27,6 @@ def check_foreign_keys(connection: Connection) -> None:
 
 
 def sqlite_file_missing(url: URL) -> bool:
-    """Whether ``url`` names a SQLite file that does not exist.
-
-    Connecting to it would silently create an empty database, so callers that
-    expect a migrated one check this first. Other databases and ``:memory:``
-    are never "missing".
-    """
     database = url.database
     if url.get_backend_name() != "sqlite" or database in (None, "", ":memory:"):
         return False
@@ -85,8 +49,6 @@ def _on_connect(
 def _on_begin(connection: Connection) -> None:
     options = connection.get_execution_options()
     if "isolation_level" in options:
-        # The driver's own transaction handling is off; an isolation level
-        # (including AUTOCOMMIT) would be ignored by the BEGIN statements below.
         raise ValueError(
             "isolation_level execution options are not supported on SQLite here; "
             "use session.begin() or read_transaction()"

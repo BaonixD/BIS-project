@@ -22,11 +22,6 @@ class DatabaseReadiness(StrEnum):
 
 
 async def check_database(engine: AsyncEngine, heads: frozenset[str]) -> DatabaseReadiness:
-    """Whether the database answers and its schema is exactly at the Alembic ``heads``.
-
-    Runs on the read path within ``READINESS_TIMEOUT_SECONDS``. A missing SQLite
-    file is reported as unavailable without connecting, so no file is created.
-    """
     if await asyncio.to_thread(sqlite_file_missing, engine.url):
         logger.warning("Database file does not exist")
         return DatabaseReadiness.UNAVAILABLE
