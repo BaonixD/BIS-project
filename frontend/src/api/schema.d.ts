@@ -72,6 +72,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Providers */
+        get: operations["read_providers_api_v1_auth_providers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/google": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Login With Google */
+        post: operations["login_with_google_api_v1_auth_google_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/session": {
         parameters: {
             query?: never;
@@ -381,24 +415,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/rides/{ride_id}/payment/method": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Change Payment Method */
-        put: operations["change_payment_method_api_v1_rides__ride_id__payment_method_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/rides/{ride_id}/payment/pay": {
+    "/api/v1/rides/{ride_id}/payment/cash-received": {
         parameters: {
             query?: never;
             header?: never;
@@ -407,8 +424,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Pay */
-        post: operations["pay_api_v1_rides__ride_id__payment_pay_post"];
+        /** Receive Cash */
+        post: operations["receive_cash_api_v1_rides__ride_id__payment_cash_received_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -571,6 +588,14 @@ export interface components {
          * @enum {string}
          */
         ApprovalStatus: "pending" | "approved";
+        /** AuthProvidersResponse */
+        AuthProvidersResponse: {
+            /**
+             * Google Client Id
+             * @description OAuth client ID for Google Identity Services; null when sign-in with Google is off (hide the button).
+             */
+            google_client_id: string | null;
+        };
         /** AvailabilityUpdate */
         AvailabilityUpdate: {
             /** Online */
@@ -680,6 +705,15 @@ export interface components {
             error: components["schemas"]["ErrorBody"];
             /** Request Id */
             request_id: string;
+        };
+        /** GoogleLoginRequest */
+        GoogleLoginRequest: {
+            /**
+             * Credential
+             * Format: password
+             * @description Google ID token (JWT) from Google Identity Services: the `credential` of the sign-in callback.
+             */
+            credential: string;
         };
         /** HealthStatus */
         HealthStatus: {
@@ -848,13 +882,11 @@ export interface components {
          * @enum {string}
          */
         PaymentMethod: "cash" | "kaspi_link";
-        /** PaymentMethodRequest */
-        PaymentMethodRequest: {
-            method: components["schemas"]["PaymentMethod"];
-        };
         /**
          * PaymentResponse
          * @description ``payment_url`` is the configured Kaspi link for ``kaspi_link``, otherwise null.
+         *
+         *     ``paid`` never proves that money arrived: Kaspi is a simulated charge (ADR 0010).
          */
         PaymentResponse: {
             /**
@@ -873,6 +905,8 @@ export interface components {
             status: components["schemas"]["PaymentStatus"];
             /** Paid At */
             paid_at: string | null;
+            /** Refunded At */
+            refunded_at: string | null;
             /** Payment Url */
             payment_url: string | null;
         };
@@ -880,7 +914,7 @@ export interface components {
          * PaymentStatus
          * @enum {string}
          */
-        PaymentStatus: "unpaid" | "paid";
+        PaymentStatus: "unpaid" | "paid" | "refunded";
         /** QuoteRequest */
         QuoteRequest: {
             pickup: components["schemas"]["Coordinates"];
@@ -962,6 +996,11 @@ export interface components {
              * Format: uuid
              */
             quote_id: string;
+            /**
+             * @description Chosen with the order. kaspi_link counts as paid at once (a simulated charge, no money is checked) and needs KASPI_PAYMENT_URL; its link is the payment_url of GET /rides/{ride_id}/payment.
+             * @default cash
+             */
+            payment_method: components["schemas"]["PaymentMethod"];
         };
         /** RideDetailsResponse */
         RideDetailsResponse: {
@@ -1017,6 +1056,8 @@ export interface components {
             cancelled_at: string | null;
             /** Cancel Reason */
             cancel_reason: string | null;
+            payment_method: components["schemas"]["PaymentMethod"] | null;
+            payment_status: components["schemas"]["PaymentStatus"] | null;
             /** @description Only for the passenger and the driver while the ride is assigned, arrived or in_progress; otherwise null. */
             driver: components["schemas"]["DriverCard"] | null;
         };
@@ -1074,6 +1115,8 @@ export interface components {
             cancelled_at: string | null;
             /** Cancel Reason */
             cancel_reason: string | null;
+            payment_method: components["schemas"]["PaymentMethod"] | null;
+            payment_status: components["schemas"]["PaymentStatus"] | null;
         };
         /**
          * RideStatus
@@ -1082,7 +1125,7 @@ export interface components {
         RideStatus: "searching" | "assigned" | "arrived" | "in_progress" | "completed" | "cancelled" | "no_driver";
         /**
          * RideSummary
-         * @description A list item without the route geometry; payment fields are null before completion.
+         * @description A list item without the route geometry; payment fields are null only without a payment.
          */
         RideSummary: {
             /**
@@ -1435,6 +1478,122 @@ export interface operations {
             };
             /** @description Internal server error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    read_providers_api_v1_auth_providers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthProvidersResponse"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    login_with_google_api_v1_auth_google_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoogleLoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+            /** @description Not authenticated (no or expired session) or invalid credentials */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden: role, CSRF token or request origin not allowed */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too many attempts; details.retry_after_seconds */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A required service is unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2329,6 +2488,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description A required service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     read_ride_api_v1_rides__ride_id__get: {
@@ -2815,15 +2983,6 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Conflict with the current state */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
             /** @description Request validation failed; details.errors lists loc, msg and type */
             422: {
                 headers: {
@@ -2844,96 +3003,7 @@ export interface operations {
             };
         };
     };
-    change_payment_method_api_v1_rides__ride_id__payment_method_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                ride_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PaymentMethodRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaymentResponse"];
-                };
-            };
-            /** @description Not authenticated (no or expired session) or invalid credentials */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Forbidden: role, CSRF token or request origin not allowed */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not found or not accessible */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Conflict with the current state */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Request validation failed; details.errors lists loc, msg and type */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description A required service is unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    pay_api_v1_rides__ride_id__payment_pay_post: {
+    receive_cash_api_v1_rides__ride_id__payment_cash_received_post: {
         parameters: {
             query?: never;
             header?: never;

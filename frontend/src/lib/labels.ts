@@ -18,6 +18,7 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   unpaid: 'Не оплачена',
   paid: 'Оплачена',
+  refunded: 'Возвращена',
 }
 
 export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {

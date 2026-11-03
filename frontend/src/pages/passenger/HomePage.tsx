@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router'
-import { ACTIVE_RIDE_STATUSES, isApiError, type Coordinates, type Quote } from '@/api'
+import { ACTIVE_RIDE_STATUSES, isApiError, type Coordinates, type PaymentMethod, type Quote } from '@/api'
 import { ErrorAlert } from '@/components/common/ErrorAlert'
 import { PointRow } from '@/components/common/PointRow'
 import { BaseMap } from '@/components/map/BaseMap'
 import { FitToPoints, PointMarker, RouteLine } from '@/components/map/layers'
 import { MapScreen } from '@/components/map/MapScreen'
+import { PaymentMethodPicker } from '@/components/ui-kit'
 import { Button } from '@/components/ui/button'
 import { useCountdown } from '@/hooks/use-countdown'
 import { newIdempotencyKey, useActiveRide, useCreateRide, useQuote } from '@/hooks/use-rides'
@@ -36,6 +37,7 @@ export function HomePage() {
   const [pickup, setPickup] = useState<Coordinates | null>(null)
   const [dropoff, setDropoff] = useState<Coordinates | null>(null)
   const [target, setTarget] = useState<Target>('pickup')
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
 
   if (activeRide.data) return <Navigate to={`/ride/${activeRide.data.id}`} replace />
 
@@ -56,7 +58,7 @@ export function HomePage() {
 
   const order = (quoteId: string) =>
     createRide.mutate(
-      { quoteId, idempotencyKey: newIdempotencyKey() },
+      { quoteId, paymentMethod, idempotencyKey: newIdempotencyKey() },
       {
         onSuccess: (ride) => navigate(`/ride/${ride.id}`),
         onError: (error) => {
@@ -83,6 +85,7 @@ export function HomePage() {
           <PointRow label="Откуда" point={pickup} color="#16a34a" active={target === 'pickup'} onSelect={() => setTarget('pickup')} />
           <PointRow label="Куда" point={dropoff} color="#dc2626" active={target === 'dropoff'} onSelect={() => setTarget('dropoff')} />
           {quote.data && <QuoteSummary quote={quote.data} />}
+          {quote.data && <PaymentMethodPicker value={paymentMethod} onChange={setPaymentMethod} />}
           <ErrorAlert error={quote.error ?? createRide.error} />
           {quote.data ? (
             <Button size="lg" disabled={createRide.isPending} onClick={() => quote.data && order(quote.data.quote_id)}>

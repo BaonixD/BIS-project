@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { cn } from 'cn'
+import { cn } from '@/lib/utils'
 
 /** Full-height map page above the bottom nav with a bottom sheet (side panel on ≥ 1024px). */
 export function MapScreen({ map, sheet }: { map: ReactNode; sheet: ReactNode }) {

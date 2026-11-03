@@ -4,133 +4,147 @@
 @import "@fontsource-variable/inter";
 @import "leaflet/dist/leaflet.css";
 
-@custom-variant dark (&:is(.dark *));
+/*
+ * Design tokens from Figma «BIS Taxi» → Foundations (fileKey 6VHeDBRKk6RWdTYqH0r66K).
+ * Names mirror the Figma variables: bg/subtle → bg-bg-subtle, text/secondary → text-text-secondary.
+ */
+@theme {
+  --font-sans: 'Inter Variable', 'Inter', system-ui, sans-serif;
+
+  --color-bg-canvas: #ffffff;
+  --color-bg-subtle: #f6f6f6;
+  --color-bg-muted: #eeeeee;
+  --color-bg-inverse: #000000;
+  --color-text-primary: #000000;
+  --color-text-secondary: #5e5e5e;
+  --color-text-tertiary: #8e8e8e;
+  --color-text-inverse: #ffffff;
+  --color-border-default: #e2e2e2;
+  --color-accent-success: #05a357;
+  --color-accent-warning: #f6bc2f;
+  --color-accent-danger: #e11900;
+  --color-accent-info: #276ef1;
+  --color-accent-kaspi: #f14635;
+  --color-map-land: #eef0f2;
+  --color-dim: rgb(0 0 0 / 0.35);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  --shadow-card: 0px 4px 16px 0px rgb(0 0 0 / 0.1);
+  --shadow-sheet: 0px -4px 24px 0px rgb(0 0 0 / 0.12);
+
+  /* Text styles: Display, Title, Headline, Body/Medium, Body/Regular, Callout, Caption, Label. */
+  --text-display: 32px;
+  --text-display--line-height: 38px;
+  --text-display--letter-spacing: -0.5px;
+  --text-display--font-weight: 700;
+  --text-title: 24px;
+  --text-title--line-height: 30px;
+  --text-title--letter-spacing: -0.3px;
+  --text-title--font-weight: 700;
+  --text-headline: 18px;
+  --text-headline--line-height: 24px;
+  --text-headline--letter-spacing: -0.2px;
+  --text-headline--font-weight: 600;
+  --text-body-medium: 16px;
+  --text-body-medium--line-height: 22px;
+  --text-body-medium--font-weight: 500;
+  --text-body: 16px;
+  --text-body--line-height: 22px;
+  --text-body--font-weight: 400;
+  --text-callout: 14px;
+  --text-callout--line-height: 20px;
+  --text-callout--font-weight: 500;
+  --text-caption: 13px;
+  --text-caption--line-height: 18px;
+  --text-caption--font-weight: 400;
+  --text-label: 12px;
+  --text-label--line-height: 16px;
+  --text-label--letter-spacing: 0.2px;
+  --text-label--font-weight: 600;
+}
 
 @theme inline {
-    --font-heading: var(--font-sans);
-    --font-sans: 'Inter Variable', sans-serif;
-    --color-sidebar-ring: var(--sidebar-ring);
-    --color-sidebar-border: var(--sidebar-border);
-    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-    --color-sidebar-accent: var(--sidebar-accent);
-    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-    --color-sidebar-primary: var(--sidebar-primary);
-    --color-sidebar-foreground: var(--sidebar-foreground);
-    --color-sidebar: var(--sidebar);
-    --color-chart-5: var(--chart-5);
-    --color-chart-4: var(--chart-4);
-    --color-chart-3: var(--chart-3);
-    --color-chart-2: var(--chart-2);
-    --color-chart-1: var(--chart-1);
-    --color-ring: var(--ring);
-    --color-input: var(--input);
-    --color-border: var(--border);
-    --color-destructive: var(--destructive);
-    --color-accent-foreground: var(--accent-foreground);
-    --color-accent: var(--accent);
-    --color-muted-foreground: var(--muted-foreground);
-    --color-muted: var(--muted);
-    --color-secondary-foreground: var(--secondary-foreground);
-    --color-secondary: var(--secondary);
-    --color-primary-foreground: var(--primary-foreground);
-    --color-primary: var(--primary);
-    --color-popover-foreground: var(--popover-foreground);
-    --color-popover: var(--popover);
-    --color-card-foreground: var(--card-foreground);
-    --color-card: var(--card);
-    --color-foreground: var(--foreground);
-    --color-background: var(--background);
-    --radius-sm: calc(var(--radius) * 0.6);
-    --radius-md: calc(var(--radius) * 0.8);
-    --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) * 1.4);
-    --radius-2xl: calc(var(--radius) * 1.8);
-    --radius-3xl: calc(var(--radius) * 2.2);
-    --radius-4xl: calc(var(--radius) * 2.6);
+  --font-heading: var(--font-sans);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
 }
 
+/* shadcn/ui semantic variables mapped onto the Figma palette (light theme only). */
 :root {
-    --bottom-nav-height: 4rem;
-    --side-nav-width: 15rem;
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
-}
+  --background: var(--color-bg-canvas);
+  --foreground: var(--color-text-primary);
+  --card: var(--color-bg-canvas);
+  --card-foreground: var(--color-text-primary);
+  --popover: var(--color-bg-canvas);
+  --popover-foreground: var(--color-text-primary);
+  --primary: var(--color-bg-inverse);
+  --primary-foreground: var(--color-text-inverse);
+  --secondary: var(--color-bg-muted);
+  --secondary-foreground: var(--color-text-primary);
+  --muted: var(--color-bg-subtle);
+  --muted-foreground: var(--color-text-secondary);
+  --accent: var(--color-bg-muted);
+  --accent-foreground: var(--color-text-primary);
+  --destructive: var(--color-accent-danger);
+  --border: var(--color-border-default);
+  --input: var(--color-border-default);
+  --ring: var(--color-bg-inverse);
+  --radius: 12px;
 
-.dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+  /* Floating bottom nav: 8 top + 69 pill + bottom gap (7px in the mockup, or the safe area). */
+  --nav-bottom-gap: max(7px, env(safe-area-inset-bottom));
+  --nav-height: calc(77px + var(--nav-bottom-gap));
+  --top-bar-height: 64px;
+  /* Distance from the viewport bottom to a map sheet (the nav pill overlaps the sheet by 12px). */
+  --sheet-offset: 0px;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
-    }
+  }
+  html {
+    @apply font-sans antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
   body {
     @apply bg-background text-foreground;
-    }
-  html {
-    @apply font-sans;
-    }
+  }
 }
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 .leaflet-container {
   font-family: inherit;
+  background: var(--color-map-land);
+}
+
+.leaflet-div-icon.map-marker {
+  background: transparent;
+  border: 0;
 }

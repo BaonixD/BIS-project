@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router'
-import { cn } from 'cn'
+import { cn } from '@/lib/utils'
 import type { NavItem } from './nav-items'
 
 export function BottomNav({ items }: { items: NavItem[] }) {

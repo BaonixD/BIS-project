@@ -210,6 +210,138 @@
                 }
             }
         },
+        "/api/v1/auth/providers": {
+            "get": {
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Read Providers",
+                "operationId": "read_providers_api_v1_auth_providers_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AuthProvidersResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Request validation failed; details.errors lists loc, msg and type",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/google": {
+            "post": {
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Login With Google",
+                "operationId": "login_with_google_api_v1_auth_google_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/GoogleLoginRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SessionResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Request validation failed; details.errors lists loc, msg and type",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not authenticated (no or expired session) or invalid credentials",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden: role, CSRF token or request origin not allowed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many attempts; details.retry_after_seconds",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "A required service is unavailable",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/auth/session": {
             "get": {
                 "tags": [
@@ -1271,6 +1403,16 @@
                                 }
                             }
                         }
+                    },
+                    "503": {
+                        "description": "A required service is unavailable",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -2101,146 +2243,17 @@
                                 }
                             }
                         }
-                    },
-                    "409": {
-                        "description": "Conflict with the current state",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
-                                }
-                            }
-                        }
                     }
                 }
             }
         },
-        "/api/v1/rides/{ride_id}/payment/method": {
-            "put": {
-                "tags": [
-                    "payments"
-                ],
-                "summary": "Change Payment Method",
-                "operationId": "change_payment_method_api_v1_rides__ride_id__payment_method_put",
-                "security": [
-                    {
-                        "SessionCookie": [],
-                        "CsrfToken": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "ride_id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "format": "uuid",
-                            "title": "Ride Id"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/PaymentMethodRequest"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/PaymentResponse"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Request validation failed; details.errors lists loc, msg and type",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Not authenticated (no or expired session) or invalid credentials",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden: role, CSRF token or request origin not allowed",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not found or not accessible",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict with the current state",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "503": {
-                        "description": "A required service is unavailable",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/rides/{ride_id}/payment/pay": {
+        "/api/v1/rides/{ride_id}/payment/cash-received": {
             "post": {
                 "tags": [
                     "payments"
                 ],
-                "summary": "Pay",
-                "operationId": "pay_api_v1_rides__ride_id__payment_pay_post",
+                "summary": "Receive Cash",
+                "operationId": "receive_cash_api_v1_rides__ride_id__payment_cash_received_post",
                 "security": [
                     {
                         "SessionCookie": [],
@@ -3126,6 +3139,27 @@
                 ],
                 "title": "ApprovalStatus"
             },
+            "AuthProvidersResponse": {
+                "properties": {
+                    "google_client_id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Google Client Id",
+                        "description": "OAuth client ID for Google Identity Services; null when sign-in with Google is off (hide the button)."
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "google_client_id"
+                ],
+                "title": "AuthProvidersResponse"
+            },
             "AvailabilityUpdate": {
                 "properties": {
                     "online": {
@@ -3488,6 +3522,24 @@
                     "request_id"
                 ],
                 "title": "ErrorResponse"
+            },
+            "GoogleLoginRequest": {
+                "properties": {
+                    "credential": {
+                        "type": "string",
+                        "maxLength": 4096,
+                        "minLength": 1,
+                        "format": "password",
+                        "title": "Credential",
+                        "description": "Google ID token (JWT) from Google Identity Services: the `credential` of the sign-in callback.",
+                        "writeOnly": true
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "credential"
+                ],
+                "title": "GoogleLoginRequest"
             },
             "HealthStatus": {
                 "properties": {
@@ -3865,19 +3917,6 @@
                 ],
                 "title": "PaymentMethod"
             },
-            "PaymentMethodRequest": {
-                "properties": {
-                    "method": {
-                        "$ref": "#/components/schemas/PaymentMethod"
-                    }
-                },
-                "additionalProperties": false,
-                "type": "object",
-                "required": [
-                    "method"
-                ],
-                "title": "PaymentMethodRequest"
-            },
             "PaymentResponse": {
                 "properties": {
                     "ride_id": {
@@ -3912,6 +3951,18 @@
                         ],
                         "title": "Paid At"
                     },
+                    "refunded_at": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Refunded At"
+                    },
                     "payment_url": {
                         "anyOf": [
                             {
@@ -3932,16 +3983,18 @@
                     "method",
                     "status",
                     "paid_at",
+                    "refunded_at",
                     "payment_url"
                 ],
                 "title": "PaymentResponse",
-                "description": "``payment_url`` is the configured Kaspi link for ``kaspi_link``, otherwise null."
+                "description": "``payment_url`` is the configured Kaspi link for ``kaspi_link``, otherwise null.\n\n``paid`` never proves that money arrived: Kaspi is a simulated charge (ADR 0010)."
             },
             "PaymentStatus": {
                 "type": "string",
                 "enum": [
                     "unpaid",
-                    "paid"
+                    "paid",
+                    "refunded"
                 ],
                 "title": "PaymentStatus"
             },
@@ -4092,6 +4145,11 @@
                         "type": "string",
                         "format": "uuid",
                         "title": "Quote Id"
+                    },
+                    "payment_method": {
+                        "$ref": "#/components/schemas/PaymentMethod",
+                        "description": "Chosen with the order. kaspi_link counts as paid at once (a simulated charge, no money is checked) and needs KASPI_PAYMENT_URL; its link is the payment_url of GET /rides/{ride_id}/payment.",
+                        "default": "cash"
                     }
                 },
                 "additionalProperties": false,
@@ -4236,6 +4294,26 @@
                         ],
                         "title": "Cancel Reason"
                     },
+                    "payment_method": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/PaymentMethod"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "payment_status": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/PaymentStatus"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
                     "driver": {
                         "anyOf": [
                             {
@@ -4269,6 +4347,8 @@
                     "completed_at",
                     "cancelled_at",
                     "cancel_reason",
+                    "payment_method",
+                    "payment_status",
                     "driver"
                 ],
                 "title": "RideDetailsResponse"
@@ -4407,6 +4487,26 @@
                             }
                         ],
                         "title": "Cancel Reason"
+                    },
+                    "payment_method": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/PaymentMethod"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "payment_status": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/PaymentStatus"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
                     }
                 },
                 "type": "object",
@@ -4429,7 +4529,9 @@
                     "started_at",
                     "completed_at",
                     "cancelled_at",
-                    "cancel_reason"
+                    "cancel_reason",
+                    "payment_method",
+                    "payment_status"
                 ],
                 "title": "RideResponse"
             },
@@ -4545,7 +4647,7 @@
                     "payment_method"
                 ],
                 "title": "RideSummary",
-                "description": "A list item without the route geometry; payment fields are null before completion."
+                "description": "A list item without the route geometry; payment fields are null only without a payment."
             },
             "RouteGeometry": {
                 "properties": {

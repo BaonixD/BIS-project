@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { MapContainer, TileLayer, useMapEvents } from 'react-leaflet'
-import { cn } from 'cn'
+import { cn } from '@/lib/utils'
 import type { Coordinates } from '@/api'
 import { ALMATY_CENTER, DEFAULT_ZOOM, fromLatLng, toLatLng } from '@/lib/geo'
 

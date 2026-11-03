@@ -6,6 +6,7 @@ import {
   NETWORK_ERROR_CODE,
   unwrap,
   type Coordinates,
+  type PaymentMethod,
   type RideStatus,
 } from '@/api'
 import { RIDE_POLL_MS } from './polling'
@@ -32,6 +33,7 @@ export function useRoutePreview() {
 
 export interface CreateRideVariables {
   quoteId: string
+  paymentMethod: PaymentMethod
   idempotencyKey: string
 }
 
@@ -43,11 +45,11 @@ export function newIdempotencyKey(): string {
 export function useCreateRide() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ quoteId, idempotencyKey }: CreateRideVariables) =>
+    mutationFn: ({ quoteId, paymentMethod, idempotencyKey }: CreateRideVariables) =>
       unwrap(
         api.POST('/api/v1/rides', {
           params: { header: { 'Idempotency-Key': idempotencyKey } },
-          body: { quote_id: quoteId },
+          body: { quote_id: quoteId, payment_method: paymentMethod },
         }),
       ),
     retry: (failureCount, error) => isApiError(error, NETWORK_ERROR_CODE) && failureCount < 2,
