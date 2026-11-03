@@ -116,13 +116,7 @@ class OpenRouteServiceClient:
         )
 
     async def get_route(self, origin: Coordinates, destination: Coordinates) -> RouteResult:
-        """Road route between two points; raises a routing ``AppError`` on failure.
-
-        Only timeouts, connection errors, 429 and 5xx are retried, at most
-        ``max_retries`` times; directions requests have no side effects.
-        Attempts and pauses share one ``total_timeout_s`` budget: a pause that
-        would reach the deadline is not taken, and the last error is raised.
-        """
+        """Retries timeouts, connection errors, 429 and 5xx within one ``total_timeout_s``."""
         if self._api_key is None:
             raise RoutingUnavailableError()
         body = {"coordinates": [origin.as_lon_lat(), destination.as_lon_lat()]}
@@ -167,7 +161,6 @@ class OpenRouteServiceClient:
 
 
 def _classify(response: httpx.Response) -> RouteResult | _TransientFailure:
-    """A route, a retryable failure, or a raised final error for one provider response."""
     status = response.status_code
     if status == httpx.codes.OK:
         return _route_from(response)
@@ -183,8 +176,7 @@ def _classify(response: httpx.Response) -> RouteResult | _TransientFailure:
 def _route_from(response: httpx.Response) -> RouteResult:
     try:
         feature = _OrsFeatureCollection.model_validate(response.json()).features[0]
-    except ValueError:
-        # Covers JSONDecodeError and pydantic.ValidationError.
+    except ValueError:  # JSONDecodeError and pydantic.ValidationError
         raise RoutingProviderError(
             "invalid_response", provider_status=response.status_code
         ) from None
