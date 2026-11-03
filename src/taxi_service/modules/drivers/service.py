@@ -1,6 +1,7 @@
 import uuid
 from dataclasses import dataclass
 
+from sqlalchemy import ColumnElement, Select, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,12 +23,11 @@ from taxi_service.modules.drivers.models import (
     Vehicle,
     missing_fields,
 )
-from taxi_service.modules.drivers.repository import DriverRepository
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate, VehicleInput
 from taxi_service.modules.geo.schemas import Coordinates
 from taxi_service.modules.rides.dispatch import revoke_driver_offers
 from taxi_service.modules.rides.repository import driver_has_active_ride
-from taxi_service.modules.users.models import User
+from taxi_service.modules.users.models import User, UserRole
 
 # Changing these after approval needs a new approval; the phone is only a contact.
 _IDENTITY_FIELDS = ("full_name", "license_number")
@@ -40,11 +40,10 @@ class DriverService:
     def __init__(self, session: AsyncSession, clock: Clock) -> None:
         self._session = session
         self._clock = clock
-        self._drivers = DriverRepository(session)
 
     async def get(self, driver_id: uuid.UUID) -> DriverProfile | None:
         async with read_transaction(self._session):
-            return await self._drivers.get(driver_id)
+            return await get_driver_profile(self._session, driver_id)
 
     async def update_profile(
         self, driver_id: uuid.UUID, update: DriverProfileUpdate
@@ -61,8 +60,8 @@ class DriverService:
                 profile = await self._get_or_create(driver_id)
                 await self._ensure_no_active_ride(driver_id)
                 vehicle = update.vehicle
-                if vehicle is not None and await self._drivers.plate_number_taken(
-                    vehicle.plate_number, by_other_than=driver_id
+                if vehicle is not None and await _plate_number_taken(
+                    self._session, vehicle.plate_number, by_other_than=driver_id
                 ):
                     raise PlateNumberTakenError
                 changed = _apply_identity(profile, update)
@@ -89,7 +88,7 @@ class DriverService:
         ``driver_on_active_ride``: the ride is completed or released first.
         """
         async with self._session.begin():
-            profile = await self._drivers.get_for_update(driver_id)
+            profile = await _get_profile_for_update(self._session, driver_id)
             if not online:
                 await self._ensure_no_active_ride(driver_id)
             if online:
@@ -122,15 +121,16 @@ class DriverService:
         INSERT (possible on PostgreSQL); the savepoint keeps the transaction
         usable and the row that won is used instead.
         """
-        profile = await self._drivers.get_for_update(driver_id)
+        profile = await _get_profile_for_update(self._session, driver_id)
         if profile is not None:
             return profile
         profile = DriverProfile.new(driver_id, self._clock.now())
         try:
             async with self._session.begin_nested():
-                await self._drivers.add(profile)
+                self._session.add(profile)
+                await self._session.flush()
         except IntegrityError:
-            existing = await self._drivers.get_for_update(driver_id)
+            existing = await _get_profile_for_update(self._session, driver_id)
             if existing is None:
                 raise
             return existing
@@ -172,12 +172,11 @@ class DriverAdminService:
     def __init__(self, session: AsyncSession, clock: Clock) -> None:
         self._session = session
         self._clock = clock
-        self._drivers = DriverRepository(session)
 
     async def list(self, status: ApprovalStatus | None, *, limit: int, offset: int) -> DriverPage:
         async with read_transaction(self._session):
-            rows = await self._drivers.list_drivers(status, limit=limit, offset=offset)
-            total = await self._drivers.count_drivers(status)
+            rows = await _list_drivers(self._session, status, limit=limit, offset=offset)
+            total = await _count_drivers(self._session, status)
         return DriverPage(rows=rows, total=total)
 
     async def approve(
@@ -185,10 +184,10 @@ class DriverAdminService:
     ) -> tuple[User, DriverProfile]:
         """Approve a complete driver; approving again returns the first approval unchanged."""
         async with self._session.begin():
-            user = await self._drivers.get_driver_user(driver_id)
+            user = await _get_driver_user(self._session, driver_id)
             if user is None:
                 raise DriverNotFoundError
-            profile = await self._drivers.get_for_update(driver_id)
+            profile = await _get_profile_for_update(self._session, driver_id)
             missing = missing_fields(profile)
             if profile is None or missing:
                 raise DriverProfileIncompleteError(missing)
@@ -222,3 +221,72 @@ def _plate_number_conflict(error: IntegrityError) -> bool:
     return violates_unique(
         error, constraint="uq_vehicles_plate_number", table="vehicles", column="plate_number"
     )
+
+
+async def get_driver_profile(db: AsyncSession, driver_id: uuid.UUID) -> DriverProfile | None:
+    """The profile with its vehicle, or ``None`` before the driver's first write."""
+    return await db.get(DriverProfile, driver_id)
+
+
+async def _get_profile_for_update(db: AsyncSession, driver_id: uuid.UUID) -> DriverProfile | None:
+    # NO KEY: FK checks of rides and offers (FOR KEY SHARE) do not wait for it (ADR 0006).
+    result = await db.execute(
+        select(DriverProfile)
+        .where(DriverProfile.user_id == driver_id)
+        .with_for_update(of=DriverProfile, key_share=True)
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _plate_number_taken(
+    db: AsyncSession, plate_number: str, *, by_other_than: uuid.UUID
+) -> bool:
+    found = await db.scalar(
+        select(Vehicle.id).where(
+            Vehicle.plate_number == plate_number, Vehicle.driver_id != by_other_than
+        )
+    )
+    return found is not None
+
+
+async def _get_driver_user(db: AsyncSession, user_id: uuid.UUID) -> User | None:
+    return await db.scalar(select(User).where(User.id == user_id, User.role == UserRole.DRIVER))
+
+
+async def _list_drivers(
+    db: AsyncSession, status: ApprovalStatus | None, *, limit: int, offset: int
+) -> list[tuple[User, DriverProfile | None]]:
+    rows = await db.execute(
+        _drivers_query(status)
+        .order_by(User.created_at.desc(), User.id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return [(user, profile) for user, profile in rows]
+
+
+async def _count_drivers(db: AsyncSession, status: ApprovalStatus | None) -> int:
+    total = await db.scalar(select(func.count()).select_from(_drivers_query(status).subquery()))
+    return total or 0
+
+
+def _drivers_query(status: ApprovalStatus | None) -> Select[User, DriverProfile]:
+    query = (
+        select(User, DriverProfile)
+        .outerjoin(DriverProfile, DriverProfile.user_id == User.id)
+        .where(User.role == UserRole.DRIVER)
+    )
+    if status is not None:
+        query = query.where(_has_status(status))
+    return query
+
+
+def _has_status(status: ApprovalStatus) -> ColumnElement[bool]:
+    # A driver without a profile row is pending.
+    if status is ApprovalStatus.PENDING:
+        return or_(
+            DriverProfile.user_id.is_(None),
+            DriverProfile.approval_status == ApprovalStatus.PENDING,
+        )
+    return DriverProfile.approval_status == status

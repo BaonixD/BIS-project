@@ -17,7 +17,7 @@ from support.drivers import DriverFactory, vehicle
 from taxi_service.database.session import SessionFactory, read_transaction
 from taxi_service.modules.drivers.exceptions import PlateNumberTakenError
 from taxi_service.modules.drivers.models import Vehicle
-from taxi_service.modules.drivers.repository import DriverRepository
+from taxi_service.modules.drivers import service as driver_service
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate
 from taxi_service.modules.drivers.service import DriverService
 from taxi_service.modules.geo.schemas import Coordinates
@@ -29,15 +29,15 @@ POINT = Coordinates(longitude=76.9457, latitude=43.2383)
 
 
 def missing_once(original: Callable[..., Any]) -> Callable[..., Any]:
-    """Wrap a repository lookup so that its first call reports "no row yet"."""
+    """Wrap a lookup so that its first call reports "no row yet"."""
     calls = 0
 
-    async def lookup(self: Any, *args: Any, **kwargs: Any) -> Any:
+    async def lookup(*args: Any, **kwargs: Any) -> Any:
         nonlocal calls
         calls += 1
         if calls == 1:
             return None
-        return await original(self, *args, **kwargs)
+        return await original(*args, **kwargs)
 
     return lookup
 
@@ -61,7 +61,7 @@ async def test_plate_constraint_violation_is_reported_as_taken(
     async def plate_is_free(*_args: Any, **_kwargs: Any) -> bool:
         return False  # a concurrent transaction took it after this check
 
-    monkeypatch.setattr(DriverRepository, "plate_number_taken", plate_is_free)
+    monkeypatch.setattr(driver_service, "_plate_number_taken", plate_is_free)
     update = DriverProfileUpdate.model_validate({"vehicle": vehicle("001TST02")})
 
     async with session_factory() as session:
@@ -78,9 +78,8 @@ async def test_concurrent_first_driver_write_uses_the_existing_row(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     driver = await driver_factory.driver("dana", approved=False)
-    monkeypatch.setattr(
-        DriverRepository, "get_for_update", missing_once(DriverRepository.get_for_update)
-    )
+    lookup = missing_once(driver_service._get_profile_for_update)
+    monkeypatch.setattr(driver_service, "_get_profile_for_update", lookup)
 
     async with session_factory() as session:
         profile = await DriverService(session, clock).update_location(driver, POINT)
