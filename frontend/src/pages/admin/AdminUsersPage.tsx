@@ -1,71 +1,75 @@
 import { useState } from 'react'
-import type { UserRole } from '@/api'
-import { EmptyState } from '@/components/common/EmptyState'
+import { Search } from 'lucide-react'
+import type { AdminUser, UserRole } from '@/api'
 import { ErrorAlert } from '@/components/common/ErrorAlert'
-import { PageHeader } from '@/components/common/PageHeader'
-import { Pagination } from '@/components/common/Pagination'
-import { PageContainer } from '@/components/layout/PageContainer'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Avatar } from '@/components/driver/Avatar'
+import { Screen, ScreenColumn } from '@/components/driver/Screen'
+import { Chip, Input, Skeleton, StatusPill } from '@/components/ui-kit'
 import { useAdminUsers } from '@/hooks/use-admin'
-import { formatDateTime } from '@/lib/format'
-import { ROLE_LABELS } from '@/lib/labels'
+import { ROLE_PILL } from './admin-format'
 
-const PAGE_SIZE = 20
-const ALL_ROLES = 'all'
+const FILTERS: { id: UserRole | 'all'; label: string }[] = [
+  { id: 'all', label: 'Все' },
+  { id: 'passenger', label: 'Пассажиры' },
+  { id: 'driver', label: 'Водители' },
+]
 
+function UserRow({ user }: { user: AdminUser }) {
+  const name = user.display_name ?? user.username
+  const pill = ROLE_PILL[user.role]
+  return (
+    <li className="flex w-full items-center gap-3 overflow-hidden px-3 py-2.5">
+      <Avatar name={name} size={40} />
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <p className="truncate text-callout text-text-primary">{name}</p>
+        <p className="truncate text-caption text-text-secondary">@{user.username}</p>
+      </div>
+      <StatusPill tone={pill.tone}>{pill.label}</StatusPill>
+    </li>
+  )
+}
+
+/** Figma 26:655: everyone with a role, search by name. */
 export function AdminUsersPage() {
-  const [role, setRole] = useState<UserRole | typeof ALL_ROLES>(ALL_ROLES)
-  const [offset, setOffset] = useState(0)
-  const users = useAdminUsers(role === ALL_ROLES ? undefined : role, { limit: PAGE_SIZE, offset })
+  const [filter, setFilter] = useState<UserRole | 'all'>('all')
+  const [query, setQuery] = useState('')
+  const users = useAdminUsers(filter === 'all' ? undefined : filter, { limit: 100 })
+  const needle = query.trim().toLowerCase()
+  const items = (users.data?.items ?? []).filter(
+    (user) => !needle || `${user.display_name ?? ''} ${user.username}`.toLowerCase().includes(needle),
+  )
 
   return (
-    <PageContainer>
-      <PageHeader title="Пользователи" />
-      <div className="pb-4">
-        <Select
-          value={role}
-          onValueChange={(value) => {
-            setRole(value as UserRole | typeof ALL_ROLES)
-            setOffset(0)
-          }}
-        >
-          <SelectTrigger className="w-full sm:w-56" aria-label="Роль">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_ROLES}>Все роли</SelectItem>
-            {(Object.keys(ROLE_LABELS) as UserRole[]).map((value) => (
-              <SelectItem key={value} value={value}>{ROLE_LABELS[value]}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      {users.isPending && <Skeleton className="h-40" />}
-      {users.isError && <ErrorAlert error={users.error} />}
-      {users.data && users.data.items.length === 0 && <EmptyState>Нет пользователей</EmptyState>}
-      {users.data && (
-        <>
-          <ul className="grid gap-2">
-            {users.data.items.map((user) => (
-              <li key={user.id}>
-                <Card className="py-3">
-                  <CardContent className="flex items-center justify-between gap-2 px-4">
-                    <div>
-                      <p className="font-medium">{user.display_name ?? user.username}</p>
-                      <p className="text-xs text-muted-foreground">@{user.username} · {formatDateTime(user.created_at)}</p>
-                    </div>
-                    <Badge variant="outline">{ROLE_LABELS[user.role]}</Badge>
-                  </CardContent>
-                </Card>
-              </li>
+    <Screen tone="subtle">
+      <ScreenColumn className="gap-4 pt-[calc(17px+env(safe-area-inset-top))] pb-6 lg:max-w-2xl lg:pt-8">
+        <h1 className="w-full text-display text-text-primary">Люди</h1>
+        <Input
+          icon={Search}
+          placeholder="Поиск по имени"
+          aria-label="Поиск по имени"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <div className="flex w-full items-center gap-2 overflow-x-auto scrollbar-none">
+          {FILTERS.map((item) => (
+            <Chip key={item.id} selected={item.id === filter} onClick={() => setFilter(item.id)}>
+              {item.label}
+            </Chip>
+          ))}
+        </div>
+        <ErrorAlert error={users.error} />
+        {users.isPending && <Skeleton className="h-75 w-full rounded-lg" />}
+        {users.data && items.length === 0 && (
+          <p className="w-full rounded-lg bg-bg-canvas p-5 text-center text-callout text-text-secondary">Никого не нашли</p>
+        )}
+        {items.length > 0 && (
+          <ul className="flex w-full flex-col overflow-hidden rounded-lg bg-bg-canvas p-2">
+            {items.map((user) => (
+              <UserRow key={user.id} user={user} />
             ))}
           </ul>
-          <Pagination offset={offset} limit={PAGE_SIZE} total={users.data.total} onChange={setOffset} />
-        </>
-      )}
-    </PageContainer>
+        )}
+      </ScreenColumn>
+    </Screen>
   )
 }
