@@ -39,12 +39,6 @@ def create_app(
     routing_provider: RoutingProvider | None = None,
     payment_settings: PaymentSettings | None = None,
 ) -> FastAPI:
-    """Assemble the application; resources are acquired by :func:`lifespan`.
-
-    ``routing_provider`` replaces openrouteservice (tests); the lifespan then
-    creates no routing HTTP client. ``payment_settings`` defaults to
-    ``KASPI_PAYMENT_URL`` from the environment or ``.env``, read once here.
-    """
     app = FastAPI(
         title="Mini Taxi Service",
         version="0.1.0",
