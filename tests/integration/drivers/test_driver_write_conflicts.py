@@ -24,18 +24,18 @@ from taxi_service.modules.geo.schemas import Coordinates
 POINT = Coordinates(longitude=76.9457, latitude=43.2383)
 
 
-def missing_once(original: Callable[..., Any]) -> Callable[..., Any]:
-    """Wrap a lookup so that its first call reports "no row yet"."""
-    calls = 0
+class MissingOnce:
+    """Lookup whose first call reports "no row yet", as a concurrent transaction would see it."""
 
-    async def lookup(*args: Any, **kwargs: Any) -> Any:
-        nonlocal calls
-        calls += 1
-        if calls == 1:
+    def __init__(self, original: Callable[..., Any]) -> None:
+        self.original = original
+        self.calls = 0
+
+    async def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        self.calls += 1
+        if self.calls == 1:
             return None
-        return await original(*args, **kwargs)
-
-    return lookup
+        return await self.original(*args, **kwargs)
 
 
 async def plates(session_factory: SessionFactory) -> list[str]:
@@ -74,7 +74,7 @@ async def test_concurrent_first_driver_write_uses_the_existing_row(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     driver = await driver_factory.driver("dana", approved=False)
-    lookup = missing_once(driver_service._get_profile_for_update)
+    lookup = MissingOnce(driver_service._get_profile_for_update)
     monkeypatch.setattr(driver_service, "_get_profile_for_update", lookup)
 
     async with session_factory() as session:
@@ -82,6 +82,7 @@ async def test_concurrent_first_driver_write_uses_the_existing_row(
 
     assert (profile.longitude, profile.latitude) == (POINT.longitude, POINT.latitude)
     assert profile.full_name == "Dana Driver"  # the existing row, not a new empty one
+    assert lookup.calls == 2
 
 
 async def test_first_write_for_a_missing_user_still_fails(

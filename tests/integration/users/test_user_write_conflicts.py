@@ -19,18 +19,18 @@ from taxi_service.modules.users.schemas import MyProfileUpdate
 PASSWORD = "correct-horse-battery"
 
 
-def missing_once(original: Callable[..., Any]) -> Callable[..., Any]:
-    """The first call reports "no row yet", as a concurrent transaction would see it."""
-    calls = 0
+class MissingOnce:
+    """Lookup whose first call reports "no row yet", as a concurrent transaction would see it."""
 
-    async def lookup(*args: Any, **kwargs: Any) -> Any:
-        nonlocal calls
-        calls += 1
-        if calls == 1:
+    def __init__(self, original: Callable[..., Any]) -> None:
+        self.original = original
+        self.calls = 0
+
+    async def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        self.calls += 1
+        if self.calls == 1:
             return None
-        return await original(*args, **kwargs)
-
-    return lookup
+        return await self.original(*args, **kwargs)
 
 
 @pytest.fixture
@@ -77,7 +77,8 @@ async def test_concurrent_first_profile_write_uses_the_existing_row(
         await users_service.update_profile(
             db, user.id, MyProfileUpdate(display_name="Root"), clock=clock
         )
-    monkeypatch.setattr(users_service, "_get_profile", missing_once(users_service._get_profile))
+    lookup = MissingOnce(users_service._get_profile)
+    monkeypatch.setattr(users_service, "_get_profile", lookup)
 
     async with session_factory() as db:
         profile = await users_service.update_profile(
@@ -86,6 +87,7 @@ async def test_concurrent_first_profile_write_uses_the_existing_row(
 
     assert (profile.display_name, profile.phone) == ("Root", "+77011234567")
     assert await profile_count(session_factory) == 1
+    assert lookup.calls == 2
 
 
 async def test_first_profile_write_for_a_missing_user_still_fails(
