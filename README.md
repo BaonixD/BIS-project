@@ -259,7 +259,9 @@ CI и Git hooks не настраиваются; проверки запуска
 
 ## Фронтенд
 
-Веб-клиент в `frontend/`: Vite + React + TypeScript (strict), Tailwind CSS v4, shadcn/ui (стиль `radix-vega`, base color neutral, CSS variables), react-router 7, TanStack Query, openapi-fetch, react-leaflet с подложкой CARTO Positron (без ключей). Экраны пока каркасные — визуальный дизайн заменит их по макету. Нужен Node.js 20+ и npm.
+Веб-клиент в `frontend/`: Vite + React + TypeScript (strict), Tailwind CSS v4, shadcn/ui (стиль `radix-vega`, CSS variables), react-router 7, TanStack Query, openapi-fetch, motion, sonner, react-leaflet с подложкой CARTO Positron (без ключей), адреса — OpenStreetMap Nominatim (без ключей, не чаще 1 запроса в секунду). Нужен Node.js 20+ и npm.
+
+Дизайн — Figma «BIS Taxi» (`6VHeDBRKk6RWdTYqH0r66K`): токены (цвета, радиусы, текстовые стили Inter, тени) — в `src/index.css` под именами переменных Figma (`bg/subtle` → `bg-bg-subtle`, `Callout` → `text-callout`); компоненты — `src/components/ui-kit`, витрина — `http://localhost:5173/dev/kit` (только `npm run dev`). Вход и регистрация уже по макету; остальные экраны пока каркасные.
 
 1. Бэкенд на `http://127.0.0.1:8000` с `SESSION_COOKIE_SECURE=false` (иначе браузер не вернёт cookie по `http://`):
 
@@ -276,7 +278,9 @@ CI и Git hooks не настраиваются; проверки запуска
    npm run dev
    ```
 
-Dev-сервер Vite проксирует `/api` и `/health` на `http://127.0.0.1:8000`: запросы идут с того же origin, cookie сессии `SameSite=Lax` работает без CORS. Открывайте именно `http://localhost:5173`. Проверки: `npm run lint`, `npm run typecheck`, `npm run build`.
+Dev-сервер Vite проксирует `/api` и `/health` на `http://127.0.0.1:8000`: запросы идут с того же origin, cookie сессии `SameSite=Lax` работает без CORS. Открывайте именно `http://localhost:5173`. Проверки: `npm run lint`, `npm run typecheck`, `npm test` (Vitest + Testing Library), `npm run build`.
+
+Сверка с макетом: `npm run test:visual` (Playwright в установленном Google Chrome, свой порт 5199, API подменяется — бэкенд не нужен) проверяет геометрию входа и регистрации по Figma и сохраняет скриншоты `/login`, `/register`, `/dev/kit` при 390 и 1440 px в `frontend/tests/visual/screenshots/`; эталоны из Figma — в `frontend/tests/visual/figma/`.
 
 Типы API (`src/api/schema.d.ts`) генерируются из `frontend/openapi.json`. После изменения API обновите схему из корня репозитория и перегенерируйте типы:
 

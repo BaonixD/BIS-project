@@ -19,11 +19,28 @@ function Account({ displayName }: { displayName: string }) {
 }
 
 /** Figma Desktop 7:2 «TopBar»: 64px black bar with the brand, role links and the account (≥1024px only). */
-export function TopBar({ role, displayName }: { role: UserRole; displayName: string }) {
-  const { pathname } = useLocation()
+export function TopBar({
+  role,
+  displayName,
+  pathname: pathnameOverride,
+  preview = false,
+}: {
+  role: UserRole
+  displayName: string
+  pathname?: string
+  /** Kit preview: render in the flow at every width. */
+  preview?: boolean
+}) {
+  const location = useLocation()
+  const pathname = pathnameOverride ?? location.pathname
   const profile = PROFILE_PATH[role]
   return (
-    <header className="fixed inset-x-0 top-0 z-40 hidden h-(--top-bar-height) items-center gap-8 overflow-hidden bg-bg-inverse px-8 lg:flex">
+    <header
+      className={cn(
+        'h-(--top-bar-height) items-center gap-8 overflow-hidden bg-bg-inverse px-8',
+        preview ? 'flex w-full' : 'fixed inset-x-0 top-0 z-40 hidden lg:flex',
+      )}
+    >
       <Link to={ROLE_HOME[role]} className="text-headline whitespace-nowrap text-text-inverse">
         BIS Taxi
       </Link>

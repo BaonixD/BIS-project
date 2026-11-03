@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import { createBrowserRouter, type RouteObject } from 'react-router'
 import { RequireAnonymous, RequireRole } from '@/auth/RequireRole'
+import { FullScreenLoader } from '@/components/common/FullScreenLoader'
 import { AppShell } from '@/components/layout/AppShell'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { RegisterPage } from '@/pages/auth/RegisterPage'
@@ -12,11 +13,14 @@ const driver = () => import('./driver-pages')
 const admin = () => import('./admin-pages')
 
 function page<M>(load: () => Promise<M>, pick: (module: M) => ComponentType) {
-  return async () => ({ Component: pick(await load()) })
+  return {
+    lazy: async () => ({ Component: pick(await load()) }),
+    HydrateFallback: FullScreenLoader,
+  }
 }
 
 const devRoutes: RouteObject[] = import.meta.env.DEV
-  ? [{ path: '/dev/kit', lazy: page(() => import('@/pages/dev/KitPage'), (m) => m.KitPage) }]
+  ? [{ path: '/dev/kit', ...page(() => import('@/pages/dev/KitPage'), (m) => m.KitPage) }]
   : []
 
 export const router = createBrowserRouter([
@@ -33,10 +37,10 @@ export const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
-          { path: '/', lazy: page(passenger, (m) => m.HomePage) },
-          { path: '/ride/:rideId', lazy: page(passenger, (m) => m.RidePage) },
-          { path: '/history', lazy: page(passenger, (m) => m.HistoryPage) },
-          { path: '/profile', lazy: page(passenger, (m) => m.ProfilePage) },
+          { path: '/', ...page(passenger, (m) => m.HomePage) },
+          { path: '/ride/:rideId', ...page(passenger, (m) => m.RidePage) },
+          { path: '/history', ...page(passenger, (m) => m.HistoryPage) },
+          { path: '/profile', ...page(passenger, (m) => m.ProfilePage) },
         ],
       },
     ],
@@ -47,9 +51,9 @@ export const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
-          { path: '/driver', lazy: page(driver, (m) => m.DriverHomePage) },
-          { path: '/driver/history', lazy: page(driver, (m) => m.DriverHistoryPage) },
-          { path: '/driver/profile', lazy: page(driver, (m) => m.DriverProfilePage) },
+          { path: '/driver', ...page(driver, (m) => m.DriverHomePage) },
+          { path: '/driver/history', ...page(driver, (m) => m.DriverHistoryPage) },
+          { path: '/driver/profile', ...page(driver, (m) => m.DriverProfilePage) },
         ],
       },
     ],
@@ -60,9 +64,9 @@ export const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
-          { path: '/admin', lazy: page(admin, (m) => m.AdminDriversPage) },
-          { path: '/admin/rides', lazy: page(admin, (m) => m.AdminRidesPage) },
-          { path: '/admin/users', lazy: page(admin, (m) => m.AdminUsersPage) },
+          { path: '/admin', ...page(admin, (m) => m.AdminDriversPage) },
+          { path: '/admin/rides', ...page(admin, (m) => m.AdminRidesPage) },
+          { path: '/admin/users', ...page(admin, (m) => m.AdminUsersPage) },
         ],
       },
     ],

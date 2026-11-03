@@ -8,6 +8,8 @@ interface InputProps extends ComponentProps<'input'> {
   /** Optional trailing element, e.g. a clear button. */
   trailing?: ReactNode
   invalid?: boolean
+  /** Force the Figma «Focused» look (kit previews). */
+  focused?: boolean
   containerClassName?: string
 }
 
@@ -15,13 +17,14 @@ interface InputProps extends ComponentProps<'input'> {
  * Figma «Input» 3:96: 56px field, subtle background; Focused — white with a 2px black border.
  * The whole field is a label, so clicking the icon focuses the input.
  */
-export function Input({ icon: Icon, trailing, invalid, containerClassName, className, ...props }: InputProps) {
+export function Input({ icon: Icon, trailing, invalid, focused, containerClassName, className, ...props }: InputProps) {
   return (
     <label
       data-slot="input"
       className={cn(
         'flex h-14 w-full cursor-text items-center gap-3 rounded-md bg-bg-subtle px-4 transition-colors duration-150',
         'focus-within:border-2 focus-within:border-solid focus-within:border-bg-inverse focus-within:bg-bg-canvas',
+        focused && 'border-2 border-solid border-bg-inverse bg-bg-canvas',
         invalid && 'border-2 border-solid border-accent-danger',
         containerClassName,
       )}

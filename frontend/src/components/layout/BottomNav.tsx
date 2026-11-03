@@ -9,12 +9,26 @@ import { isNavItemActive, NAV_ITEMS } from './nav-items'
  * the active item sits on a light-grey radius-20 capsule that glides between items.
  * Hidden at ≥1024px, where the black TopBar takes over.
  */
-export function BottomNav({ role }: { role: UserRole }) {
-  const { pathname } = useLocation()
+export function BottomNav({
+  role,
+  pathname: pathnameOverride,
+  preview = false,
+}: {
+  role: UserRole
+  /** Kit preview: highlight this path instead of the current one. */
+  pathname?: string
+  /** Kit preview: render in the flow at every width. */
+  preview?: boolean
+}) {
+  const location = useLocation()
+  const pathname = pathnameOverride ?? location.pathname
   return (
     <nav
-      aria-label="Основная навигация"
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-4 pt-2 pb-(--nav-bottom-gap) lg:hidden"
+      aria-label={preview ? `Навигация: ${role}` : 'Основная навигация'}
+      className={cn(
+        'px-4 pt-2 pb-(--nav-bottom-gap)',
+        preview ? 'relative w-full' : 'pointer-events-none fixed inset-x-0 bottom-0 z-40 lg:hidden',
+      )}
     >
       <ul className="pointer-events-auto flex items-center gap-1 overflow-hidden rounded-[28px] border border-solid border-border-default bg-bg-canvas p-1.5 shadow-card">
         {NAV_ITEMS[role].map((item) => {
@@ -29,7 +43,7 @@ export function BottomNav({ role }: { role: UserRole }) {
               >
                 {active && (
                   <motion.span
-                    layoutId="nav-active-pill"
+                    layoutId={preview ? `nav-active-pill-${role}` : 'nav-active-pill'}
                     data-slot="nav-active-pill"
                     className="absolute inset-0 rounded-[20px] bg-bg-muted"
                     transition={{ type: 'spring', stiffness: 500, damping: 40 }}
