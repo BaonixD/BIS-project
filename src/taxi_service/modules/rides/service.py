@@ -76,7 +76,7 @@ class RideService:
         Routing errors propagate unchanged and store nothing. The five minutes
         of validity start once the route is known.
         """
-        route = await plan_road_route(routing, request.pickup, request.dropoff)
+        route = await plan_road_route(request.pickup, request.dropoff, routing=routing)
         fare = calculate_fare(distance_m=route.distance_m, duration_s=route.duration_s)
         now = self._clock.now()
         quote = RideQuote(

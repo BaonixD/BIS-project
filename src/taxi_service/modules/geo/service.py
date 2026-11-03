@@ -4,12 +4,9 @@ from taxi_service.modules.geo.schemas import Coordinates, RouteResult
 
 
 async def plan_road_route(
-    provider: RoutingProvider, origin: Coordinates, destination: Coordinates
+    origin: Coordinates, destination: Coordinates, *, routing: RoutingProvider
 ) -> RouteResult:
-    """Road route between two different points; routing errors propagate unchanged.
-
-    Await it outside any database transaction: it waits for an external service.
-    """
+    """Waits for an external service: await it outside any database transaction."""
     if origin == destination:
         raise RoutePointsIdenticalError
-    return await provider.get_route(origin, destination)
+    return await routing.get_route(origin, destination)
