@@ -17,6 +17,7 @@ from sqlalchemy import select
 from taxi_service.core.clock import Clock
 from taxi_service.database.session import SessionFactory, read_transaction
 from taxi_service.modules.auth.passwords import PasswordHasher
+from taxi_service.modules.drivers import service as driver_service
 from taxi_service.modules.drivers.exceptions import (
     DriverNotApprovedError,
     DriverProfileIncompleteError,
@@ -24,7 +25,7 @@ from taxi_service.modules.drivers.exceptions import (
 from taxi_service.modules.drivers.geodesy import haversine_m
 from taxi_service.modules.drivers.models import Vehicle
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate
-from taxi_service.modules.drivers.service import DriverAdminService, DriverService
+from taxi_service.modules.drivers.service import DriverAdminService
 from taxi_service.modules.geo.schemas import Coordinates
 from taxi_service.modules.users.models import UserRole
 from taxi_service.modules.users.repository import UserRepository
@@ -255,7 +256,9 @@ class _DemoSeeder:
     async def _create_driver(self, driver: DemoDriver, admin_id: uuid.UUID) -> None:
         user_id = await self._create_user(driver.username, UserRole.DRIVER)
         async with self.session_factory() as session:
-            await DriverService(session, self.clock).update_profile(user_id, _profile(driver))
+            await driver_service.update_profile(
+                session, user_id, _profile(driver), clock=self.clock
+            )
         async with self.session_factory() as session:
             await DriverAdminService(session, self.clock).approve(user_id, admin_id=admin_id)
         await self._place_online(user_id, driver.location)
@@ -263,9 +266,9 @@ class _DemoSeeder:
     async def _place_online(self, driver_id: uuid.UUID, location: Coordinates) -> None:
         """Location stamped with the clock now, then online (approved drivers only)."""
         async with self.session_factory() as session:
-            await DriverService(session, self.clock).update_location(driver_id, location)
+            await driver_service.update_location(session, driver_id, location, clock=self.clock)
         async with self.session_factory() as session:
-            await DriverService(session, self.clock).set_availability(driver_id, online=True)
+            await driver_service.set_availability(session, driver_id, True, clock=self.clock)
 
 
 def _check_conflicts(plan: DemoPlan, taken_plates: set[str]) -> None:

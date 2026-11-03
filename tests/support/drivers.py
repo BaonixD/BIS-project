@@ -22,8 +22,9 @@ from support.auth import PASSWORD, LoggedInUser, current_session, login, registe
 from support.clock import ManualClock
 from taxi_service.database.session import SessionFactory
 from taxi_service.modules.auth.passwords import PasswordHasher
+from taxi_service.modules.drivers import service as driver_service
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate
-from taxi_service.modules.drivers.service import DriverAdminService, DriverService
+from taxi_service.modules.drivers.service import DriverAdminService
 from taxi_service.modules.geo.schemas import Coordinates
 from taxi_service.modules.users.models import UserRole
 from taxi_service.modules.users.service import UserService
@@ -159,7 +160,7 @@ class DriverFactory:
         self._plates += 1
         profile = DriverProfileUpdate.model_validate(complete_profile(f"{self._plates:03d}TST02"))
         async with self.session_factory() as session:
-            await DriverService(session, self.clock).update_profile(driver_id, profile)
+            await driver_service.update_profile(session, driver_id, profile, clock=self.clock)
         if approved:
             admin_id = await self.admin_id()
             async with self.session_factory() as session:
@@ -168,17 +169,17 @@ class DriverFactory:
             await self.move(driver_id, location)
         if approved and online:
             async with self.session_factory() as session:
-                await DriverService(session, self.clock).set_availability(driver_id, online=True)
+                await driver_service.set_availability(session, driver_id, True, clock=self.clock)
         return driver_id
 
     async def go_offline(self, driver_id: uuid.UUID) -> None:
         async with self.session_factory() as session:
-            await DriverService(session, self.clock).set_availability(driver_id, online=False)
+            await driver_service.set_availability(session, driver_id, False, clock=self.clock)
 
     async def move(self, driver_id: uuid.UUID, location: Coordinates) -> None:
         """New location stamped with the current test clock."""
         async with self.session_factory() as session:
-            await DriverService(session, self.clock).update_location(driver_id, location)
+            await driver_service.update_location(session, driver_id, location, clock=self.clock)
 
     async def _create_user(self, username: str, role: UserRole) -> uuid.UUID:
         async with self.session_factory() as session:

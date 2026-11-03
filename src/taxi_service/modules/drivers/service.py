@@ -1,5 +1,6 @@
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 
 from sqlalchemy import ColumnElement, Select, func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -34,130 +35,125 @@ _IDENTITY_FIELDS = ("full_name", "license_number")
 _VEHICLE_FIELDS = ("make", "model", "color", "plate_number", "year")
 
 
-class DriverService:
-    """Commands of a driver on their own profile; callers pass the driver's user id."""
+async def read_driver_profile(db: AsyncSession, driver_id: uuid.UUID) -> DriverProfile | None:
+    async with read_transaction(db):
+        return await get_driver_profile(db, driver_id)
 
-    def __init__(self, session: AsyncSession, clock: Clock) -> None:
-        self._session = session
-        self._clock = clock
 
-    async def get(self, driver_id: uuid.UUID) -> DriverProfile | None:
-        async with read_transaction(self._session):
-            return await get_driver_profile(self._session, driver_id)
-
-    async def update_profile(
-        self, driver_id: uuid.UUID, update: DriverProfileUpdate
-    ) -> DriverProfile:
-        """Apply the sent fields; an identity or vehicle change revokes the approval.
-
-        Not during an active ride (409 ``driver_on_active_ride``): the passenger
-        relies on the name, phone and car shown for the ride.
-        """
-        if update.vehicle is not None:
-            self._check_vehicle_year(update.vehicle.year)
-        try:
-            async with self._session.begin():
-                profile = await self._get_or_create(driver_id)
-                await self._ensure_no_active_ride(driver_id)
-                vehicle = update.vehicle
-                if vehicle is not None and await _plate_number_taken(
-                    self._session, vehicle.plate_number, by_other_than=driver_id
-                ):
-                    raise PlateNumberTakenError
-                changed = _apply_identity(profile, update)
-                if update.phone is not None:
-                    profile.phone = update.phone
-                if vehicle is not None:
-                    changed = self._apply_vehicle(profile, vehicle) or changed
-                if changed and profile.approval_status is ApprovalStatus.APPROVED:
-                    _revoke_approval(profile)
-                    await revoke_driver_offers(self._session, driver_id, self._clock.now())
-                profile.updated_at = self._clock.now()
-        except IntegrityError as error:
-            # The pre-check above can race with another transaction; the constraint decides.
-            if update.vehicle is not None and _plate_number_conflict(error):
-                raise PlateNumberTakenError from error
-            raise
-        return profile
-
-    async def set_availability(self, driver_id: uuid.UUID, *, online: bool) -> DriverProfile | None:
-        """Go online (approved, complete drivers only) or offline (always).
-
-        Going offline revokes a pending offer; the dispatch loop then asks the
-        next candidate. With an active ride going offline is 409
-        ``driver_on_active_ride``: the ride is completed or released first.
-        """
-        async with self._session.begin():
-            profile = await _get_profile_for_update(self._session, driver_id)
-            if not online:
-                await self._ensure_no_active_ride(driver_id)
-            if online:
-                if profile is None or profile.approval_status is not ApprovalStatus.APPROVED:
-                    raise DriverNotApprovedError
-                if missing := missing_fields(profile):
-                    raise DriverProfileIncompleteError(missing)
-            if profile is not None and profile.is_online != online:
-                profile.is_online = online
-                profile.updated_at = self._clock.now()
-            if not online:
-                await revoke_driver_offers(self._session, driver_id, self._clock.now())
-        return profile
-
-    async def update_location(self, driver_id: uuid.UUID, point: Coordinates) -> DriverProfile:
-        """Replace the current location; the time is the server's."""
-        async with self._session.begin():
-            profile = await self._get_or_create(driver_id)
-            now = self._clock.now()
-            profile.longitude = point.longitude
-            profile.latitude = point.latitude
-            profile.location_updated_at = now
+async def update_profile(
+    db: AsyncSession, driver_id: uuid.UUID, update: DriverProfileUpdate, *, clock: Clock
+) -> DriverProfile:
+    """An identity or vehicle change of an approved driver revokes the approval."""
+    if update.vehicle is not None:
+        _check_vehicle_year(update.vehicle.year, newest=clock.now().year + 1)
+    try:
+        async with db.begin():
+            now = clock.now()
+            profile = await _get_or_create_profile(db, driver_id, now)
+            # The passenger relies on the name, phone and car shown for the ride.
+            await _ensure_no_active_ride(db, driver_id)
+            vehicle = update.vehicle
+            if vehicle is not None and await _plate_number_taken(
+                db, vehicle.plate_number, by_other_than=driver_id
+            ):
+                raise PlateNumberTakenError
+            changed = _apply_identity(profile, update)
+            if update.phone is not None:
+                profile.phone = update.phone
+            if vehicle is not None:
+                changed = _apply_vehicle(profile, vehicle, now) or changed
+            if changed and profile.approval_status is ApprovalStatus.APPROVED:
+                _revoke_approval(profile)
+                await revoke_driver_offers(db, driver_id, now)
             profile.updated_at = now
+    except IntegrityError as error:
+        # The pre-check above can race with another transaction; the constraint decides.
+        if update.vehicle is not None and _plate_number_conflict(error):
+            raise PlateNumberTakenError from error
+        raise
+    return profile
+
+
+async def set_availability(
+    db: AsyncSession, driver_id: uuid.UUID, online: bool, *, clock: Clock
+) -> DriverProfile | None:
+    """Going offline revokes a pending offer; the dispatch loop asks the next candidate."""
+    async with db.begin():
+        profile = await _get_profile_for_update(db, driver_id)
+        if online:
+            _ensure_can_go_online(profile)
+        else:
+            await _ensure_no_active_ride(db, driver_id)
+        if profile is not None and profile.is_online != online:
+            profile.is_online = online
+            profile.updated_at = clock.now()
+        if not online:
+            await revoke_driver_offers(db, driver_id, clock.now())
+    return profile
+
+
+async def update_location(
+    db: AsyncSession, driver_id: uuid.UUID, location: Coordinates, *, clock: Clock
+) -> DriverProfile:
+    async with db.begin():
+        now = clock.now()
+        profile = await _get_or_create_profile(db, driver_id, now)
+        profile.longitude = location.longitude
+        profile.latitude = location.latitude
+        profile.location_updated_at = now
+        profile.updated_at = now
+    return profile
+
+
+async def _get_or_create_profile(
+    db: AsyncSession, driver_id: uuid.UUID, now: datetime
+) -> DriverProfile:
+    # A concurrent first write may insert the row first (PostgreSQL); the savepoint keeps it usable.
+    profile = await _get_profile_for_update(db, driver_id)
+    if profile is not None:
         return profile
+    profile = DriverProfile.new(driver_id, now)
+    try:
+        async with db.begin_nested():
+            db.add(profile)
+            await db.flush()
+    except IntegrityError:
+        existing = await _get_profile_for_update(db, driver_id)
+        if existing is None:
+            raise
+        return existing
+    return profile
 
-    async def _get_or_create(self, driver_id: uuid.UUID) -> DriverProfile:
-        """The profile row, inserted on the driver's first write.
 
-        A concurrent first write may insert the row between the lookup and the
-        INSERT (possible on PostgreSQL); the savepoint keeps the transaction
-        usable and the row that won is used instead.
-        """
-        profile = await _get_profile_for_update(self._session, driver_id)
-        if profile is not None:
-            return profile
-        profile = DriverProfile.new(driver_id, self._clock.now())
-        try:
-            async with self._session.begin_nested():
-                self._session.add(profile)
-                await self._session.flush()
-        except IntegrityError:
-            existing = await _get_profile_for_update(self._session, driver_id)
-            if existing is None:
-                raise
-            return existing
-        return profile
+async def _ensure_no_active_ride(db: AsyncSession, driver_id: uuid.UUID) -> None:
+    if await driver_has_active_ride(db, driver_id):
+        raise DriverOnActiveRideError
 
-    async def _ensure_no_active_ride(self, driver_id: uuid.UUID) -> None:
-        if await driver_has_active_ride(self._session, driver_id):
-            raise DriverOnActiveRideError
 
-    def _check_vehicle_year(self, year: int) -> None:
-        newest = self._clock.now().year + 1
-        if not VEHICLE_MIN_YEAR <= year <= newest:
-            raise VehicleYearOutOfRangeError(VEHICLE_MIN_YEAR, newest)
+def _ensure_can_go_online(profile: DriverProfile | None) -> None:
+    if profile is None or profile.approval_status is not ApprovalStatus.APPROVED:
+        raise DriverNotApprovedError
+    if missing := missing_fields(profile):
+        raise DriverProfileIncompleteError(missing)
 
-    def _apply_vehicle(self, profile: DriverProfile, data: VehicleInput) -> bool:
-        values = {name: getattr(data, name) for name in _VEHICLE_FIELDS}
-        now = self._clock.now()
-        if profile.vehicle is None:
-            profile.vehicle = Vehicle(driver_id=profile.user_id, updated_at=now, **values)
-            return True
-        vehicle = profile.vehicle
-        if all(getattr(vehicle, name) == value for name, value in values.items()):
-            return False
-        for name, value in values.items():
-            setattr(vehicle, name, value)
-        vehicle.updated_at = now
+
+def _check_vehicle_year(year: int, *, newest: int) -> None:
+    if not VEHICLE_MIN_YEAR <= year <= newest:
+        raise VehicleYearOutOfRangeError(VEHICLE_MIN_YEAR, newest)
+
+
+def _apply_vehicle(profile: DriverProfile, data: VehicleInput, now: datetime) -> bool:
+    values = {name: getattr(data, name) for name in _VEHICLE_FIELDS}
+    if profile.vehicle is None:
+        profile.vehicle = Vehicle(driver_id=profile.user_id, updated_at=now, **values)
         return True
+    vehicle = profile.vehicle
+    if all(getattr(vehicle, name) == value for name, value in values.items()):
+        return False
+    for name, value in values.items():
+        setattr(vehicle, name, value)
+    vehicle.updated_at = now
+    return True
 
 
 @dataclass(frozen=True, slots=True)

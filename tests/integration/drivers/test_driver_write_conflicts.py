@@ -15,11 +15,10 @@ from sqlalchemy import select
 from support.clock import ManualClock
 from support.drivers import DriverFactory, vehicle
 from taxi_service.database.session import SessionFactory, read_transaction
+from taxi_service.modules.drivers import service as driver_service
 from taxi_service.modules.drivers.exceptions import PlateNumberTakenError
 from taxi_service.modules.drivers.models import Vehicle
-from taxi_service.modules.drivers import service as driver_service
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate
-from taxi_service.modules.drivers.service import DriverService
 from taxi_service.modules.geo.schemas import Coordinates
 from taxi_service.modules.users.repository import UserRepository
 from taxi_service.modules.users.schemas import MyProfileUpdate
@@ -66,7 +65,7 @@ async def test_plate_constraint_violation_is_reported_as_taken(
 
     async with session_factory() as session:
         with pytest.raises(PlateNumberTakenError):
-            await DriverService(session, clock).update_profile(second, update)
+            await driver_service.update_profile(session, second, update, clock=clock)
 
     assert await plates(session_factory) == ["001TST02", "002TST02"]
 
@@ -82,7 +81,7 @@ async def test_concurrent_first_driver_write_uses_the_existing_row(
     monkeypatch.setattr(driver_service, "_get_profile_for_update", lookup)
 
     async with session_factory() as session:
-        profile = await DriverService(session, clock).update_location(driver, POINT)
+        profile = await driver_service.update_location(session, driver, POINT, clock=clock)
 
     assert (profile.longitude, profile.latitude) == (POINT.longitude, POINT.latitude)
     assert profile.full_name == "Dana Driver"  # the existing row, not a new empty one
@@ -112,4 +111,4 @@ async def test_first_write_for_a_missing_user_still_fails(
 ) -> None:
     async with session_factory() as session:
         with pytest.raises(Exception, match="FOREIGN KEY"):
-            await DriverService(session, clock).update_location(uuid.uuid4(), POINT)
+            await driver_service.update_location(session, uuid.uuid4(), POINT, clock=clock)

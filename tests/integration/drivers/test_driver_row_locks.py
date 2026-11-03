@@ -17,8 +17,9 @@ from sqlalchemy.sql import Select
 from support.clock import ManualClock
 from support.drivers import DriverFactory
 from taxi_service.database.session import SessionFactory
+from taxi_service.modules.drivers import service as driver_service
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate
-from taxi_service.modules.drivers.service import DriverAdminService, DriverService
+from taxi_service.modules.drivers.service import DriverAdminService
 from taxi_service.modules.geo.schemas import Coordinates
 
 WriteCommand = Callable[[AsyncSession, ManualClock, uuid.UUID, uuid.UUID], Awaitable[object]]
@@ -29,18 +30,18 @@ async def edit_profile(
     session: AsyncSession, clock: ManualClock, driver: uuid.UUID, _: Any
 ) -> object:
     update = DriverProfileUpdate(full_name="New Name")
-    return await DriverService(session, clock).update_profile(driver, update)
+    return await driver_service.update_profile(session, driver, update, clock=clock)
 
 
 async def go_offline(
     session: AsyncSession, clock: ManualClock, driver: uuid.UUID, _: Any
 ) -> object:
-    return await DriverService(session, clock).set_availability(driver, online=False)
+    return await driver_service.set_availability(session, driver, False, clock=clock)
 
 
 async def move(session: AsyncSession, clock: ManualClock, driver: uuid.UUID, _: Any) -> object:
     point = Coordinates(longitude=76.95, latitude=43.24)
-    return await DriverService(session, clock).update_location(driver, point)
+    return await driver_service.update_location(session, driver, point, clock=clock)
 
 
 async def approve(
