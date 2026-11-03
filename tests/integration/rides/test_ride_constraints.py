@@ -70,11 +70,18 @@ def route_snapshot(**values: Any) -> dict[str, Any]:
         "duration_s": 1_500,
         "route_geometry": GEOMETRY,
         "provider": "fake",
-        "amount_kzt": 2200,
         "currency": "KZT",
-        "tariff_version": "edu-v1",
+        "tariff_version": "edu-v2",
         **values,
     }
+
+
+QUOTE_AMOUNTS = {
+    "economy_amount_kzt": 2200,
+    "comfort_amount_kzt": 2925,
+    "comfort_plus_amount_kzt": 3650,
+    "business_amount_kzt": 4800,
+}
 
 
 async def insert_quote(
@@ -85,6 +92,7 @@ async def insert_quote(
         "id": quote_id,
         "passenger_id": passenger_id or await insert_user(session_factory),
         **route_snapshot(),
+        **QUOTE_AMOUNTS,
         "created_at": NOW,
         "expires_at": LATER,
         **values,
@@ -111,6 +119,7 @@ async def insert_ride(
         "quote_id": quote_id,
         "status": status,
         **route_snapshot(),
+        "amount_kzt": 2200,
         "created_at": NOW,
         "updated_at": NOW,
         "search_started_at": NOW,
@@ -161,8 +170,10 @@ async def test_valid_quote_is_stored(session_factory: SessionFactory) -> None:
         {"dropoff_latitude": 90.000001},
         {"distance_m": -1},
         {"duration_s": -1},
-        {"amount_kzt": 0},
-        {"amount_kzt": -2200},
+        {"economy_amount_kzt": 0},
+        {"comfort_amount_kzt": -2925},
+        {"comfort_plus_amount_kzt": 0},
+        {"business_amount_kzt": 0},
         {"currency": "USD"},
         {"expires_at": NOW},
     ],
@@ -192,6 +203,7 @@ async def test_quote_belongs_to_an_existing_user(session_factory: SessionFactory
         {"duration_s": -1},
         {"amount_kzt": 0},
         {"currency": "EUR"},
+        {"tariff": "premium"},
     ],
 )
 async def test_ride_values_are_checked(
@@ -199,6 +211,17 @@ async def test_ride_values_are_checked(
 ) -> None:
     with pytest.raises(IntegrityError, match="CHECK"):
         await insert_ride(session_factory, **values)
+
+
+async def test_ride_tariff_defaults_to_economy(session_factory: SessionFactory) -> None:
+    ride_id = await insert_ride(session_factory)
+
+    async with session_factory.begin() as session:
+        tariff = await session.scalar(
+            text("SELECT tariff FROM rides WHERE id = :id"), {"id": ride_id}
+        )
+
+    assert tariff == "economy"
 
 
 async def test_ride_needs_an_existing_quote(session_factory: SessionFactory) -> None:

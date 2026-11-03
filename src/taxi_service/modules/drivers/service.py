@@ -28,6 +28,7 @@ from taxi_service.modules.drivers.schemas import DriverProfileUpdate, VehicleInp
 from taxi_service.modules.geo.schemas import Coordinates
 from taxi_service.modules.rides import service as rides_service
 from taxi_service.modules.rides.dispatch import revoke_driver_offers
+from taxi_service.modules.rides.tariffs import Tariff, tariffs_above
 from taxi_service.modules.users.models import User, UserRole
 
 # Changing these after approval needs a new approval; the phone is only a contact.
@@ -172,9 +173,14 @@ async def list_drivers(
 
 
 async def approve_driver(
-    db: AsyncSession, driver_id: uuid.UUID, admin_id: uuid.UUID, *, clock: Clock
+    db: AsyncSession,
+    driver_id: uuid.UUID,
+    admin_id: uuid.UUID,
+    *,
+    car_class: Tariff | None = None,
+    clock: Clock,
 ) -> tuple[User, DriverProfile]:
-    """Approving an approved driver again returns the first approval unchanged."""
+    """Approving an approved driver again keeps the first approval; ``car_class`` still applies."""
     async with db.begin():
         user = await _get_driver_user(db, driver_id)
         if user is None:
@@ -183,13 +189,41 @@ async def approve_driver(
         missing = missing_fields(profile)
         if profile is None or missing:
             raise DriverProfileIncompleteError(missing)
+        now = clock.now()
         if profile.approval_status is not ApprovalStatus.APPROVED:
-            now = clock.now()
             profile.approval_status = ApprovalStatus.APPROVED
             profile.approved_at = now
             profile.approved_by = admin_id
             profile.updated_at = now
+        if car_class is not None:
+            await _apply_car_class(db, profile, car_class, now)
     return user, profile
+
+
+async def set_car_class(
+    db: AsyncSession, driver_id: uuid.UUID, car_class: Tariff, *, clock: Clock
+) -> tuple[User, DriverProfile]:
+    """Admin only; a lowered class revokes pending offers of the tariffs it no longer serves."""
+    async with db.begin():
+        user = await _get_driver_user(db, driver_id)
+        if user is None:
+            raise DriverNotFoundError
+        profile = await _get_profile_for_update(db, driver_id)
+        if profile is None or profile.vehicle is None:
+            raise DriverProfileIncompleteError(["vehicle"])
+        await _apply_car_class(db, profile, car_class, clock.now())
+    return user, profile
+
+
+async def _apply_car_class(
+    db: AsyncSession, profile: DriverProfile, car_class: Tariff, now: datetime
+) -> None:
+    vehicle = profile.vehicle
+    if vehicle is None or vehicle.car_class is car_class:
+        return
+    vehicle.car_class = car_class
+    vehicle.updated_at = now
+    await revoke_driver_offers(db, profile.user_id, now, tariffs=tariffs_above(car_class))
 
 
 def _apply_identity(profile: DriverProfile, update: DriverProfileUpdate) -> bool:

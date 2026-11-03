@@ -13,6 +13,7 @@ from taxi_service.modules.drivers.models import ApprovalStatus, DriverProfile, V
 from taxi_service.modules.geo.schemas import Coordinates
 from taxi_service.modules.rides.models import ACCEPTED_ACTIVE_RIDE_STATUSES, Ride, RideOffer
 from taxi_service.modules.rides.states import OfferStatus
+from taxi_service.modules.rides.tariffs import Tariff, car_classes_for
 
 DEFAULT_RADIUS_M = 5000.0
 DEFAULT_MAX_LOCATION_AGE_S = 60.0
@@ -40,9 +41,13 @@ async def find_nearby_candidates(
     max_location_age_s: float = DEFAULT_MAX_LOCATION_AGE_S,
     exclude_driver_ids: Collection[uuid.UUID] = (),
     in_search: SearchScope | None = None,
+    tariff: Tariff | None = None,
     limit: int = DEFAULT_LIMIT,
 ) -> list[Candidate]:
-    """Nearest first, then by driver id; both boundaries inclusive; the caller's transaction."""
+    """Nearest first, then by driver id; both boundaries inclusive; the caller's transaction.
+
+    With ``tariff`` only cars of its class or higher qualify (ADR 0012).
+    """
     if radius_m <= 0 or max_location_age_s < 0 or limit < 1:
         raise ValueError("radius_m must be > 0, max_location_age_s >= 0 and limit >= 1")
     fresh_since = now - timedelta(seconds=max_location_age_s)
@@ -51,6 +56,8 @@ async def find_nearby_candidates(
         query = query.where(DriverProfile.user_id.not_in(list(exclude_driver_ids)))
     if in_search is not None:
         query = query.where(~_considered(in_search))
+    if tariff is not None:
+        query = query.where(Vehicle.car_class.in_(car_classes_for(tariff)))
     candidates = []
     for driver_id, longitude, latitude in await session.execute(query):
         if longitude is None or latitude is None:  # excluded by SQL; narrows the type

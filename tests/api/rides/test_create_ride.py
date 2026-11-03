@@ -27,11 +27,12 @@ from taxi_service.database.session import SessionFactory, read_transaction
 from taxi_service.modules.rides import service
 from taxi_service.modules.rides.idempotency import IDEMPOTENCY_HEADER
 from taxi_service.modules.rides.models import IdempotencyRecord, Ride
-from taxi_service.modules.rides.pricing import Fare
+from taxi_service.modules.rides.pricing import Fares
 from taxi_service.modules.rides.states import RideStatus
+from taxi_service.modules.rides.tariffs import Tariff
 
 REPLAY_HEADER = "Idempotent-Replayed"
-SNAPSHOT_FIELDS = ("pickup", "dropoff", "route", "amount_kzt", "currency", "tariff_version")
+SNAPSHOT_FIELDS = ("pickup", "dropoff", "route", "currency", "tariff_version")
 # Stage times and cancel reason (T07B); empty on a new ride.
 LIFECYCLE_FIELDS = (
     "assigned_at",
@@ -87,6 +88,8 @@ async def test_passenger_creates_a_searching_ride_from_the_quote(
         "driver_id",
         "quote_id",
         *SNAPSHOT_FIELDS,
+        "amount_kzt",
+        "tariff",
         "created_at",
         "updated_at",
         *LIFECYCLE_FIELDS,
@@ -101,7 +104,8 @@ async def test_passenger_creates_a_searching_ride_from_the_quote(
     assert {name: ride[name] for name in SNAPSHOT_FIELDS} == {
         name: quote[name] for name in SNAPSHOT_FIELDS
     }
-    assert (ride["amount_kzt"], ride["currency"], ride["tariff_version"]) == (2200, "KZT", "edu-v1")
+    assert (ride["amount_kzt"], ride["tariff"]) == (2200, "economy")
+    assert (ride["currency"], ride["tariff_version"]) == ("KZT", "edu-v2")
     assert datetime.fromisoformat(ride["created_at"]) == clock.now()
     assert datetime.fromisoformat(ride["updated_at"]) == clock.now()
     assert (ride["payment_method"], ride["payment_status"]) == ("cash", "unpaid")
@@ -122,7 +126,8 @@ async def test_ride_and_its_idempotency_record_are_stored(
         None,
         passenger.id,
     )
-    assert (ride.amount_kzt, ride.tariff_version, ride.distance_m) == (2200, "edu-v1", 10_000)
+    assert (ride.amount_kzt, ride.tariff_version, ride.distance_m) == (2200, "edu-v2", 10_000)
+    assert ride.tariff is Tariff.ECONOMY
     async with session_factory() as session, read_transaction(session):
         [record] = list(await session.scalars(select(IdempotencyRecord)))
     assert (record.user_id, record.operation, record.key) == (passenger.id, "create_ride", "key-1")
@@ -136,6 +141,8 @@ async def test_ride_and_its_idempotency_record_are_stored(
         {"amount_kzt": 1},
         {"currency": "USD"},
         {"tariff_version": "free"},
+        {"tariff": "premium"},
+        {"tariff": None},
         {"status": "assigned"},
         {"driver_id": str(uuid.uuid4())},
     ],
@@ -316,15 +323,15 @@ async def test_tariff_change_does_not_reprice_a_stored_quote_or_ride(
 ) -> None:
     passenger = await register_and_login(client, "pat")
     old_quote = await request_quote(client, passenger)
-    monkeypatch.setattr(
-        service, "calculate_fare", lambda **_: Fare(amount_kzt=9999, tariff_version="edu-v2")
-    )
+    repriced = Fares(amounts=dict.fromkeys(Tariff, 9999), tariff_version="edu-v3")
+    monkeypatch.setattr(service, "calculate_fares", lambda **_: repriced)
 
     ride = (await post_ride(client, passenger, old_quote["quote_id"])).json()
     new_quote = await request_quote(client, passenger)
 
-    assert (ride["amount_kzt"], ride["tariff_version"]) == (2200, "edu-v1")
-    assert (new_quote["amount_kzt"], new_quote["tariff_version"]) == (9999, "edu-v2")
+    assert (ride["amount_kzt"], ride["tariff_version"]) == (2200, "edu-v2")
+    assert new_quote["tariff_version"] == "edu-v3"
+    assert {option["amount_kzt"] for option in new_quote["options"]} == {9999}
 
 
 # Repeats with the same Idempotency-Key

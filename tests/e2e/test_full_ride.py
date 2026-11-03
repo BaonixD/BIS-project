@@ -74,7 +74,10 @@ async def test_cash_ride_from_registration_to_history(
 
         # Quote from the road route, then an idempotent order.
         quoted = await quote(pat)
-        assert (quoted["amount_kzt"], quoted["currency"]) == (2200, "KZT")
+        assert (quoted["options"][0], quoted["currency"]) == (
+            {"tariff": "economy", "amount_kzt": 2200},
+            "KZT",
+        )
         assert quoted["route"]["provider"] == FAKE_PROVIDER_NAME
         assert routing_provider.call_count == 1
         key = uuid.uuid4().hex

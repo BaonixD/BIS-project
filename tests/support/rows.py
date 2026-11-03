@@ -76,10 +76,18 @@ def route_snapshot() -> dict[str, Any]:
         "duration_s": 1_500,
         "route_geometry": GEOMETRY,
         "provider": "fake",
-        "amount_kzt": 2200,
         "currency": "KZT",
-        "tariff_version": "edu-v1",
+        "tariff_version": "edu-v2",
     }
+
+
+# Prices of the fake 10 km / 25 min route under edu-v2.
+QUOTE_AMOUNTS = {
+    "economy_amount_kzt": 2200,
+    "comfort_amount_kzt": 2925,
+    "comfort_plus_amount_kzt": 3650,
+    "business_amount_kzt": 4800,
+}
 
 
 async def insert_quote(session_factory: SessionFactory, passenger_id: str) -> str:
@@ -88,6 +96,7 @@ async def insert_quote(session_factory: SessionFactory, passenger_id: str) -> st
         "id": quote_id,
         "passenger_id": passenger_id,
         **route_snapshot(),
+        **QUOTE_AMOUNTS,
         "created_at": NOW,
         "expires_at": IN_5_MIN,
     }
@@ -111,6 +120,7 @@ async def insert_ride(
         "quote_id": await insert_quote(session_factory, passenger_id),
         "status": status,
         **route_snapshot(),
+        "amount_kzt": 2200,
         "created_at": NOW,
         "updated_at": NOW,
         "search_started_at": NOW,

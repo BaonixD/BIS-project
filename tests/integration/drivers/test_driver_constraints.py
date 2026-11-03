@@ -153,7 +153,14 @@ async def test_plate_number_is_unique_across_drivers(session_factory: SessionFac
 
 
 @pytest.mark.parametrize(
-    "values", [{"plate_number": "123abc02"}, {"plate_number": ""}, {"year": 1900}, {"year": 2200}]
+    "values",
+    [
+        {"plate_number": "123abc02"},
+        {"plate_number": ""},
+        {"year": 1900},
+        {"year": 2200},
+        {"car_class": "premium"},
+    ],
 )
 async def test_vehicle_values_are_checked(
     session_factory: SessionFactory, values: dict[str, Any]
@@ -162,6 +169,16 @@ async def test_vehicle_values_are_checked(
 
     with pytest.raises(IntegrityError, match="CHECK"):
         await insert_vehicle(session_factory, driver, **values)
+
+
+async def test_vehicle_class_defaults_to_economy(session_factory: SessionFactory) -> None:
+    driver = await insert_driver(session_factory)
+    await insert_vehicle(session_factory, driver)
+
+    async with session_factory.begin() as session:
+        car_class = await session.scalar(text("SELECT car_class FROM vehicles"))
+
+    assert car_class == "economy"
 
 
 async def test_vehicle_needs_a_driver_profile(session_factory: SessionFactory) -> None:

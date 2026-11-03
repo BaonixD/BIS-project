@@ -1,4 +1,4 @@
-"""A ride copies its quote's route and fare; ``tariff_version`` names the tariff."""
+"""A ride copies its quote's route and its tariff's price; ``tariff_version`` names the rates."""
 
 import uuid
 from datetime import datetime, timedelta
@@ -26,6 +26,7 @@ from taxi_service.modules.rides.states import (
     RideCommand,
     RideStatus,
 )
+from taxi_service.modules.rides.tariffs import TARIFFS, Tariff, tariff_check
 
 if TYPE_CHECKING:
     from taxi_service.modules.payments.models import Payment
@@ -73,7 +74,7 @@ def _values_in(column: str, enum: type[RideStatus | RideCommand]) -> str:
     return f"{column} IN ({', '.join(f"'{member.value}'" for member in sorted(enum))})"
 
 
-def _string_enum[EnumT: (RideStatus, OfferStatus, RideCommand)](enum: type[EnumT]) -> Enum:
+def _string_enum[EnumT: (RideStatus, OfferStatus, RideCommand, Tariff)](enum: type[EnumT]) -> Enum:
     """Stored as its value in a VARCHAR; the CHECK constraint is declared by the table."""
     return Enum(
         enum,
@@ -95,13 +96,16 @@ def _route_checks() -> tuple[CheckConstraint, ...]:
             name="latitude_range",
         ),
         CheckConstraint("distance_m >= 0 AND duration_s >= 0", name="route_metrics"),
-        CheckConstraint("amount_kzt > 0", name="amount_positive"),
         CheckConstraint("currency = 'KZT'", name="currency_kzt"),
     )
 
 
+# A quote prices every tariff (ADR 0012); the ride keeps the price of the chosen one.
+QUOTE_AMOUNT_COLUMNS: Final = {tariff: f"{tariff.value}_amount_kzt" for tariff in TARIFFS}
+
+
 class RouteSnapshot:
-    """Columns shared by a quote and its ride: points, road route and fixed fare."""
+    """Columns shared by a quote and its ride: points, road route and the tariff rates."""
 
     pickup_longitude: Mapped[float] = mapped_column(Float())
     pickup_latitude: Mapped[float] = mapped_column(Float())
@@ -111,7 +115,6 @@ class RouteSnapshot:
     duration_s: Mapped[int] = mapped_column(Integer())
     route_geometry: Mapped[dict[str, Any]] = mapped_column(JSON())
     provider: Mapped[str] = mapped_column(String(PROVIDER_MAX_LENGTH))
-    amount_kzt: Mapped[int] = mapped_column(Integer())
     currency: Mapped[str] = mapped_column(String(3))
     tariff_version: Mapped[str] = mapped_column(String(TARIFF_VERSION_MAX_LENGTH))
 
@@ -125,13 +128,29 @@ class RideQuote(RouteSnapshot, Base):
     __tablename__ = "ride_quotes"
     __table_args__ = (
         *_route_checks(),
+        CheckConstraint(
+            " AND ".join(f"{column} > 0" for column in QUOTE_AMOUNT_COLUMNS.values()),
+            name="amount_positive",
+        ),
         CheckConstraint("expires_at > created_at", name="expires_after_created"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     passenger_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    economy_amount_kzt: Mapped[int] = mapped_column(Integer())
+    comfort_amount_kzt: Mapped[int] = mapped_column(Integer())
+    comfort_plus_amount_kzt: Mapped[int] = mapped_column(Integer())
+    business_amount_kzt: Mapped[int] = mapped_column(Integer())
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
     expires_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+    def amount_for(self, tariff: Tariff) -> int:
+        amount: int = getattr(self, QUOTE_AMOUNT_COLUMNS[tariff])
+        return amount
+
+    def amounts(self) -> dict[Tariff, int]:
+        """Cheapest tariff first."""
+        return {tariff: self.amount_for(tariff) for tariff in TARIFFS}
 
 
 class Ride(RouteSnapshot, Base):
@@ -140,6 +159,8 @@ class Ride(RouteSnapshot, Base):
     __tablename__ = "rides"
     __table_args__ = (
         *_route_checks(),
+        CheckConstraint("amount_kzt > 0", name="amount_positive"),
+        CheckConstraint(tariff_check("tariff"), name="tariff"),
         CheckConstraint(f"status IN ({_sql_list(frozenset(RideStatus))})", name="status"),
         CheckConstraint(
             f"(status IN ({_sql_list(UNASSIGNED_RIDE_STATUSES)}) AND driver_id IS NULL)"
@@ -178,6 +199,10 @@ class Ride(RouteSnapshot, Base):
     passenger_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
     driver_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("driver_profiles.user_id"))
     quote_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("ride_quotes.id"), unique=True)
+    tariff: Mapped[Tariff] = mapped_column(
+        _string_enum(Tariff), server_default=Tariff.ECONOMY.value
+    )
+    amount_kzt: Mapped[int] = mapped_column(Integer())
     status: Mapped[RideStatus] = mapped_column(_string_enum(RideStatus))
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
@@ -194,13 +219,17 @@ class Ride(RouteSnapshot, Base):
     payment: Mapped["Payment | None"] = relationship(lazy="selectin")
 
     @classmethod
-    def from_quote(cls, quote: RideQuote, now: datetime, *, search_budget: timedelta) -> "Ride":
+    def from_quote(
+        cls, quote: RideQuote, tariff: Tariff, now: datetime, *, search_budget: timedelta
+    ) -> "Ride":
         snapshot = {name: getattr(quote, name) for name in ROUTE_SNAPSHOT_COLUMNS}
         return cls(
             id=uuid.uuid4(),
             passenger_id=quote.passenger_id,
             driver_id=None,
             quote_id=quote.id,
+            tariff=tariff,
+            amount_kzt=quote.amount_for(tariff),
             status=RideStatus.SEARCHING,
             **snapshot,
             created_at=now,

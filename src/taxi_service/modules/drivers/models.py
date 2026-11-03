@@ -6,6 +6,7 @@ from sqlalchemy import Boolean, CheckConstraint, Enum, Float, ForeignKey, Index,
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from taxi_service.database.base import Base, UtcDateTime
+from taxi_service.modules.rides.tariffs import TARIFF_MAX_LENGTH, Tariff, tariff_check
 from taxi_service.modules.users.models import PHONE_MAX_LENGTH
 
 FULL_NAME_MAX_LENGTH = 100
@@ -88,10 +89,14 @@ class DriverProfile(Base):
 
 
 class Vehicle(Base):
-    """The single car of a driver; ``plate_number`` is stored normalized and is unique."""
+    """The single car of a driver; ``plate_number`` is stored normalized and is unique.
+
+    ``car_class`` is set by an admin only (ADR 0012); a new car is economy.
+    """
 
     __tablename__ = "vehicles"
     __table_args__ = (
+        CheckConstraint(tariff_check("car_class"), name="car_class"),
         CheckConstraint(
             "plate_number = upper(plate_number) AND length(plate_number) "
             f"BETWEEN {PLATE_NUMBER_MIN_LENGTH} AND {PLATE_NUMBER_MAX_LENGTH}",
@@ -111,6 +116,17 @@ class Vehicle(Base):
     color: Mapped[str] = mapped_column(String(VEHICLE_TEXT_MAX_LENGTH))
     plate_number: Mapped[str] = mapped_column(String(PLATE_NUMBER_MAX_LENGTH), unique=True)
     year: Mapped[int]
+    car_class: Mapped[Tariff] = mapped_column(
+        Enum(
+            Tariff,
+            native_enum=False,
+            create_constraint=False,
+            length=TARIFF_MAX_LENGTH,
+            values_callable=lambda classes: [car_class.value for car_class in classes],
+        ),
+        default=Tariff.ECONOMY,
+        server_default=Tariff.ECONOMY.value,
+    )
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
 

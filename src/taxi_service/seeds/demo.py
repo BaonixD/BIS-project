@@ -19,6 +19,7 @@ from taxi_service.modules.drivers.geodesy import haversine_m
 from taxi_service.modules.drivers.models import Vehicle
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate
 from taxi_service.modules.geo.schemas import Coordinates
+from taxi_service.modules.rides.tariffs import Tariff
 from taxi_service.modules.users import service as users_service
 from taxi_service.modules.users.models import UserRole
 from taxi_service.modules.users.schemas import MyProfileUpdate
@@ -51,6 +52,7 @@ class DemoDriver:
     license_number: str
     vehicle: DemoVehicle
     location: Coordinates
+    car_class: Tariff
 
 
 DEMO_PASSENGERS = (
@@ -65,6 +67,7 @@ DEMO_DRIVERS = (
         "DEMOLIC001",
         DemoVehicle("Toyota", "Camry", "white", "DEMO001KZ", 2020),
         Coordinates(longitude=76.9457, latitude=43.2410),  # ~300 m north
+        Tariff.ECONOMY,
     ),
     DemoDriver(
         "demo_driver_2",
@@ -73,6 +76,7 @@ DEMO_DRIVERS = (
         "DEMOLIC002",
         DemoVehicle("Hyundai", "Elantra", "silver", "DEMO002KZ", 2021),
         Coordinates(longitude=76.9605, latitude=43.2383),  # ~1.2 km east
+        Tariff.COMFORT,
     ),
     DemoDriver(
         "demo_driver_3",
@@ -81,6 +85,7 @@ DEMO_DRIVERS = (
         "DEMOLIC003",
         DemoVehicle("Kia", "K5", "black", "DEMO003KZ", 2019),
         Coordinates(longitude=76.9240, latitude=43.2225),  # ~2.5 km south-west
+        Tariff.BUSINESS,
     ),
 )
 DEMO_ROLES: Mapping[str, UserRole] = {
@@ -266,7 +271,9 @@ async def _create_driver(accounts: _Accounts, driver: DemoDriver, admin_id: uuid
             session, user_id, _profile(driver), clock=accounts.clock
         )
     async with accounts.session_factory() as session:
-        await driver_service.approve_driver(session, user_id, admin_id, clock=accounts.clock)
+        await driver_service.approve_driver(
+            session, user_id, admin_id, car_class=driver.car_class, clock=accounts.clock
+        )
     await _place_online(accounts, user_id, driver.location)
 
 

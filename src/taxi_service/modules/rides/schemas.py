@@ -17,6 +17,7 @@ from taxi_service.modules.rides.models import (
     RouteSnapshot,
 )
 from taxi_service.modules.rides.states import OfferStatus, RideStatus
+from taxi_service.modules.rides.tariffs import Tariff
 from taxi_service.schemas.pagination import Page, PageParams
 
 
@@ -27,27 +28,42 @@ class QuoteRequest(BaseModel):
     dropoff: Coordinates
 
 
+class TariffOption(BaseModel):
+    tariff: Tariff
+    amount_kzt: int
+
+
 class QuoteResponse(BaseModel):
     quote_id: uuid.UUID
     pickup: Coordinates
     dropoff: Coordinates
     route: RouteResult
-    amount_kzt: int
+    options: list[TariffOption] = Field(
+        description="Every tariff, cheapest first: economy, comfort, comfort_plus, business."
+    )
     currency: Literal["KZT"]
     tariff_version: str
+    kaspi_payment_url: str | None = Field(
+        description="The configured Kaspi link (pay.kaspi.kz) or null when Kaspi is off. "
+        "Opening it charges nothing: a Kaspi ride counts as paid once a driver accepts it."
+    )
     created_at: datetime
     expires_at: datetime
 
     @classmethod
-    def build(cls, quote: RideQuote) -> "QuoteResponse":
+    def build(cls, quote: RideQuote, *, kaspi_payment_url: str | None) -> "QuoteResponse":
         return cls(
             quote_id=quote.id,
             pickup=pickup_of(quote),
             dropoff=dropoff_of(quote),
             route=route_of(quote),
-            amount_kzt=quote.amount_kzt,
+            options=[
+                TariffOption(tariff=tariff, amount_kzt=amount)
+                for tariff, amount in quote.amounts().items()
+            ],
             currency="KZT",
             tariff_version=quote.tariff_version,
+            kaspi_payment_url=kaspi_payment_url,
             created_at=quote.created_at,
             expires_at=quote.expires_at,
         )
@@ -62,6 +78,11 @@ class RideCreateRequest(BaseModel):
         description="Chosen with the order. kaspi_link counts as paid at once (a simulated "
         "charge, no money is checked) and needs KASPI_PAYMENT_URL; its link is the "
         "payment_url of GET /rides/{ride_id}/payment.",
+    )
+    tariff: Tariff = Field(
+        default=Tariff.ECONOMY,
+        description="The ride costs this tariff's amount from the quote; only cars of this "
+        "class or higher are offered the ride.",
     )
 
 
@@ -100,6 +121,7 @@ class RideResponse(BaseModel):
     pickup: Coordinates
     dropoff: Coordinates
     route: RouteResult
+    tariff: Tariff
     amount_kzt: int
     currency: Literal["KZT"]
     tariff_version: str
@@ -126,6 +148,7 @@ class RideResponse(BaseModel):
             pickup=pickup_of(ride),
             dropoff=dropoff_of(ride),
             route=route_of(ride),
+            tariff=ride.tariff,
             amount_kzt=ride.amount_kzt,
             currency="KZT",
             tariff_version=ride.tariff_version,
@@ -147,6 +170,7 @@ class VehicleCard(BaseModel):
     model: str
     color: str
     plate_number: str
+    car_class: Tariff
 
 
 class DriverCard(BaseModel):
@@ -174,6 +198,7 @@ class DriverCard(BaseModel):
                 model=vehicle.model,
                 color=vehicle.color,
                 plate_number=vehicle.plate_number,
+                car_class=vehicle.car_class,
             ),
             location=location,
             location_updated_at=profile.location_updated_at,
@@ -202,6 +227,7 @@ class OfferResponse(BaseModel):
     duration_s: int
     amount_kzt: int
     currency: Literal["KZT"]
+    tariff: Tariff
     created_at: datetime
     expires_at: datetime
 
@@ -217,6 +243,7 @@ class OfferResponse(BaseModel):
             duration_s=ride.duration_s,
             amount_kzt=ride.amount_kzt,
             currency="KZT",
+            tariff=ride.tariff,
             created_at=offer.created_at,
             expires_at=offer.expires_at,
         )
@@ -235,6 +262,7 @@ class RideSummary(BaseModel):
     duration_s: int
     amount_kzt: int
     currency: Literal["KZT"]
+    tariff: Tariff
     created_at: datetime
     updated_at: datetime
     payment_status: PaymentStatus | None
@@ -254,6 +282,7 @@ class RideSummary(BaseModel):
             duration_s=ride.duration_s,
             amount_kzt=ride.amount_kzt,
             currency="KZT",
+            tariff=ride.tariff,
             created_at=ride.created_at,
             updated_at=ride.updated_at,
             payment_status=row.payment_status,

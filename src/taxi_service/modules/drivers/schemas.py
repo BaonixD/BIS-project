@@ -18,6 +18,7 @@ from taxi_service.modules.drivers.models import (
     missing_fields,
 )
 from taxi_service.modules.geo.schemas import Coordinates
+from taxi_service.modules.rides.tariffs import Tariff
 from taxi_service.modules.users.models import User
 from taxi_service.modules.users.schemas import Phone
 from taxi_service.schemas.patch import PatchRequest
@@ -103,6 +104,19 @@ class VehicleResponse(BaseModel):
     color: str
     plate_number: str
     year: int
+    car_class: Tariff = Field(description="Set by an admin; serves its tariff and lower ones.")
+
+
+class ApprovalRequest(PatchRequest):
+    """Optional body of an approval; without ``car_class`` the class stays as it is."""
+
+    car_class: Tariff | None = None
+
+
+class CarClassUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    car_class: Tariff
 
 
 class DriverResponse(BaseModel):

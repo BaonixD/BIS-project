@@ -29,12 +29,13 @@ from taxi_service.modules.rides.exceptions import (
 from taxi_service.modules.rides.idempotency import request_fingerprint
 from taxi_service.modules.rides.models import (
     ACCEPTED_ACTIVE_RIDE_STATUSES,
+    QUOTE_AMOUNT_COLUMNS,
     IdempotencyRecord,
     Ride,
     RideQuote,
 )
 from taxi_service.modules.rides.policy import DEFAULT_DISPATCH_POLICY, DispatchPolicy
-from taxi_service.modules.rides.pricing import Fare, calculate_fare
+from taxi_service.modules.rides.pricing import Fares, calculate_fares
 from taxi_service.modules.rides.schemas import QuoteRequest, RideCreateRequest
 from taxi_service.modules.rides.states import ACTIVE_RIDE_STATUSES
 from taxi_service.modules.users.models import UserRole
@@ -67,12 +68,13 @@ async def create_quote(
 ) -> RideQuote:
     """The route is planned outside the transaction; the five minutes start after it."""
     route = await plan_road_route(request.pickup, request.dropoff, routing=routing)
-    fare = calculate_fare(distance_m=route.distance_m, duration_s=route.duration_s)
+    fares = calculate_fares(distance_m=route.distance_m, duration_s=route.duration_s)
     now = clock.now()
     quote = RideQuote(
         id=uuid.uuid4(),
         passenger_id=passenger_id,
-        **route_snapshot(request.pickup, request.dropoff, route, fare),
+        **route_snapshot(request.pickup, request.dropoff, route, fares),
+        **{QUOTE_AMOUNT_COLUMNS[tariff]: amount for tariff, amount in fares.amounts.items()},
         created_at=now,
         expires_at=now + QUOTE_TTL,
     )
@@ -113,7 +115,7 @@ async def create_ride(
     kaspi_enabled: bool = False,
 ) -> RideCreation:
     """A ``searching`` ride from the passenger's own valid quote and its payment, once per key."""
-    # Defaults are left out: an omitted method and an explicit "cash" are the same request.
+    # Defaults are left out: an omitted field and its explicit default are the same request.
     fingerprint = request_fingerprint(request.model_dump(mode="json", exclude_defaults=True))
     try:
         async with db.begin():
@@ -122,7 +124,7 @@ async def create_ride(
                 return RideCreation(replayed, replayed=True)
             if request.payment_method is PaymentMethod.KASPI_LINK and not kaspi_enabled:
                 raise KaspiUnavailableError
-            ride = await _ride_from_quote(db, passenger_id, request.quote_id, clock, policy)
+            ride = await _ride_from_quote(db, passenger_id, request, clock, policy)
             await payment_records.open_payment(db, ride, request.payment_method, ride.created_at)
             db.add(
                 IdempotencyRecord(
@@ -175,7 +177,7 @@ def shows_driver(ride: Ride, viewer_id: uuid.UUID) -> bool:
 
 
 def route_snapshot(
-    pickup: Coordinates, dropoff: Coordinates, route: RouteResult, fare: Fare
+    pickup: Coordinates, dropoff: Coordinates, route: RouteResult, fares: Fares
 ) -> dict[str, Any]:
     return {
         "pickup_longitude": pickup.longitude,
@@ -186,9 +188,8 @@ def route_snapshot(
         "duration_s": route.duration_s,
         "route_geometry": route.route_geometry.model_dump(mode="json"),
         "provider": route.provider,
-        "amount_kzt": fare.amount_kzt,
-        "currency": fare.currency,
-        "tariff_version": fare.tariff_version,
+        "currency": fares.currency,
+        "tariff_version": fares.tariff_version,
     }
 
 
@@ -207,11 +208,11 @@ async def _replay(db: AsyncSession, user_id: uuid.UUID, key: str, fingerprint: s
 async def _ride_from_quote(
     db: AsyncSession,
     passenger_id: uuid.UUID,
-    quote_id: uuid.UUID,
+    request: RideCreateRequest,
     clock: Clock,
     policy: DispatchPolicy,
 ) -> Ride:
-    quote = await db.get(RideQuote, quote_id)
+    quote = await db.get(RideQuote, request.quote_id)
     if quote is None or quote.passenger_id != passenger_id:
         raise QuoteNotFoundError
     if await _quote_is_used(db, quote.id):
@@ -221,7 +222,7 @@ async def _ride_from_quote(
         raise QuoteExpiredError
     if await _has_active_ride(db, passenger_id):
         raise ActiveRideExistsError
-    ride = Ride.from_quote(quote, now, search_budget=policy.search_budget)
+    ride = Ride.from_quote(quote, request.tariff, now, search_budget=policy.search_budget)
     db.add(ride)
     await db.flush()
     return ride

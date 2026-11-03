@@ -216,6 +216,7 @@ erDiagram
         varchar color
         varchar plate_number UK "нормализован"
         int year "1980-2100"
+        varchar car_class "economy по умолчанию; задаёт admin"
         datetime updated_at
     }
     ride_quotes {
@@ -229,9 +230,12 @@ erDiagram
         int duration_s
         json route_geometry "GeoJSON LineString"
         varchar provider
-        int amount_kzt
+        int economy_amount_kzt
+        int comfort_amount_kzt
+        int comfort_plus_amount_kzt
+        int business_amount_kzt
         varchar currency "KZT"
-        varchar tariff_version "edu-v1"
+        varchar tariff_version "edu-v2"
         datetime created_at
         datetime expires_at "created_at + 5 мин"
     }
@@ -240,6 +244,7 @@ erDiagram
         uuid passenger_id FK
         uuid driver_id FK "driver_profiles.user_id, NULL без водителя"
         uuid quote_id FK, UK
+        varchar tariff "economy|comfort|comfort_plus|business"
         varchar status
         float pickup_longitude
         float pickup_latitude
@@ -338,7 +343,7 @@ erDiagram
 | `driver_profiles` | `online_requires_approval`: `NOT is_online OR approval_status = 'approved'` | online только у допущенного |
 | `driver_profiles` | `location_complete`, диапазоны `longitude`/`latitude` | координата целиком или отсутствует; WGS 84 |
 | `vehicles` | `plate_number = upper(plate_number)`, длина 4–10; `year BETWEEN 1980 AND 2100` | нормализованный номер, год |
-| `ride_quotes`, `rides` | диапазоны точек, `distance_m >= 0 AND duration_s >= 0`, `amount_kzt > 0`, `currency = 'KZT'` | снимок маршрута и цены |
+| `ride_quotes`, `rides` | диапазоны точек, `distance_m >= 0 AND duration_s >= 0`, суммы `> 0` (четыре у quote, `amount_kzt` у поездки), `currency = 'KZT'`, перечень `rides.tariff` | снимок маршрута и цены |
 | `rides` | `driver_matches_status` | `searching`/`no_driver` — без водителя; `assigned`…`completed` — с водителем; `cancelled` — любой вариант |
 | `rides` | `search_deadline > search_started_at`, `status IN (...)` | окно поиска, допустимые статусы |
 | `ride_offers` | `responded_matches_status` | `responded_at` пуст ровно у `pending` |
@@ -449,13 +454,14 @@ stateDiagram-v2
 | Идентификаторы | UUID |
 | Расстояние до кандидата | haversine по прямой, метры (не по дорогам) |
 
-Тариф `edu-v1` (`modules/rides/pricing.py`, вычисление на `Decimal`):
+Тарифы `edu-v2` (`modules/rides/pricing.py`, вычисление на `Decimal`, [ADR 0012](decisions/0012-tariffs-and-car-classes.md)):
 
 ```text
-amount_kzt = ROUND_HALF_UP( max(800, 500 + 120 * distance_m / 1000 + 20 * duration_s / 60) )
+amount_kzt = ROUND_HALF_UP( max(min, base + per_km * distance_m / 1000 + per_min * duration_s / 60) )
+economy 500/120/20/800, comfort 700/160/25/1100, comfort_plus 900/200/30/1500, business 1200/260/40/2000
 ```
 
-Пример: 10 000 м и 1500 с → 500 + 1200 + 500 = 2200 KZT. Цена фиксируется в quote и копируется в поездку и запись оплаты; смена тарифа не трогает сохранённые quote и поездки (`tariff_version`).
+Пример: 10 000 м и 1500 с → 2200 / 2925 / 3650 / 4800 KZT. Quote хранит все четыре цены, поездка — `tariff` и цену этого тарифа, запись оплаты — её копию; смена ставок не трогает сохранённые quote и поездки (`tariff_version`). Предложение получает машина класса `vehicles.car_class` не ниже тарифа.
 
 Сроки: сессия 7 дней, quote 5 минут, предложение `OFFER_TTL_S` = 30 с, поиск `SEARCH_BUDGET_S` = 180 с, свежесть координаты кандидата 60 с, радиус 5000 м, ограничитель входа 5 попыток за 900 с. Константы quote, радиуса и свежести — в коде; TTL, бюджет и интервал цикла — настройки.
 
@@ -473,6 +479,7 @@ amount_kzt = ROUND_HALF_UP( max(800, 500 + 120 * distance_m / 1000 + 20 * durati
 | [0008](decisions/0008-functional-services.md) | сервисы — функции модуля, SQL в сервисе без слоя репозиториев, зависимости через `Depends`, тонкие роутеры без docstring | `modules/*/service.py`, `modules/*/dependencies.py`, `modules/*/router.py` |
 | [0009](decisions/0009-simple-payments.md) | поток заменён ADR 0010; правила ссылки Kaspi | `modules/payments/config.py` |
 | [0010](decisions/0010-pay-before-order.md) | способ оплаты при заказе, Kaspi сразу `paid`, `refunded` при отмене или `no_driver`, наличные подтверждает водитель | `modules/payments/`, `rides/service.py` |
+| [0012](decisions/0012-tariffs-and-car-classes.md) | четыре тарифа `edu-v2`, `tariff` поездки, класс машины от admin, кандидат класса не ниже тарифа | `rides/tariffs.py`, `rides/pricing.py`, `drivers/candidates.py`, `drivers/service.py` |
 
 ## Ограничения
 

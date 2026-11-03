@@ -17,6 +17,7 @@ from taxi_service.modules.drivers.candidates import Candidate, find_nearby_candi
 from taxi_service.modules.drivers.geodesy import EARTH_RADIUS_M, haversine_m
 from taxi_service.modules.drivers.models import LOCATION_INDEX_NAME
 from taxi_service.modules.geo.schemas import Coordinates
+from taxi_service.modules.rides.tariffs import Tariff
 
 PICKUP = Coordinates(longitude=76.9457, latitude=43.2383)  # synthetic point in Almaty
 METRES_PER_DEGREE = EARTH_RADIUS_M * math.pi / 180
@@ -52,6 +53,35 @@ async def test_nearest_driver_comes_first_with_distance_in_metres(
 
     assert ids(found) == [near, middle, far]
     assert [round(candidate.distance_m) for candidate in found] == [300, 1200, 4000]
+
+
+@pytest.mark.parametrize(
+    ("tariff", "expected"),
+    [
+        (Tariff.ECONOMY, ["economy", "comfort", "comfort_plus", "business"]),
+        (Tariff.COMFORT, ["comfort", "comfort_plus", "business"]),
+        (Tariff.COMFORT_PLUS, ["comfort_plus", "business"]),
+        (Tariff.BUSINESS, ["business"]),
+    ],
+)
+async def test_a_tariff_needs_a_car_of_its_class_or_higher(
+    driver_factory: DriverFactory,
+    session_factory: SessionFactory,
+    clock: ManualClock,
+    tariff: Tariff,
+    expected: list[str],
+) -> None:
+    names = {}
+    for metres, car_class in enumerate(Tariff, start=1):
+        driver_id = await driver_factory.driver(
+            car_class.value, location=offset(PICKUP, east_m=100 * metres), car_class=car_class
+        )
+        names[driver_id] = car_class.value
+
+    found = await search(session_factory, clock, tariff=tariff)
+
+    assert [names[driver_id] for driver_id in ids(found)] == expected
+    assert ids(await search(session_factory, clock)) == list(names)
 
 
 async def test_drivers_outside_the_radius_are_excluded(

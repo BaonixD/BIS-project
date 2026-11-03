@@ -165,7 +165,7 @@ export async function loginWithGoogle(credential: string) {
 | GET | `/api/v1/users/me` | вошедший | → `{id, username, role, created_at, display_name, phone}` |
 | PATCH | `/api/v1/users/me` | вошедший | `{display_name?, phone?}` → то же (роль и username не меняются) |
 | GET | `/api/v1/drivers/me` | driver | → `DriverResponse` |
-| PATCH | `/api/v1/drivers/me` | driver | `{full_name?, phone?, license_number?, vehicle?: {make, model, color, plate_number, year}}` → `DriverResponse` |
+| PATCH | `/api/v1/drivers/me` | driver | `{full_name?, phone?, license_number?, vehicle?: {make, model, color, plate_number, year}}` → `DriverResponse` (класс машины водитель не задаёт) |
 | PUT | `/api/v1/drivers/me/availability` | driver | `{online: bool}` → `DriverResponse` |
 | PUT | `/api/v1/drivers/me/location` | driver | `{longitude, latitude}` → `DriverResponse` |
 | GET | `/api/v1/drivers/me/offers` | driver | `?limit&offset` → `Page<OfferResponse>` (не больше одного открытого) |
@@ -173,7 +173,7 @@ export async function loginWithGoogle(credential: string) {
 | POST | `/api/v1/ride-offers/{offer_id}/reject` | адресат предложения | → `OfferResponse` (`rejected`) |
 | POST | `/api/v1/geo/route` | вошедший | `{origin, destination}` → `RouteResult` (без цены) |
 | POST | `/api/v1/rides/quotes` | passenger | `{pickup, dropoff}` → `201 QuoteResponse` |
-| POST | `/api/v1/rides` | passenger | `{quote_id, payment_method?}` + `Idempotency-Key` → `201 RideResponse` |
+| POST | `/api/v1/rides` | passenger | `{quote_id, payment_method?, tariff?}` + `Idempotency-Key` → `201 RideResponse` |
 | GET | `/api/v1/rides` | passenger, driver | `?status&created_from&created_to&limit&offset` → `Page<RideSummary>` |
 | GET | `/api/v1/rides/{ride_id}` | пассажир поездки, назначенный водитель, admin | → `RideDetailsResponse` (`RideResponse` + `driver`) |
 | POST | `/api/v1/rides/{ride_id}/arrive` | назначенный водитель | → `RideResponse` |
@@ -184,29 +184,30 @@ export async function loginWithGoogle(credential: string) {
 | GET | `/api/v1/rides/{ride_id}/payment` | пассажир, назначенный водитель, admin | → `PaymentResponse` |
 | POST | `/api/v1/rides/{ride_id}/payment/cash-received` | назначенный водитель | без тела → `PaymentResponse` |
 | GET | `/api/v1/admin/drivers` | admin | `?approval_status=pending\|approved&limit&offset` → `Page<AdminDriverResponse>` |
-| POST | `/api/v1/admin/drivers/{driver_id}/approve` | admin | → `AdminDriverResponse` |
+| POST | `/api/v1/admin/drivers/{driver_id}/approve` | admin | без тела или `{car_class?}` → `AdminDriverResponse` |
+| PATCH | `/api/v1/admin/drivers/{driver_id}` | admin | `{car_class}` → `AdminDriverResponse` |
 | GET | `/api/v1/admin/rides` | admin | фильтры истории + `passenger_id`, `driver_id` → `Page<RideSummary>` |
 | GET | `/api/v1/admin/users` | admin | `?role&limit&offset` → `Page<AdminUserResponse>` |
 
 Основные схемы ответа (поля — как в OpenAPI):
 
-- `RideResponse`: `id`, `status`, `passenger_id`, `driver_id`, `quote_id`, `pickup`, `dropoff`, `route` (`RouteResult`), `amount_kzt`, `currency`, `tariff_version`, `created_at`, `updated_at`, `assigned_at`, `arrived_at`, `started_at`, `completed_at`, `cancelled_at`, `cancel_reason`, `payment_method`, `payment_status`.
-- `RideDetailsResponse` = `RideResponse` + `driver`: для пассажира и назначенного водителя при `assigned`/`arrived`/`in_progress` — `{full_name, phone, vehicle: {make, model, color, plate_number}, location, location_updated_at}`; иначе `null`.
+- `RideResponse`: `id`, `status`, `passenger_id`, `driver_id`, `quote_id`, `pickup`, `dropoff`, `route` (`RouteResult`), `tariff`, `amount_kzt` (цена выбранного тарифа), `currency`, `tariff_version`, `created_at`, `updated_at`, `assigned_at`, `arrived_at`, `started_at`, `completed_at`, `cancelled_at`, `cancel_reason`, `payment_method`, `payment_status`.
+- `RideDetailsResponse` = `RideResponse` + `driver`: для пассажира и назначенного водителя при `assigned`/`arrived`/`in_progress` — `{full_name, phone, vehicle: {make, model, color, plate_number, car_class}, location, location_updated_at}`; иначе `null`.
 - `RouteResult`: `distance_m`, `duration_s`, `route_geometry` (GeoJSON `LineString`), `provider`.
-- `QuoteResponse`: `quote_id`, `pickup`, `dropoff`, `route`, `amount_kzt`, `currency`, `tariff_version`, `created_at`, `expires_at`.
-- `OfferResponse`: `id`, `ride_id`, `status`, `pickup`, `dropoff`, `distance_m`, `duration_s`, `amount_kzt`, `currency`, `created_at`, `expires_at`.
-- `RideSummary` (элемент истории): `id`, `status`, `passenger_id`, `driver_id`, `pickup`, `dropoff`, `distance_m`, `duration_s`, `amount_kzt`, `currency`, `created_at`, `updated_at`, `payment_status`, `payment_method` (есть с момента заказа). Геометрии нет — за ней `GET /rides/{ride_id}`.
-- `DriverResponse`: `id`, `full_name`, `phone`, `license_number`, `vehicle`, `approval_status`, `approved_at`, `online`, `location`, `location_updated_at`, `missing_fields`. `AdminDriverResponse` дополнительно: `username`, `created_at`, `approved_by`.
+- `QuoteResponse`: `quote_id`, `pickup`, `dropoff`, `route`, `options` (ровно четыре `{tariff, amount_kzt}`: `economy`, `comfort`, `comfort_plus`, `business`), `currency`, `tariff_version` (`edu-v2`), `kaspi_payment_url` (ссылка Kaspi или `null`), `created_at`, `expires_at`. Общей `amount_kzt` нет.
+- `OfferResponse`: `id`, `ride_id`, `status`, `pickup`, `dropoff`, `distance_m`, `duration_s`, `amount_kzt`, `currency`, `tariff`, `created_at`, `expires_at`.
+- `RideSummary` (элемент истории): `id`, `status`, `passenger_id`, `driver_id`, `pickup`, `dropoff`, `distance_m`, `duration_s`, `amount_kzt`, `currency`, `tariff`, `created_at`, `updated_at`, `payment_status`, `payment_method` (есть с момента заказа). Геометрии нет — за ней `GET /rides/{ride_id}`.
+- `DriverResponse`: `id`, `full_name`, `phone`, `license_number`, `vehicle` (`{make, model, color, plate_number, year, car_class}` или `null`), `approval_status`, `approved_at`, `online`, `location`, `location_updated_at`, `missing_fields`. `AdminDriverResponse` дополнительно: `username`, `created_at`, `approved_by`.
 - `PaymentResponse`: `ride_id`, `amount_kzt`, `currency`, `method`, `status`, `paid_at`, `refunded_at`, `payment_url` (ссылка Kaspi только при `kaspi_link`, иначе `null`).
 
-Статусы: поездка — `searching`, `assigned`, `arrived`, `in_progress`, `completed`, `cancelled`, `no_driver`; предложение — `pending`, `accepted`, `rejected`, `expired`, `revoked`; оплата — `unpaid`, `paid`, `refunded`; метод — `cash`, `kaspi_link`. Диаграммы — в [architecture.md](architecture.md#состояния).
+Тариф поездки и класс машины — `economy` < `comfort` < `comfort_plus` < `business` ([ADR 0012](decisions/0012-tariffs-and-car-classes.md)). Статусы: поездка — `searching`, `assigned`, `arrived`, `in_progress`, `completed`, `cancelled`, `no_driver`; предложение — `pending`, `accepted`, `rejected`, `expired`, `revoked`; оплата — `unpaid`, `paid`, `refunded`; метод — `cash`, `kaspi_link`. Диаграммы — в [architecture.md](architecture.md#состояния).
 
 ## Поток пассажира
 
 1. **Регистрация и вход**: `POST /auth/register` (`role: "passenger"`), `POST /auth/login`, сохранить `csrf_token`. Или [через Google](#вход-через-google-пассажиры): `POST /auth/google` создаёт пассажира при первом входе. По желанию `PATCH /users/me {display_name, phone}`.
 2. **Активная поездка после перезагрузки**: `GET /rides?status=searching&status=assigned&status=arrived&status=in_progress&limit=1` — если есть элемент, сразу открыть экран поездки.
-3. **Выбор точек** на карте (адресного поиска на сервере нет) и **цена**: `POST /rides/quotes {pickup, dropoff}` → показать `amount_kzt`, маршрут (`route.route_geometry`), `route.distance_m`, `route.duration_s`. Quote действует 5 минут (`expires_at`); после — запросить новый. Ошибки: `503 routing_unavailable` (на сервере нет ключа маршрутов), `503 routing_provider_error`, `422 route_not_found`, `422 route_points_identical`; при ошибке quote не создаётся.
-4. **Заказ**: выбрать способ оплаты ([Оплата](#оплата)), затем `POST /rides {quote_id, payment_method}` с новым `Idempotency-Key` → `201`. Ответ уже после первого шага поиска: `searching` (предложение отправлено ближайшему водителю) или сразу `no_driver` (рядом нет свободных водителей). Цена берётся только из quote. Ошибки: `409 active_ride_exists`, `409 quote_expired`, `409 quote_already_used`, `404 quote_not_found` (неизвестный или чужой quote), `503 kaspi_unavailable` (Kaspi не настроен — заказать наличными). Повтор с тем же ключом поиск заново не запускает.
+3. **Выбор точек** на карте (адресного поиска на сервере нет) и **цена**: `POST /rides/quotes {pickup, dropoff}` → показать карточки тарифов из `options` (`tariff`, `amount_kzt`), маршрут (`route.route_geometry`), `route.distance_m`, `route.duration_s`. Quote действует 5 минут (`expires_at`); после — запросить новый. Ошибки: `503 routing_unavailable` (на сервере нет ключа маршрутов), `503 routing_provider_error`, `422 route_not_found`, `422 route_points_identical`; при ошибке quote не создаётся.
+4. **Заказ**: выбрать тариф и способ оплаты ([Оплата](#оплата)), затем `POST /rides {quote_id, payment_method, tariff}` с новым `Idempotency-Key` → `201` (без `tariff` — `economy`). Предложение получают только машины класса не ниже тарифа: для `business` при одних `economy`-водителях рядом сразу `no_driver`. Ответ уже после первого шага поиска: `searching` (предложение отправлено ближайшему водителю) или сразу `no_driver` (рядом нет свободных водителей). Цена берётся только из quote. Ошибки: `409 active_ride_exists`, `409 quote_expired`, `409 quote_already_used`, `404 quote_not_found` (неизвестный или чужой quote), `503 kaspi_unavailable` (Kaspi не настроен — заказать наличными). Повтор с тем же ключом поиск заново не запускает.
 5. **Ожидание**: опрашивать `GET /rides/{ride_id}`. `searching` может длиться до ~3,5 минут (водители получают предложение по очереди); `no_driver` — поиск закончился, предложить заказать снова (новый quote).
 6. **Водитель назначен** (`assigned`): показать `driver` — имя, телефон, машину, позицию и `location_updated_at` (если позиция давно не обновлялась — показать «обновлено N мин назад»; поездка от этого не отменяется). Далее `arrived` (водитель на месте) → `in_progress` → `completed`.
 7. **Отмена**: `POST /rides/{ride_id}/cancel` (тело необязательно, `{"reason": "..."}` 1–200 символов) в `searching`/`assigned`/`arrived`. В `in_progress` отмены нет (`409 invalid_ride_transition`). Открытое предложение водителю отзывается, назначенный водитель сразу свободен. Повтор — `200` с тем же состоянием.
@@ -231,7 +232,8 @@ export async function loginWithGoogle(credential: string) {
 
 Admin создаётся только локальной командой (`scripts/create_admin.py`, README), публичной регистрации нет.
 
-- Допуск водителей: `GET /admin/drivers?approval_status=pending` (новые регистрации сначала; водитель без профиля — тоже `pending`) → `POST /admin/drivers/{driver_id}/approve` (`driver_id` — id пользователя). Неполный профиль — `409 driver_profile_incomplete` с `details.missing_fields`; повторный допуск возвращает первый.
+- Допуск водителей: `GET /admin/drivers?approval_status=pending` (новые регистрации сначала; водитель без профиля — тоже `pending`) → `POST /admin/drivers/{driver_id}/approve` (`driver_id` — id пользователя; необязательное тело `{"car_class": "comfort"}` сразу задаёт класс, без него класс не меняется).
+- Класс машины: `PATCH /admin/drivers/{driver_id} {"car_class": "business"}` (`404 driver_not_found`, без машины — `409 driver_profile_incomplete`). Понижение класса отзывает открытые предложения водителя по более высоким тарифам. У новой машины — `economy`. Неполный профиль — `409 driver_profile_incomplete` с `details.missing_fields`; повторный допуск возвращает первый.
 - Чтение: `GET /admin/rides` (фильтры истории, `passenger_id`, `driver_id`; неизвестный id — пустая страница), `GET /admin/users?role=driver`, любая поездка `GET /rides/{ride_id}` (без карточки водителя) и её оплата.
 - Командами поездки и оплаты admin не управляет (`403 ride_command_forbidden`, `403 payment_action_forbidden`); `GET /rides` для admin — `403 forbidden`.
 

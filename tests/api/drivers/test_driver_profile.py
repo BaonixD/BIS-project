@@ -74,6 +74,7 @@ async def test_complete_profile_is_normalized_and_stored(client: httpx.AsyncClie
         "color": "white",
         "plate_number": "123ABC02",
         "year": 2020,
+        "car_class": "economy",
     }
     assert profile["missing_fields"] == []
     assert profile["approval_status"] == "pending"

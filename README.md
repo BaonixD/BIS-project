@@ -334,11 +334,12 @@ uv run python scripts/routing_smoke.py
 | Маршрут | Роль | Что делает |
 | --- | --- | --- |
 | `GET/PATCH /users/me` | любая | аккаунт и контакты: `display_name` (1–64 символа), `phone` |
-| `GET/PATCH /drivers/me` | driver | `full_name`, `phone`, `license_number`, `vehicle` (`make`, `model`, `color`, `plate_number`, `year`) |
+| `GET/PATCH /drivers/me` | driver | `full_name`, `phone`, `license_number`, `vehicle` (`make`, `model`, `color`, `plate_number`, `year`; в ответе ещё `car_class`) |
 | `PUT /drivers/me/availability` | driver | `{"online": true\|false}` |
 | `PUT /drivers/me/location` | driver | `{"longitude": ..., "latitude": ...}` |
 | `GET /admin/drivers` | admin | список: `limit` (1–100, 20), `offset`, `approval_status=pending\|approved` |
-| `POST /admin/drivers/{id}/approve` | admin | допуск водителя (`id` — id пользователя) |
+| `POST /admin/drivers/{id}/approve` | admin | допуск водителя (`id` — id пользователя); необязательное тело `{"car_class": "comfort"}` |
+| `PATCH /admin/drivers/{id}` | admin | `{"car_class": "economy\|comfort\|comfort_plus\|business"}` — класс машины |
 
 Правила:
 
@@ -348,6 +349,7 @@ uv run python scripts/routing_smoke.py
 - Новый водитель — `pending`. Admin допускает только полный профиль с машиной (`409 driver_profile_incomplete`, `details.missing_fields`); повторный допуск возвращает первый (`approved_at`, `approved_by` не меняются).
 - Изменение `full_name`, `license_number` или машины у допущенного водителя возвращает его в `pending` и offline до нового допуска; телефон меняется без этого, повтор тех же значений ничего не сбрасывает.
 - `online: true` — только допущенному водителю (`409 driver_not_approved`); offline разрешён всегда, кроме времени активной поездки. Это ограничение есть и в БД (CHECK).
+- Класс машины `car_class` (`economy` у новой машины) задаёт только admin — при допуске или `PATCH /admin/drivers/{id}` (без машины — `409 driver_profile_incomplete`); водитель его не передаёт (`422`), замена машины класс не сбрасывает. Машина обслуживает свой тариф и ниже; понижение класса отзывает открытые предложения по более высоким тарифам ([ADR 0012](docs/decisions/0012-tariffs-and-car-classes.md)).
 - Во время своей поездки (`assigned/arrived/in_progress`) водитель не уходит offline и не меняет профиль и машину: `409 driver_on_active_ride` (раздел «Жизненный цикл поездки»); координаты обновляются как обычно.
 - Координата одна текущая: `longitude` −180…180, `latitude` −90…90 включительно, числа JSON (не строки, не массив). Время `location_updated_at` ставит сервер; координаты пишет и не допущенный водитель.
 - Список admin упорядочен по регистрации: `created_at DESC, id DESC`; водитель, ещё не заполнявший профиль, тоже в списке как `pending`.
@@ -362,8 +364,8 @@ uv run python scripts/routing_smoke.py
 
 | Маршрут | Роль | Что делает |
 | --- | --- | --- |
-| `POST /rides/quotes` | passenger | `{"pickup": {...}, "dropoff": {...}}` → `201`: `quote_id`, `route`, `amount_kzt`, `currency`, `tariff_version`, `expires_at` |
-| `POST /rides` | passenger | `{"quote_id": "...", "payment_method": "cash"}` (`cash` по умолчанию или `kaspi_link`) + заголовок `Idempotency-Key` → `201` поездка в `searching` без водителя, с `payment_method` и `payment_status` |
+| `POST /rides/quotes` | passenger | `{"pickup": {...}, "dropoff": {...}}` → `201`: `quote_id`, `route`, `options` (четыре `{tariff, amount_kzt}`), `currency`, `tariff_version`, `kaspi_payment_url`, `expires_at` |
+| `POST /rides` | passenger | `{"quote_id": "...", "payment_method": "cash", "tariff": "comfort"}` (`cash` по умолчанию или `kaspi_link`; `economy` по умолчанию) + заголовок `Idempotency-Key` → `201` поездка в `searching` без водителя, с `tariff`, `payment_method` и `payment_status` |
 | `GET /rides/{id}` | пассажир поездки, назначенный водитель, admin | поездка; участникам активной поездки — и карточка водителя `driver`; остальным `404 ride_not_found` |
 
 Пример (после входа пассажиром, как в разделе «Аутентификация»: `$API`, `jar.txt`, `$CSRF`; нужен ключ маршрутизации):
@@ -380,7 +382,7 @@ curl -s -b jar.txt -X POST "$API/rides" -H "X-CSRF-Token: $CSRF" -H "Idempotency
 
 Правила:
 
-- Цену считает сервер по дорожному маршруту (тариф `edu-v1`), quote действует 5 минут. Поездка копирует маршрут, сумму и `tariff_version` из quote; смена тарифа сохранённые quote и поездки не меняет. Сумма, статус или водитель в теле — `422 validation_error`.
+- Цену считает сервер по дорожному маршруту сразу для четырёх тарифов `economy`, `comfort`, `comfort_plus`, `business` (версия `edu-v2`, [ADR 0012](docs/decisions/0012-tariffs-and-car-classes.md)), quote действует 5 минут. Поездка копирует маршрут, `tariff_version` и сумму выбранного `tariff` из quote; смена ставок сохранённые quote и поездки не меняет. Предложение получает только машина класса не ниже тарифа (`vehicle.car_class`, задаёт admin). Сумма, статус или водитель в теле — `422 validation_error`.
 - Маршрут запрашивается у провайдера вне транзакции БД; его ошибки (`503 routing_unavailable`, `503 routing_provider_error`, `422 route_not_found`, `422 route_points_identical`) возвращаются как есть, quote не создаётся.
 - `Idempotency-Key`: 1–128 видимых ASCII-символов (подходит UUID), новый на каждый новый заказ. Повтор с тем же ключом и телом возвращает ту же поездку (`201`, заголовок `Idempotent-Replayed: true`); тот же ключ с другим `quote_id` — `409 idempotency_key_reused`. Нет ключа — `422 idempotency_key_required`, неверный формат — `422 idempotency_key_invalid`. Ключ действует для пользователя и операции; записи хранятся не меньше 24 часов (автоматической очистки нет).
 - Ошибки создания: `404 quote_not_found` (нет или чужой), `409 quote_expired`, `409 quote_already_used`, `409 active_ride_exists` (у пассажира уже есть поездка `searching/assigned/arrived/in_progress`). Ограничения защищены и в БД (уникальный `quote_id`, частичные уникальные индексы активной поездки пассажира и принятой поездки водителя); одновременные запросы дают одну поездку и `409`, не `500`.
@@ -400,7 +402,7 @@ curl -s -b jar.txt -X POST "$API/rides" -H "X-CSRF-Token: $CSRF" -H "Idempotency
 
 Фильтры поездок сочетаются через И: `status` — один или несколько (`?status=completed&status=cancelled`); `created_from` — включительно, `created_to` — исключительно, то есть `[from, to)`. Время — ISO 8601 обязательно со смещением (`2026-11-03T09:00:00Z` или `+05:00`; в URL `+` кодируется как `%2B`), без смещения — `422 validation_error`; `created_from` позже `created_to` — `422 invalid_date_range`.
 
-Элемент поездки (`RideSummary`): `id`, `status`, `passenger_id`, `driver_id`, `pickup`, `dropoff`, `distance_m`, `duration_s`, `amount_kzt`, `currency`, `created_at`, `updated_at`, `payment_status`, `payment_method` (есть с момента заказа; один `LEFT JOIN payments`, число запросов не растёт). Геометрии маршрута в списке нет — её отдаёт `GET /rides/{id}`. Пароли, хэши, токены сессии и CSRF, телефоны в ответы не попадают; изменить роль или статус через эти маршруты нельзя (`POST/PUT/PATCH/DELETE` — `404/405`).
+Элемент поездки (`RideSummary`): `id`, `status`, `passenger_id`, `driver_id`, `pickup`, `dropoff`, `distance_m`, `duration_s`, `amount_kzt`, `currency`, `tariff`, `created_at`, `updated_at`, `payment_status`, `payment_method` (есть с момента заказа; один `LEFT JOIN payments`, число запросов не растёт). Геометрии маршрута в списке нет — её отдаёт `GET /rides/{id}`. Пароли, хэши, токены сессии и CSRF, телефоны в ответы не попадают; изменить роль или статус через эти маршруты нельзя (`POST/PUT/PATCH/DELETE` — `404/405`).
 
 Страница стоит одинаковое число SQL-запросов при любом размере: проверка сессии, строки страницы и `count` (`tests/api/test_list_statement_count.py`).
 
@@ -425,7 +427,7 @@ uv run python scripts/seed.py --refresh-locations   # перед показом:
 | --- | --- | --- |
 | `demo_admin` | admin | допускает демо-водителей |
 | `demo_passenger_1`, `demo_passenger_2` | passenger | `display_name` «Demo Passenger 1/2» |
-| `demo_driver_1`…`demo_driver_3` | driver | полный профиль, машина `DEMO001KZ`…`DEMO003KZ`, допуск `demo_admin`, online |
+| `demo_driver_1`…`demo_driver_3` | driver | полный профиль, машина `DEMO001KZ`…`DEMO003KZ` классов `economy`, `comfort`, `business`, допуск `demo_admin`, online |
 
 Водители стоят в синтетических точках примерно в 300 м, 1,2 км и 2,5 км от демонстрационной точки посадки в центре Алматы (`latitude 43.2383, longitude 76.9457`; это не адреса реальных людей), поэтому поиск ближайшего водителя у этой точки находит их в этом порядке. Координата считается свежей 60 с: перед демонстрацией назначения выполните `--refresh-locations`.
 
@@ -443,7 +445,7 @@ uv run python scripts/seed.py --refresh-locations   # перед показом:
 
 | Маршрут | Роль | Что делает |
 | --- | --- | --- |
-| `GET /drivers/me/offers` | driver | открытые предложения (страница `items/limit/offset/total`, не больше одного): `ride_id`, `pickup`, `dropoff`, `distance_m`, `duration_s`, `amount_kzt`, `currency`, `expires_at` |
+| `GET /drivers/me/offers` | driver | открытые предложения (страница `items/limit/offset/total`, не больше одного): `ride_id`, `pickup`, `dropoff`, `distance_m`, `duration_s`, `amount_kzt`, `currency`, `tariff`, `expires_at` |
 | `POST /ride-offers/{id}/accept` | адресат предложения | `200` поездка `assigned` с `driver_id`; повтор — тот же ответ |
 | `POST /ride-offers/{id}/reject` | адресат предложения | `200` предложение `rejected`; поездка сразу предлагается следующему водителю |
 

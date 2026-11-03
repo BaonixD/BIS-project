@@ -15,3 +15,4 @@
 | [0009](0009-simple-payments.md) | Поток заменён ADR 0010; ссылка Kaspi действует. Лёгкая оплата: `cash` или `kaspi_link`, кнопка «Оплатил» пассажира сразу даёт `paid` без проверки; без `reported`, сверки и `payment_events` |
 | [0010](0010-pay-before-order.md) | Оплата «как в такси»: `payment_method` в заказе, Kaspi сразу `paid` (имитация), возврат `refunded` при отмене или `no_driver`, наличные подтверждает водитель (`cash-received`) |
 | [0011](0011-google-login.md) | Вход пассажиров через Google: ID token из Google Identity Services проверяет `google-auth`, аккаунт только по `google_sub`, новый — пассажир без пароля; без `GOOGLE_CLIENT_ID` выключено |
+| [0012](0012-tariffs-and-car-classes.md) | Четыре тарифа `economy`/`comfort`/`comfort_plus`/`business` (`edu-v2`): quote со всеми ценами, `tariff` в заказе, класс машины `car_class` ставит admin, предложение — машине класса не ниже тарифа |

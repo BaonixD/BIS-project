@@ -1,19 +1,39 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Final
 
-TARIFF_VERSION: Final = "edu-v1"
-CURRENCY: Final = "KZT"
+from taxi_service.modules.rides.tariffs import TARIFFS, Tariff
 
-BASE_FARE_KZT: Final = Decimal(500)
-PER_KM_KZT: Final = Decimal(120)
-PER_MINUTE_KZT: Final = Decimal(20)
-MINIMUM_FARE_KZT: Final = Decimal(800)
+TARIFF_VERSION: Final = "edu-v2"
+CURRENCY: Final = "KZT"
 
 
 @dataclass(frozen=True, slots=True)
-class Fare:
-    amount_kzt: int
+class TariffRates:
+    base_kzt: Decimal
+    per_km_kzt: Decimal
+    per_minute_kzt: Decimal
+    minimum_kzt: Decimal
+
+
+def _rates(base: int, per_km: int, per_minute: int, minimum: int) -> TariffRates:
+    return TariffRates(Decimal(base), Decimal(per_km), Decimal(per_minute), Decimal(minimum))
+
+
+RATES: Final[Mapping[Tariff, TariffRates]] = {
+    Tariff.ECONOMY: _rates(500, 120, 20, 800),
+    Tariff.COMFORT: _rates(700, 160, 25, 1100),
+    Tariff.COMFORT_PLUS: _rates(900, 200, 30, 1500),
+    Tariff.BUSINESS: _rates(1200, 260, 40, 2000),
+}
+
+
+@dataclass(frozen=True, slots=True)
+class Fares:
+    """The price of one route in every tariff, cheapest first."""
+
+    amounts: Mapping[Tariff, int]
     currency: str = CURRENCY
     tariff_version: str = TARIFF_VERSION
 
@@ -22,16 +42,26 @@ def round_kzt(amount: Decimal) -> int:
     return int(amount.quantize(Decimal(1), rounding=ROUND_HALF_UP))
 
 
-def calculate_fare(*, distance_m: int, duration_s: int) -> Fare:
-    """Educational tariff ``edu-v1`` for road-route metrics in metres and seconds."""
+def calculate_fare(*, distance_m: int, duration_s: int, tariff: Tariff = Tariff.ECONOMY) -> int:
+    """Tariff ``edu-v2`` for road-route metrics in metres and seconds, in whole tenge."""
     _require_metric("distance_m", distance_m)
     _require_metric("duration_s", duration_s)
+    rates = RATES[tariff]
     raw = (
-        BASE_FARE_KZT
-        + PER_KM_KZT * Decimal(distance_m) / 1000
-        + PER_MINUTE_KZT * Decimal(duration_s) / 60
+        rates.base_kzt
+        + rates.per_km_kzt * Decimal(distance_m) / 1000
+        + rates.per_minute_kzt * Decimal(duration_s) / 60
     )
-    return Fare(amount_kzt=round_kzt(max(MINIMUM_FARE_KZT, raw)))
+    return round_kzt(max(rates.minimum_kzt, raw))
+
+
+def calculate_fares(*, distance_m: int, duration_s: int) -> Fares:
+    return Fares(
+        amounts={
+            tariff: calculate_fare(distance_m=distance_m, duration_s=duration_s, tariff=tariff)
+            for tariff in TARIFFS
+        }
+    )
 
 
 def _require_metric(name: str, value: int) -> None:

@@ -48,9 +48,10 @@ async def create_quote(
     db: DbSession,
     clock: ClockDep,
     routing: RoutingProviderDep,
+    payments: PaymentSettingsDep,
 ) -> QuoteResponse:
     quote = await service.create_quote(db, user.id, body, clock=clock, routing=routing)
-    return QuoteResponse.build(quote)
+    return QuoteResponse.build(quote, kaspi_payment_url=payments.kaspi_payment_url)
 
 
 @router.post(

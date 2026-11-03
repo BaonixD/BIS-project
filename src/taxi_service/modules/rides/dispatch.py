@@ -2,6 +2,7 @@
 
 import logging
 import uuid
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, cast
@@ -44,6 +45,7 @@ from taxi_service.modules.rides.states import (
     next_offer_status,
     next_status,
 )
+from taxi_service.modules.rides.tariffs import Tariff
 from taxi_service.modules.rides.transitions import lock_ride, move_ride
 
 logger = logging.getLogger(__name__)
@@ -195,9 +197,21 @@ async def revoke_pending_offers(db: AsyncSession, ride_id: uuid.UUID, now: datet
     return await _decide(db, [RideOffer.ride_id == ride_id], _REVOKED, now)
 
 
-async def revoke_driver_offers(db: AsyncSession, driver_id: uuid.UUID, now: datetime) -> int:
-    """In the caller's transaction; the ride stays searching and the loop asks the next driver."""
-    return await _decide(db, [RideOffer.driver_id == driver_id], _REVOKED, now)
+async def revoke_driver_offers(
+    db: AsyncSession,
+    driver_id: uuid.UUID,
+    now: datetime,
+    *,
+    tariffs: Collection[Tariff] | None = None,
+) -> int:
+    """In the caller's transaction; the ride stays searching and the loop asks the next driver.
+
+    ``tariffs`` limits it to offers of rides in these tariffs (a lowered car class).
+    """
+    conditions = [RideOffer.driver_id == driver_id]
+    if tariffs is not None:
+        conditions.append(RideOffer.ride_id.in_(select(Ride.id).where(Ride.tariff.in_(tariffs))))
+    return await _decide(db, conditions, _REVOKED, now)
 
 
 def restart_search(ride: Ride, now: datetime, policy: DispatchPolicy) -> None:
@@ -312,6 +326,7 @@ async def _offer_to_nearest(
         radius_m=policy.radius_m,
         max_location_age_s=policy.max_location_age_s,
         in_search=SearchScope(ride.id, ride.search_started_at),
+        tariff=ride.tariff,
         limit=CANDIDATE_BATCH,
     )
     if not candidates:

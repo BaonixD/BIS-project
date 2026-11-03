@@ -2,7 +2,7 @@
 
 Usage with ``create_app(settings, routing_provider=provider)``::
 
-    provider = FakeRoutingProvider()             # 10 km / 25 min -> 2200 KZT (edu-v1)
+    provider = FakeRoutingProvider()             # 10 km / 25 min -> economy 2200 KZT (edu-v2)
     provider.fail_with(RoutingUnavailableError())  # every next call raises it
     assert provider.calls == [(origin, destination)]
 """

@@ -25,6 +25,7 @@ from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.drivers import service as driver_service
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate
 from taxi_service.modules.geo.schemas import Coordinates
+from taxi_service.modules.rides.tariffs import Tariff
 from taxi_service.modules.users import service as users_service
 from taxi_service.modules.users.models import UserRole
 
@@ -159,8 +160,12 @@ class DriverFactory:
         location: Coordinates | None = None,
         approved: bool = True,
         online: bool = True,
+        car_class: Tariff | None = None,
     ) -> uuid.UUID:
-        """A complete driver with a unique plate; approved and online unless told otherwise."""
+        """A complete driver with a unique plate; approved and online unless told otherwise.
+
+        ``car_class`` is set by the approving admin (economy when omitted).
+        """
         driver_id = await self._create_user(username, UserRole.DRIVER)
         self._plates += 1
         profile = DriverProfileUpdate.model_validate(complete_profile(f"{self._plates:03d}TST02"))
@@ -169,7 +174,9 @@ class DriverFactory:
         if approved:
             admin_id = await self.admin_id()
             async with self.session_factory() as session:
-                await driver_service.approve_driver(session, driver_id, admin_id, clock=self.clock)
+                await driver_service.approve_driver(
+                    session, driver_id, admin_id, car_class=car_class, clock=self.clock
+                )
         if location is not None:
             await self.move(driver_id, location)
         if approved and online:

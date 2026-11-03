@@ -16,6 +16,7 @@ from taxi_service.modules.drivers.candidates import find_nearby_candidates
 from taxi_service.modules.drivers.models import ApprovalStatus, DriverProfile, Vehicle
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate
 from taxi_service.modules.geo.schemas import Coordinates
+from taxi_service.modules.rides.tariffs import Tariff
 from taxi_service.modules.users import service as users_service
 from taxi_service.modules.users.models import User, UserProfile, UserRole
 from taxi_service.modules.users.schemas import MyProfileUpdate
@@ -132,6 +133,23 @@ async def test_demo_drivers_are_complete_approved_and_online(
         assert profile.vehicle.plate_number == demo.vehicle.plate_number
         assert (profile.longitude, profile.latitude) == demo.location.as_lon_lat()
         assert profile.location_updated_at == clock.now()
+
+
+async def test_demo_drivers_have_economy_comfort_and_business_cars(
+    session_factory: SessionFactory, clock: ManualClock, hasher: PasswordHasher
+) -> None:
+    await run_seed(session_factory, clock, hasher)
+
+    classes = {}
+    for username in ("demo_driver_1", "demo_driver_2", "demo_driver_3"):
+        vehicle = (await driver_profile(session_factory, username)).vehicle
+        assert vehicle is not None
+        classes[username] = vehicle.car_class
+    assert classes == {
+        "demo_driver_1": Tariff.ECONOMY,
+        "demo_driver_2": Tariff.COMFORT,
+        "demo_driver_3": Tariff.BUSINESS,
+    }
 
 
 async def test_demo_drivers_are_found_near_the_almaty_center_nearest_first(

@@ -11,7 +11,9 @@ from taxi_service.modules.drivers import service
 from taxi_service.modules.drivers.models import ApprovalStatus
 from taxi_service.modules.drivers.schemas import (
     AdminDriverResponse,
+    ApprovalRequest,
     AvailabilityUpdate,
+    CarClassUpdate,
     DriverProfileUpdate,
     DriverResponse,
     LocationUpdate,
@@ -75,7 +77,22 @@ async def list_drivers(
 
 @admin_router.post("/{driver_id}/approve", responses=error_responses(401, 403, 404, 409))
 async def approve_driver(
-    driver_id: uuid.UUID, admin: AdminUser, db: DbSession, clock: ClockDep
+    driver_id: uuid.UUID,
+    admin: AdminUser,
+    db: DbSession,
+    clock: ClockDep,
+    body: ApprovalRequest | None = None,
 ) -> AdminDriverResponse:
-    user, profile = await service.approve_driver(db, driver_id, admin.id, clock=clock)
+    car_class = body.car_class if body is not None else None
+    user, profile = await service.approve_driver(
+        db, driver_id, admin.id, car_class=car_class, clock=clock
+    )
+    return AdminDriverResponse.from_rows(user, profile)
+
+
+@admin_router.patch("/{driver_id}", responses=error_responses(401, 403, 404, 409))
+async def set_car_class(
+    driver_id: uuid.UUID, body: CarClassUpdate, _admin: AdminUser, db: DbSession, clock: ClockDep
+) -> AdminDriverResponse:
+    user, profile = await service.set_car_class(db, driver_id, body.car_class, clock=clock)
     return AdminDriverResponse.from_rows(user, profile)

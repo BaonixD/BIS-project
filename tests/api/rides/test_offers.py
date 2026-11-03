@@ -172,13 +172,14 @@ async def test_driver_sees_the_open_offer_with_the_ride(
         "duration_s",
         "amount_kzt",
         "currency",
+        "tariff",
         "created_at",
         "expires_at",
     }
     assert (offer["ride_id"], offer["status"]) == (ride["id"], "pending")
     assert (offer["pickup"], offer["dropoff"]) == (ABAY_DOSTYK, AL_FARABI)
     assert (offer["distance_m"], offer["duration_s"]) == (10_000, 1_500)
-    assert (offer["amount_kzt"], offer["currency"]) == (2200, "KZT")
+    assert (offer["amount_kzt"], offer["currency"], offer["tariff"]) == (2200, "KZT", "economy")
     assert datetime.fromisoformat(offer["expires_at"]) == clock.now() + TTL
 
 

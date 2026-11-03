@@ -39,6 +39,7 @@ RIDE_SUMMARY_FIELDS = frozenset(
         "duration_s",
         "amount_kzt",
         "currency",
+        "tariff",
         "created_at",
         "updated_at",
         "payment_status",

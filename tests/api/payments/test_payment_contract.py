@@ -54,7 +54,7 @@ def test_order_takes_the_payment_method(schema: dict[str, Any]) -> None:
     body = schema["components"]["schemas"]["RideCreateRequest"]
 
     assert body["additionalProperties"] is False
-    assert set(body["properties"]) == {"quote_id", "payment_method"}
+    assert set(body["properties"]) == {"quote_id", "payment_method", "tariff"}
     assert body["required"] == ["quote_id"]
     assert body["properties"]["payment_method"]["default"] == "cash"
 

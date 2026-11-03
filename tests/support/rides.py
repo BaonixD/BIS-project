@@ -28,6 +28,7 @@ from taxi_service.modules.rides import service as rides_service
 from taxi_service.modules.rides.idempotency import IDEMPOTENCY_HEADER
 from taxi_service.modules.rides.models import Ride
 from taxi_service.modules.rides.schemas import QuoteRequest, RideCreateRequest
+from taxi_service.modules.rides.tariffs import Tariff
 from taxi_service.modules.users import service as users_service
 from taxi_service.modules.users.models import UserRole
 
@@ -58,11 +59,15 @@ async def request_quote(
     return quote
 
 
-def ride_body(quote_id: str, payment_method: str | None = None) -> dict[str, Any]:
-    """``POST /rides`` body; without ``payment_method`` the server takes cash."""
+def ride_body(
+    quote_id: str, payment_method: str | None = None, tariff: str | None = None
+) -> dict[str, Any]:
+    """``POST /rides`` body; the server takes cash and economy for omitted fields."""
     body: dict[str, Any] = {"quote_id": quote_id}
     if payment_method is not None:
         body["payment_method"] = payment_method
+    if tariff is not None:
+        body["tariff"] = tariff
     return body
 
 
@@ -72,12 +77,13 @@ async def order_ride(
     *,
     key: str | None = None,
     payment_method: str | None = None,
+    tariff: str | None = None,
 ) -> dict[str, Any]:
     """New quote, then a ride from it; the client must be logged in as ``user``."""
     quote = await request_quote(client, user)
     response = await client.post(
         RIDES_URL,
-        json=ride_body(quote["quote_id"], payment_method),
+        json=ride_body(quote["quote_id"], payment_method, tariff),
         headers=ride_headers(user, key),
     )
     assert response.status_code == 201, response.text
@@ -127,6 +133,7 @@ class RideFactory:
         *,
         pickup: Coordinates = PICKUP,
         dropoff: Coordinates = DROPOFF,
+        tariff: Tariff = Tariff.ECONOMY,
     ) -> Ride:
         """Quote and ride for ``passenger_id`` (a new passenger if omitted)."""
         passenger_id = passenger_id or await self.passenger()
@@ -141,7 +148,7 @@ class RideFactory:
             creation = await rides_service.create_ride(
                 session,
                 passenger_id,
-                RideCreateRequest(quote_id=quote.id),
+                RideCreateRequest(quote_id=quote.id, tariff=tariff),
                 uuid.uuid4().hex,
                 clock=self.clock,
             )

@@ -7,7 +7,7 @@ from taxi_service.core.errors import AppError
 from taxi_service.modules.geo.client import OpenRouteServiceClient, create_routing_http_client
 from taxi_service.modules.geo.config import RoutingSettings
 from taxi_service.modules.geo.schemas import Coordinates, RouteResult
-from taxi_service.modules.rides.pricing import calculate_fare
+from taxi_service.modules.rides.pricing import calculate_fares
 
 EXIT_OK = 0
 EXIT_FAILED = 1
@@ -45,11 +45,12 @@ async def main() -> int:
         print("failed: route is empty or its geometry is outside Almaty", file=sys.stderr)
         return EXIT_FAILED
 
-    fare = calculate_fare(distance_m=route.distance_m, duration_s=route.duration_s)
+    fares = calculate_fares(distance_m=route.distance_m, duration_s=route.duration_s)
+    prices = " ".join(f"{tariff.value}={amount}" for tariff, amount in fares.amounts.items())
     print(
         f"ok: provider={route.provider} distance_m={route.distance_m} "
         f"duration_s={route.duration_s} points={len(route.route_geometry.coordinates)} "
-        f"fare={fare.amount_kzt} {fare.currency} ({fare.tariff_version})"
+        f"fares: {prices} {fares.currency} ({fares.tariff_version})"
     )
     return EXIT_OK
 

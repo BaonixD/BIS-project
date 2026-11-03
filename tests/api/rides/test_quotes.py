@@ -11,6 +11,7 @@ from sqlalchemy import select
 from support.auth import CSRF_HEADER, register_and_login
 from support.clock import ManualClock
 from support.drivers import create_admin, login_as
+from support.payments import TEST_KASPI_URL, kaspi_on
 from support.rides import ABAY_DOSTYK, AL_FARABI, QUOTE_BODY, QUOTES_URL, count_rows
 from support.routing import FakeRoutingProvider, fake_route
 from taxi_service.core.errors import AppError
@@ -22,9 +23,17 @@ from taxi_service.modules.geo.exceptions import (
 )
 from taxi_service.modules.geo.schemas import Coordinates, RouteResult
 from taxi_service.modules.rides.models import RideQuote
+from taxi_service.modules.rides.tariffs import Tariff
 
 PICKUP, DROPOFF = Coordinates(**ABAY_DOSTYK), Coordinates(**AL_FARABI)
 QUOTE_TTL = timedelta(minutes=5)
+# 10 km / 25 min of the fake route under edu-v2.
+REFERENCE_OPTIONS = [
+    {"tariff": "economy", "amount_kzt": 2200},
+    {"tariff": "comfort", "amount_kzt": 2925},
+    {"tariff": "comfort_plus", "amount_kzt": 3650},
+    {"tariff": "business", "amount_kzt": 4800},
+]
 
 
 def error_code(response: httpx.Response) -> str:
@@ -54,13 +63,16 @@ async def test_passenger_gets_a_priced_quote(
         "pickup",
         "dropoff",
         "route",
-        "amount_kzt",
+        "options",
         "currency",
         "tariff_version",
+        "kaspi_payment_url",
         "created_at",
         "expires_at",
     }
-    assert (body["amount_kzt"], body["currency"], body["tariff_version"]) == (2200, "KZT", "edu-v1")
+    assert body["options"] == REFERENCE_OPTIONS
+    assert (body["currency"], body["tariff_version"]) == ("KZT", "edu-v2")
+    assert body["kaspi_payment_url"] is None
     assert body["pickup"] == ABAY_DOSTYK
     assert body["dropoff"] == AL_FARABI
     assert body["route"] == fake_route(PICKUP, DROPOFF).model_dump(mode="json")
@@ -84,7 +96,10 @@ async def test_quote_is_stored_for_the_passenger(
     assert (quote.dropoff_longitude, quote.dropoff_latitude) == DROPOFF.as_lon_lat()
     assert (quote.distance_m, quote.duration_s, quote.provider) == (10_000, 1_500, "fake")
     assert quote.route_geometry == route.route_geometry.model_dump(mode="json")
-    assert (quote.amount_kzt, quote.currency, quote.tariff_version) == (2200, "KZT", "edu-v1")
+    assert quote.amounts() == {
+        Tariff(str(option["tariff"])): option["amount_kzt"] for option in REFERENCE_OPTIONS
+    }
+    assert (quote.currency, quote.tariff_version) == ("KZT", "edu-v2")
     assert (quote.created_at, quote.expires_at) == (clock.now(), clock.now() + QUOTE_TTL)
 
 
@@ -97,8 +112,18 @@ async def test_quote_price_follows_the_route_metrics(
 
     body = (await client.post(QUOTES_URL, json=QUOTE_BODY, headers=passenger.csrf_headers)).json()
 
-    assert body["amount_kzt"] == 800  # minimum fare of edu-v1
+    # Minimum fares of edu-v2.
+    assert [option["amount_kzt"] for option in body["options"]] == [800, 1100, 1500, 2000]
     assert body["route"]["distance_m"] == 1000
+
+
+@pytest.mark.parametrize("payment_settings", [kaspi_on()])
+async def test_quote_carries_the_configured_kaspi_link(client: httpx.AsyncClient) -> None:
+    passenger = await register_and_login(client, "pat")
+
+    body = (await client.post(QUOTES_URL, json=QUOTE_BODY, headers=passenger.csrf_headers)).json()
+
+    assert body["kaspi_payment_url"] == TEST_KASPI_URL
 
 
 async def test_quote_lifetime_starts_when_the_route_is_known(
@@ -245,6 +270,7 @@ async def test_identical_points_are_rejected_without_routing(
         {"origin": ABAY_DOSTYK, "destination": AL_FARABI},
         {**QUOTE_BODY, "amount_kzt": 100},
         {**QUOTE_BODY, "tariff_version": "free"},
+        {**QUOTE_BODY, "tariff": "business"},
         {"pickup": {"longitude": 76.9, "latitude": 90.5}, "dropoff": AL_FARABI},
         {"pickup": {"longitude": "76.9", "latitude": 43.2}, "dropoff": AL_FARABI},
         {"pickup": [76.9572, 43.2389], "dropoff": AL_FARABI},

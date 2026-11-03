@@ -34,6 +34,7 @@ def card(location: Coordinates = NEAR_PICKUP, at: datetime = DEFAULT_START) -> d
             "model": "Camry",
             "color": "white",
             "plate_number": "001TST02",
+            "car_class": "economy",
         },
         "location": location.model_dump(),
         "location_updated_at": at.isoformat().replace("+00:00", "Z"),

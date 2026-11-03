@@ -5,36 +5,63 @@ import pytest
 from taxi_service.modules.rides.pricing import (
     CURRENCY,
     TARIFF_VERSION,
-    Fare,
     calculate_fare,
+    calculate_fares,
     round_kzt,
 )
+from taxi_service.modules.rides.tariffs import Tariff, car_classes_for, tariffs_above
+
+REFERENCE_AMOUNTS = {
+    Tariff.ECONOMY: 2200,
+    Tariff.COMFORT: 2925,
+    Tariff.COMFORT_PLUS: 3650,
+    Tariff.BUSINESS: 4800,
+}
+MINIMUM_FARES = {
+    Tariff.ECONOMY: 800,
+    Tariff.COMFORT: 1100,
+    Tariff.COMFORT_PLUS: 1500,
+    Tariff.BUSINESS: 2000,
+}
 
 
-def test_reference_route_costs_2200_kzt() -> None:
-    fare = calculate_fare(distance_m=10_000, duration_s=1_500)
-
-    assert fare == Fare(amount_kzt=2200, currency="KZT", tariff_version="edu-v1")
-
-
-def test_fare_carries_tariff_version_and_currency() -> None:
-    fare = calculate_fare(distance_m=10_000, duration_s=1_500)
-
-    assert fare.tariff_version == TARIFF_VERSION == "edu-v1"
-    assert fare.currency == CURRENCY == "KZT"
+def test_tariffs_go_from_economy_to_business() -> None:
+    assert [tariff.value for tariff in Tariff] == [
+        "economy",
+        "comfort",
+        "comfort_plus",
+        "business",
+    ]
 
 
-@pytest.mark.parametrize(
-    ("distance_m", "duration_s"),
-    [(0, 0), (1_000, 60), (2_000, 120), (2_500, 0)],
-)
-def test_short_routes_cost_the_minimum_fare(distance_m: int, duration_s: int) -> None:
-    assert calculate_fare(distance_m=distance_m, duration_s=duration_s).amount_kzt == 800
+def test_reference_route_prices_every_tariff() -> None:
+    fares = calculate_fares(distance_m=10_000, duration_s=1_500)
+
+    assert fares.amounts == REFERENCE_AMOUNTS
+    assert list(fares.amounts) == list(Tariff)
+    assert (fares.currency, fares.tariff_version) == ("KZT", "edu-v2")
+
+
+def test_fares_carry_tariff_version_and_currency() -> None:
+    assert TARIFF_VERSION == "edu-v2"
+    assert CURRENCY == "KZT"
+
+
+@pytest.mark.parametrize(("tariff", "minimum"), MINIMUM_FARES.items())
+@pytest.mark.parametrize(("distance_m", "duration_s"), [(0, 0), (1_000, 60), (2_000, 120)])
+def test_short_routes_cost_the_minimum_fare(
+    tariff: Tariff, minimum: int, distance_m: int, duration_s: int
+) -> None:
+    assert calculate_fare(distance_m=distance_m, duration_s=duration_s, tariff=tariff) == minimum
 
 
 def test_fare_just_above_minimum_is_not_clamped() -> None:
     # 500 + 120 * 2.5 + 20 * 0.05 = 801
-    assert calculate_fare(distance_m=2_500, duration_s=3).amount_kzt == 801
+    assert calculate_fare(distance_m=2_500, duration_s=3) == 801
+    # 1200 + 260 * 3 + 40 * 0.5 = 2000 is the minimum; one metre more is 2000.26 -> 2000
+    assert calculate_fare(distance_m=3_001, duration_s=30, tariff=Tariff.BUSINESS) == 2000
+    # 1200 + 260 * 3.002 + 40 * 0.5 = 2000.52 -> 2001
+    assert calculate_fare(distance_m=3_002, duration_s=30, tariff=Tariff.BUSINESS) == 2001
 
 
 @pytest.mark.parametrize(
@@ -53,7 +80,14 @@ def test_fare_just_above_minimum_is_not_clamped() -> None:
 def test_fractional_amounts_round_to_nearest_tenge(
     distance_m: int, duration_s: int, expected: int
 ) -> None:
-    assert calculate_fare(distance_m=distance_m, duration_s=duration_s).amount_kzt == expected
+    assert calculate_fare(distance_m=distance_m, duration_s=duration_s) == expected
+
+
+def test_half_tenge_of_a_higher_tariff_rounds_up() -> None:
+    # 700 + 160 * 10 + 25 * 0.1 = 2302.5 -> 2303
+    assert calculate_fare(distance_m=10_000, duration_s=6, tariff=Tariff.COMFORT) == 2303
+    # 900 + 200 * 10 + 30 * 0.1 = 2903
+    assert calculate_fare(distance_m=10_000, duration_s=6, tariff=Tariff.COMFORT_PLUS) == 2903
 
 
 @pytest.mark.parametrize(
@@ -75,7 +109,7 @@ def test_exact_halves_round_up(amount: Decimal, expected: int) -> None:
 )
 def test_negative_metrics_are_rejected(distance_m: int, duration_s: int) -> None:
     with pytest.raises(ValueError, match="non-negative"):
-        calculate_fare(distance_m=distance_m, duration_s=duration_s)
+        calculate_fares(distance_m=distance_m, duration_s=duration_s)
 
 
 @pytest.mark.parametrize(
@@ -84,6 +118,31 @@ def test_negative_metrics_are_rejected(distance_m: int, duration_s: int) -> None
 )
 def test_non_integer_metrics_are_rejected(value: object) -> None:
     with pytest.raises(ValueError, match="integer"):
-        calculate_fare(distance_m=value, duration_s=1_500)  # type: ignore[arg-type]
+        calculate_fares(distance_m=value, duration_s=1_500)  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="integer"):
-        calculate_fare(distance_m=10_000, duration_s=value)  # type: ignore[arg-type]
+        calculate_fares(distance_m=10_000, duration_s=value)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    ("tariff", "classes"),
+    [
+        (Tariff.ECONOMY, ["economy", "comfort", "comfort_plus", "business"]),
+        (Tariff.COMFORT, ["comfort", "comfort_plus", "business"]),
+        (Tariff.COMFORT_PLUS, ["comfort_plus", "business"]),
+        (Tariff.BUSINESS, ["business"]),
+    ],
+)
+def test_a_tariff_is_served_by_its_class_and_higher(tariff: Tariff, classes: list[str]) -> None:
+    assert [car_class.value for car_class in car_classes_for(tariff)] == classes
+
+
+@pytest.mark.parametrize(
+    ("car_class", "above"),
+    [
+        (Tariff.ECONOMY, ["comfort", "comfort_plus", "business"]),
+        (Tariff.COMFORT_PLUS, ["business"]),
+        (Tariff.BUSINESS, []),
+    ],
+)
+def test_tariffs_above_a_car_class(car_class: Tariff, above: list[str]) -> None:
+    assert [tariff.value for tariff in tariffs_above(car_class)] == above
