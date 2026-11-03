@@ -10,12 +10,9 @@ from taxi_service.core.config import Settings
 from taxi_service.core.logging import configure_logging
 from taxi_service.database.migrations import expected_heads
 from taxi_service.database.session import create_database_engine, create_session_factory
-from taxi_service.modules.geo.client import (
-    OpenRouteServiceClient,
-    RoutingProvider,
-    create_routing_http_client,
-)
+from taxi_service.modules.geo.client import RoutingProvider, create_routing_http_client
 from taxi_service.modules.geo.config import RoutingSettings
+from taxi_service.modules.geo.providers import create_routing_provider
 from taxi_service.modules.rides.dispatch_loop import DispatchLoop
 
 logger = logging.getLogger(__name__)
@@ -64,9 +61,9 @@ def _dispatch_loop(app: FastAPI, settings: Settings, engine: AsyncEngine) -> Dis
 def _routing_provider(
     override: RoutingProvider | None,
 ) -> tuple[RoutingProvider, httpx.AsyncClient | None]:
-    """The injected provider, or openrouteservice with an HTTP client this app owns."""
+    """The injected provider, or the configured one with an HTTP client this app owns."""
     if override is not None:
         return override, None
     routing_settings = RoutingSettings()
     http = create_routing_http_client(routing_settings)
-    return OpenRouteServiceClient.from_settings(routing_settings, http), http
+    return create_routing_provider(routing_settings, http), http

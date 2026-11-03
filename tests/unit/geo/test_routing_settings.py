@@ -13,7 +13,7 @@ SECRET = "eyJ-routing-secret-value"
 @pytest.fixture(autouse=True)
 def _isolate_routing_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in list(os.environ):
-        if name.startswith("ROUTING_"):
+        if name.startswith("ROUTING_") or name == "OSRM_BASE_URL":
             monkeypatch.delenv(name)
 
 
@@ -79,6 +79,52 @@ def test_key_is_read_from_prefixed_environment_and_hidden(
     ],
 )
 def test_unsafe_values_are_rejected(monkeypatch: pytest.MonkeyPatch, name: str, value: str) -> None:
+    monkeypatch.setenv(name, value)
+
+    with pytest.raises(ValidationError):
+        RoutingSettings(_env_file=None)
+
+
+def test_local_osrm_is_the_default_provider() -> None:
+    settings = RoutingSettings(_env_file=None)
+
+    assert settings.provider == "osrm"
+    assert str(settings.osrm_base_url) == "http://127.0.0.1:5001/"
+
+
+def test_env_example_selects_the_local_osrm() -> None:
+    settings = RoutingSettings(_env_file=PROJECT_ROOT / ".env.example")
+
+    assert settings.provider == "osrm"
+    assert str(settings.osrm_base_url) == "http://127.0.0.1:5001/"
+
+
+def test_provider_and_osrm_url_are_read_from_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ROUTING_PROVIDER", "openrouteservice")
+    monkeypatch.setenv("OSRM_BASE_URL", "http://osrm.local:5000")
+
+    settings = RoutingSettings(_env_file=None)
+
+    assert settings.provider == "openrouteservice"
+    assert str(settings.osrm_base_url) == "http://osrm.local:5000/"
+
+
+@pytest.mark.parametrize("value", ["", "  "])
+def test_blank_osrm_url_means_not_configured(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+    monkeypatch.setenv("OSRM_BASE_URL", value)
+
+    assert RoutingSettings(_env_file=None).osrm_base_url is None
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [("ROUTING_PROVIDER", "google"), ("ROUTING_PROVIDER", ""), ("OSRM_BASE_URL", "not a url")],
+)
+def test_unknown_provider_or_bad_osrm_url_is_rejected(
+    monkeypatch: pytest.MonkeyPatch, name: str, value: str
+) -> None:
     monkeypatch.setenv(name, value)
 
     with pytest.raises(ValidationError):

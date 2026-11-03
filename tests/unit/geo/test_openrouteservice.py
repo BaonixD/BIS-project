@@ -1,4 +1,3 @@
-import asyncio
 import json
 import logging
 import os
@@ -9,6 +8,7 @@ from typing import Any
 import httpx
 import pytest
 
+from support.routing import HANG, Reply, ScriptedProvider
 from taxi_service.modules.geo.client import OpenRouteServiceClient, create_routing_http_client
 from taxi_service.modules.geo.config import RoutingSettings
 from taxi_service.modules.geo.exceptions import (
@@ -23,53 +23,12 @@ ORIGIN = Coordinates(longitude=76.9572, latitude=43.2389)
 DESTINATION = Coordinates(longitude=76.9286, latitude=43.2187)
 LINE = [[76.957247, 43.238911], [76.941002, 43.229514], [76.928612, 43.218701]]
 
-Reply = httpx.Response | type[httpx.RequestError]
-
 
 @pytest.fixture(autouse=True)
 def _isolate_routing_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in list(os.environ):
         if name.startswith("ROUTING_"):
             monkeypatch.delenv(name)
-
-
-HANG = "hang"
-
-
-class FakeProvider:
-    """Scripted openrouteservice on a fake clock.
-
-    Replays replies in order, records requests and sleeps; each request costs
-    ``latency_s`` and each sleep advances the clock, so no real time passes.
-    ``HANG`` blocks the request for 1 s of real time unless a deadline cancels it.
-    """
-
-    def __init__(self, *replies: Reply | str, latency_s: float = 0.0) -> None:
-        self._replies = list(replies)
-        self._latency_s = latency_s
-        self.now = 0.0
-        self.requests: list[httpx.Request] = []
-        self.sleeps: list[float] = []
-
-    async def handle(self, request: httpx.Request) -> httpx.Response:
-        self.requests.append(request)
-        self.now += self._latency_s
-        reply = self._replies.pop(0)
-        if isinstance(reply, httpx.Response):
-            return reply
-        if reply == HANG:
-            # A slow provider that only gives up after 1 s of real time.
-            await asyncio.sleep(1.0)
-            raise httpx.ReadTimeout("scripted slow provider", request=request)
-        assert not isinstance(reply, str)
-        raise reply("scripted transport failure", request=request)
-
-    def clock(self) -> float:
-        return self.now
-
-    async def sleep(self, seconds: float) -> None:
-        self.sleeps.append(seconds)
-        self.now += seconds
 
 
 def ors_payload(
@@ -100,7 +59,7 @@ def ok(payload: dict[str, Any] | None = None) -> httpx.Response:
 
 @asynccontextmanager
 async def ors_client(
-    provider: FakeProvider, *, api_key: str | None = TEST_KEY, **overrides: Any
+    provider: ScriptedProvider, *, api_key: str | None = TEST_KEY, **overrides: Any
 ) -> AsyncIterator[OpenRouteServiceClient]:
     settings = RoutingSettings(_env_file=None, api_key=api_key, **overrides)
     transport = httpx.MockTransport(provider.handle)
@@ -111,7 +70,7 @@ async def ors_client(
 
 
 async def test_successful_route_is_normalized_to_route_result() -> None:
-    provider = FakeProvider(ok())
+    provider = ScriptedProvider(ok())
 
     async with ors_client(provider) as client:
         route = await client.get_route(ORIGIN, DESTINATION)
@@ -127,7 +86,7 @@ async def test_successful_route_is_normalized_to_route_result() -> None:
 
 
 async def test_request_follows_directions_geojson_contract() -> None:
-    provider = FakeProvider(ok())
+    provider = ScriptedProvider(ok())
 
     async with ors_client(provider) as client:
         await client.get_route(ORIGIN, DESTINATION)
@@ -140,7 +99,7 @@ async def test_request_follows_directions_geojson_contract() -> None:
 
 
 async def test_fractional_metrics_round_half_up() -> None:
-    provider = FakeProvider(ok(ors_payload(distance=4120.5, duration=610.49)))
+    provider = ScriptedProvider(ok(ors_payload(distance=4120.5, duration=610.49)))
 
     async with ors_client(provider) as client:
         route = await client.get_route(ORIGIN, DESTINATION)
@@ -149,7 +108,7 @@ async def test_fractional_metrics_round_half_up() -> None:
 
 
 async def test_integer_metrics_are_accepted() -> None:
-    provider = FakeProvider(ok(ors_payload(distance=4120, duration=611)))
+    provider = ScriptedProvider(ok(ors_payload(distance=4120, duration=611)))
 
     async with ors_client(provider) as client:
         route = await client.get_route(ORIGIN, DESTINATION)
@@ -172,7 +131,7 @@ async def test_http_client_uses_configured_base_url_and_timeouts() -> None:
 
 @pytest.mark.parametrize("api_key", [None, ""])
 async def test_missing_key_fails_without_any_request(api_key: str | None) -> None:
-    provider = FakeProvider(ok())
+    provider = ScriptedProvider(ok())
 
     async with ors_client(provider, api_key=api_key) as client:
         with pytest.raises(RoutingUnavailableError) as caught:
@@ -208,7 +167,7 @@ INVALID_RESPONSES = {
 
 @pytest.mark.parametrize("reply", INVALID_RESPONSES.values(), ids=INVALID_RESPONSES.keys())
 async def test_unusable_success_response_is_a_provider_error(reply: httpx.Response) -> None:
-    provider = FakeProvider(reply)
+    provider = ScriptedProvider(reply)
 
     async with ors_client(provider) as client:
         with pytest.raises(RoutingProviderError) as caught:
@@ -237,7 +196,7 @@ def ors_error(status: int, code: int, message: str) -> httpx.Response:
     ids=["point_not_routable", "route_not_found", "point_not_found_400"],
 )
 async def test_unreachable_points_are_route_not_found(reply: httpx.Response) -> None:
-    provider = FakeProvider(reply)
+    provider = ScriptedProvider(reply)
 
     async with ors_client(provider) as client:
         with pytest.raises(RouteNotFoundError) as caught:
@@ -272,7 +231,7 @@ async def test_unreachable_points_are_route_not_found(reply: httpx.Response) -> 
     ],
 )
 async def test_other_refusals_are_not_retried(reply: httpx.Response) -> None:
-    provider = FakeProvider(reply)
+    provider = ScriptedProvider(reply)
 
     async with ors_client(provider) as client:
         with pytest.raises(RoutingProviderError) as caught:
@@ -284,7 +243,7 @@ async def test_other_refusals_are_not_retried(reply: httpx.Response) -> None:
 
 
 async def test_provider_error_never_echoes_the_key() -> None:
-    provider = FakeProvider(httpx.Response(403, json={"error": f"Key {TEST_KEY} is not valid"}))
+    provider = ScriptedProvider(httpx.Response(403, json={"error": f"Key {TEST_KEY} is not valid"}))
 
     async with ors_client(provider) as client:
         with pytest.raises(RoutingProviderError) as caught:
@@ -314,7 +273,7 @@ async def test_provider_error_never_echoes_the_key() -> None:
 async def test_non_transport_request_errors_are_provider_errors_without_retry(
     reply: Reply, reason: str
 ) -> None:
-    provider = FakeProvider(reply, ok())
+    provider = ScriptedProvider(reply, ok())
 
     async with ors_client(provider) as client:
         with pytest.raises(RoutingProviderError) as caught:
@@ -339,7 +298,7 @@ async def test_non_transport_request_errors_are_provider_errors_without_retry(
     ids=["429", "500", "502", "503", "read_timeout", "connect_error"],
 )
 async def test_transient_failure_is_retried_then_succeeds(first_failure: Reply) -> None:
-    provider = FakeProvider(first_failure, ok())
+    provider = ScriptedProvider(first_failure, ok())
 
     async with ors_client(provider) as client:
         route = await client.get_route(ORIGIN, DESTINATION)
@@ -367,7 +326,7 @@ async def test_transient_failure_is_retried_then_succeeds(first_failure: Reply) 
 async def test_retries_are_bounded_and_end_in_provider_error(
     failure: Reply, reason: str, provider_status: int | None
 ) -> None:
-    provider = FakeProvider(failure, failure, failure, ok())
+    provider = ScriptedProvider(failure, failure, failure, ok())
 
     async with ors_client(provider, max_retries=2) as client:
         with pytest.raises(RoutingProviderError) as caught:
@@ -382,7 +341,7 @@ async def test_retries_are_bounded_and_end_in_provider_error(
 
 
 async def test_zero_retries_means_a_single_attempt() -> None:
-    provider = FakeProvider(httpx.Response(503), ok())
+    provider = ScriptedProvider(httpx.Response(503), ok())
 
     async with ors_client(provider, max_retries=0) as client:
         with pytest.raises(RoutingProviderError):
@@ -394,7 +353,7 @@ async def test_zero_retries_means_a_single_attempt() -> None:
 
 async def test_backoff_grows_exponentially_up_to_the_cap() -> None:
     failure = httpx.Response(503)
-    provider = FakeProvider(failure, failure, failure, failure)
+    provider = ScriptedProvider(failure, failure, failure, failure)
 
     async with ors_client(
         provider, max_retries=3, retry_backoff_s=2.0, max_retry_delay_s=3.0
@@ -422,7 +381,7 @@ async def test_backoff_grows_exponentially_up_to_the_cap() -> None:
 async def test_retry_after_seconds_are_honoured_up_to_the_cap(
     status: int, retry_after: str, expected_sleep: float
 ) -> None:
-    provider = FakeProvider(httpx.Response(status, headers={"Retry-After": retry_after}), ok())
+    provider = ScriptedProvider(httpx.Response(status, headers={"Retry-After": retry_after}), ok())
 
     async with ors_client(provider) as client:
         await client.get_route(ORIGIN, DESTINATION)
@@ -432,7 +391,7 @@ async def test_retry_after_seconds_are_honoured_up_to_the_cap(
 
 async def test_pause_past_the_total_deadline_fails_now() -> None:
     rate_limited = httpx.Response(429, headers={"Retry-After": "5"})
-    provider = FakeProvider(rate_limited, ok())
+    provider = ScriptedProvider(rate_limited, ok())
 
     async with ors_client(provider, max_retries=3, total_timeout_s=3.0) as client:
         with pytest.raises(RoutingProviderError) as caught:
@@ -445,7 +404,7 @@ async def test_pause_past_the_total_deadline_fails_now() -> None:
 
 async def test_slow_attempts_and_pauses_share_one_total_budget() -> None:
     failure = httpx.Response(503)
-    provider = FakeProvider(*[failure] * 6, latency_s=4.0)
+    provider = ScriptedProvider(*[failure] * 6, latency_s=4.0)
 
     async with ors_client(provider, max_retries=5, total_timeout_s=10.0) as client:
         with pytest.raises(RoutingProviderError) as caught:
@@ -458,7 +417,7 @@ async def test_slow_attempts_and_pauses_share_one_total_budget() -> None:
 
 
 async def test_total_deadline_interrupts_a_hanging_request() -> None:
-    provider = FakeProvider(HANG, ok())
+    provider = ScriptedProvider(HANG, ok())
 
     async with ors_client(provider, total_timeout_s=0.05) as client:
         with pytest.raises(RoutingProviderError) as caught:
@@ -475,7 +434,7 @@ async def test_key_never_reaches_logs_across_retries_and_final_error(
 ) -> None:
     caplog.set_level(logging.DEBUG)
     echo = httpx.Response(503, json={"error": f"bad key {TEST_KEY}"})
-    provider = FakeProvider(echo, httpx.ReadTimeout, httpx.Response(429))
+    provider = ScriptedProvider(echo, httpx.ReadTimeout, httpx.Response(429))
 
     async with ors_client(provider, max_retries=2) as client:
         with pytest.raises(RoutingProviderError) as caught:
@@ -491,6 +450,6 @@ async def test_key_never_reaches_logs_across_retries_and_final_error(
 
 
 async def test_client_repr_does_not_expose_key() -> None:
-    async with ors_client(FakeProvider()) as client:
+    async with ors_client(ScriptedProvider()) as client:
         assert TEST_KEY not in repr(client)
         assert TEST_KEY not in repr(vars(client))

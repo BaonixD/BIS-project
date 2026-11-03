@@ -21,6 +21,7 @@ from taxi_service.modules.geo.exceptions import (
     RoutingProviderError,
     RoutingUnavailableError,
 )
+from taxi_service.modules.geo.osrm import OsrmClient
 from taxi_service.modules.geo.schemas import Coordinates, RouteResult
 
 ROUTE_URL = "/api/v1/geo/route"
@@ -325,3 +326,40 @@ async def test_real_adapter_failure_never_reveals_the_key(
     assert error_of(response)["details"]["reason"] == reason
     assert SECRET_KEY not in response.text
     assert all(SECRET_KEY not in value for value in response.headers.values())
+
+
+async def test_real_osrm_adapter_answers_through_the_endpoint(
+    app: FastAPI, client: httpx.AsyncClient
+) -> None:
+    headers = await logged_in_headers(client)
+    line = [[76.9572, 43.2389], [76.9286, 43.2187]]
+    reply = {
+        "code": "Ok",
+        "routes": [
+            {
+                "geometry": {"type": "LineString", "coordinates": line},
+                "distance": 4120.4,
+                "duration": 610.6,
+            }
+        ],
+    }
+    requests: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json=reply)
+
+    settings = RoutingSettings(_env_file=None, OSRM_BASE_URL="http://127.0.0.1:5001")
+    async with create_routing_http_client(settings, transport=httpx.MockTransport(handle)) as http:
+        app.state.routing_provider = OsrmClient.from_settings(settings, http)
+        response = await client.post(ROUTE_URL, json=ROUTE_BODY, headers=headers)
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "distance_m": 4120,
+        "duration_s": 611,
+        "route_geometry": {"type": "LineString", "coordinates": line},
+        "provider": "osrm",
+    }
+    [request] = requests
+    assert request.url.path == "/route/v1/driving/76.9572,43.2389;76.9286,43.2187"

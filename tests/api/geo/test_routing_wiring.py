@@ -1,4 +1,4 @@
-"""The application owns one routing provider: openrouteservice, or one injected by tests."""
+"""The application owns one routing provider: OSRM, openrouteservice or one injected by tests."""
 
 import httpx
 import pytest
@@ -10,6 +10,7 @@ from support.routing import FakeRoutingProvider, isolate_routing_environment
 from taxi_service.core.config import Settings
 from taxi_service.main import create_app
 from taxi_service.modules.geo.client import OpenRouteServiceClient
+from taxi_service.modules.geo.osrm import OsrmClient
 
 
 @pytest.fixture(autouse=True)
@@ -19,20 +20,28 @@ def _no_routing_key(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture
 def app(settings: Settings, clock: ManualClock) -> FastAPI:
-    """The real openrouteservice wiring, unlike the shared fixture's fake provider."""
+    """The real routing wiring, unlike the shared fixture's fake provider."""
     return create_app(settings, clock=clock)
 
 
-async def test_app_starts_without_routing_key_and_uses_openrouteservice(
-    settings: Settings,
+async def test_app_starts_without_routing_settings_and_uses_osrm(settings: Settings) -> None:
+    app = create_app(settings)
+
+    async with app.router.lifespan_context(app):
+        assert isinstance(app.state.routing_provider, OsrmClient)
+
+
+async def test_app_uses_openrouteservice_when_selected(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setenv("ROUTING_PROVIDER", "openrouteservice")
     app = create_app(settings)
 
     async with app.router.lifespan_context(app):
         assert isinstance(app.state.routing_provider, OpenRouteServiceClient)
 
 
-async def test_route_without_routing_key_is_unavailable(client: httpx.AsyncClient) -> None:
+async def test_route_without_osrm_url_is_unavailable(client: httpx.AsyncClient) -> None:
     user = await register_and_login(client, "pat")
 
     response = await client.post(

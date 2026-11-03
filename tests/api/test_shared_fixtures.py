@@ -13,3 +13,7 @@ def test_shared_app_uses_the_fake_routing_provider(app: FastAPI) -> None:
 
 def test_routing_key_from_local_env_is_hidden_from_tests() -> None:
     assert os.environ.get("ROUTING_API_KEY") == ""
+
+
+def test_local_osrm_from_env_is_hidden_from_tests() -> None:
+    assert os.environ.get("OSRM_BASE_URL") == ""
