@@ -56,6 +56,7 @@ export const router = createBrowserRouter([
           { path: '/driver', ...page(driver, (m) => m.DriverHomePage) },
           { path: '/driver/history', ...page(driver, (m) => m.DriverHistoryPage) },
           { path: '/driver/profile', ...page(driver, (m) => m.DriverProfilePage) },
+          { path: '/driver/settings', ...page(driver, (m) => m.DriverSettingsPage) },
         ],
       },
     ],

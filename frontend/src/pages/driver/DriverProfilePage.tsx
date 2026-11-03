@@ -1,131 +1,118 @@
-import { useState, type ComponentProps, type FormEvent } from 'react'
-import type { Driver, DriverProfileUpdate } from '@/api'
+import { Link } from 'react-router'
+import { Car, CreditCard, LogOut, Phone, Settings, ShieldCheck, Timer } from 'lucide-react'
+import { formatRating, TARIFF_LABELS, type NextDriver } from '@/api/next-contract-driver'
+import { useSession } from '@/auth/use-session'
 import { ErrorAlert } from '@/components/common/ErrorAlert'
-import { LogoutButton } from '@/components/common/LogoutButton'
-import { PageHeader } from '@/components/common/PageHeader'
-import { PageContainer } from '@/components/layout/PageContainer'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
-import { Skeleton } from '@/components/ui/skeleton'
-import { useDriverProfile, useUpdateDriverProfile } from '@/hooks/use-driver'
-import { APPROVAL_STATUS_LABELS, DRIVER_FIELD_LABELS } from '@/lib/labels'
+import { Avatar } from '@/components/driver/Avatar'
+import { Screen, ScreenColumn } from '@/components/driver/Screen'
+import { ListRow, Skeleton, StatusPill } from '@/components/ui-kit'
+import { useDriverProfile } from '@/hooks/use-driver'
 
-const FIELDS = {
-  full_name: 'ФИО',
-  phone: 'Телефон',
-  license_number: 'Номер водительских прав',
-  make: 'Марка',
-  model: 'Модель',
-  color: 'Цвет',
-  plate_number: 'Госномер',
-  year: 'Год выпуска',
-} as const
-
-type FieldName = keyof typeof FIELDS
-type FormState = Record<FieldName, string>
-
-function initialState(driver: Driver): FormState {
-  const v = driver.vehicle
-  return {
-    full_name: driver.full_name ?? '',
-    phone: driver.phone ?? '',
-    license_number: driver.license_number ?? '',
-    make: v?.make ?? '',
-    model: v?.model ?? '',
-    color: v?.color ?? '',
-    plate_number: v?.plate_number ?? '',
-    year: v ? String(v.year) : '',
-  }
-}
-
-/** PATCH semantics: empty fields are omitted (null is rejected); the vehicle is sent only when complete. */
-function toUpdate(form: FormState): DriverProfileUpdate {
-  const text = (value: string) => value.trim() || undefined
-  const vehicleComplete = (['make', 'model', 'color', 'plate_number', 'year'] as const).every((f) => form[f].trim())
-  return {
-    full_name: text(form.full_name),
-    phone: text(form.phone),
-    license_number: text(form.license_number),
-    vehicle: vehicleComplete
-      ? {
-          make: form.make.trim(),
-          model: form.model.trim(),
-          color: form.color.trim(),
-          plate_number: form.plate_number.trim(),
-          year: Number(form.year),
-        }
-      : undefined,
-  }
-}
-
-function DriverProfileForm({ driver }: { driver: Driver }) {
-  const update = useUpdateDriverProfile()
-  const [form, setForm] = useState(() => initialState(driver))
-
-  const field = (name: FieldName, props: ComponentProps<typeof Input> = {}) => (
-    <div className="grid gap-2">
-      <Label htmlFor={name}>{FIELDS[name]}</Label>
-      <Input id={name} value={form[name]} onChange={(e) => setForm({ ...form, [name]: e.target.value })} {...props} />
+function InfoCard({ icon: Icon, title, text, trailing }: { icon: typeof Car; title: string; text: string; trailing?: React.ReactNode }) {
+  return (
+    <div className="flex w-full items-center gap-3 overflow-hidden rounded-lg bg-bg-subtle p-4">
+      <Icon className="size-6 shrink-0 text-text-primary" strokeWidth={2} aria-hidden />
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <p className="text-body-medium text-text-primary">{title}</p>
+        <p className="text-caption text-text-secondary">{text}</p>
+      </div>
+      {trailing}
     </div>
   )
+}
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    update.mutate(toUpdate(form))
+function ApprovalCard({ driver }: { driver: NextDriver }) {
+  if (driver.approval_status === 'approved') {
+    return (
+      <InfoCard
+        icon={ShieldCheck}
+        title="Допуск получен"
+        text="Можно выходить на линию и принимать заказы."
+        trailing={<StatusPill tone="success">approved</StatusPill>}
+      />
+    )
   }
-
   return (
-    <form className="grid gap-4" onSubmit={submit}>
-      {field('full_name', { autoComplete: 'name' })}
-      {field('phone', { type: 'tel', placeholder: '+7…' })}
-      {field('license_number')}
-      <Separator />
-      <p className="text-sm font-medium">Автомобиль</p>
-      <div className="grid grid-cols-2 gap-3">
-        {field('make')}
-        {field('model')}
-        {field('color')}
-        {field('year', { type: 'number', min: 1980, inputMode: 'numeric' })}
-      </div>
-      {field('plate_number')}
-      <ErrorAlert error={update.error} />
-      {update.isSuccess && <p className="text-sm text-muted-foreground">Сохранено</p>}
-      <Button type="submit" disabled={update.isPending}>Сохранить</Button>
-    </form>
+    <InfoCard
+      icon={Timer}
+      title="Ждёт проверки"
+      text="Администратор проверит данные. После одобрения можно выйти на линию."
+      trailing={<StatusPill tone="warning">pending</StatusPill>}
+    />
   )
 }
 
-export function DriverProfilePage() {
-  const driver = useDriverProfile()
+function VehicleCard({ driver }: { driver: NextDriver }) {
+  const vehicle = driver.vehicle
+  if (!vehicle) return <InfoCard icon={Car} title="Машина не добавлена" text="Добавьте её в настройках" />
+  const carClass =
+    driver.approval_status === 'approved' && vehicle.car_class ? ` · ${TARIFF_LABELS[vehicle.car_class]}` : ''
   return (
-    <PageContainer>
-      <PageHeader title="Профиль водителя" action={<LogoutButton />} />
-      {driver.isPending && <Skeleton className="h-96" />}
-      {driver.isError && <ErrorAlert error={driver.error} />}
-      {driver.data && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              Статус допуска
-              <Badge variant={driver.data.approval_status === 'approved' ? 'default' : 'secondary'}>
-                {APPROVAL_STATUS_LABELS[driver.data.approval_status]}
-              </Badge>
-            </CardTitle>
-            {driver.data.missing_fields.length > 0 && (
-              <p className="text-sm text-muted-foreground">
-                Не заполнено: {driver.data.missing_fields.map((f) => DRIVER_FIELD_LABELS[f] ?? f).join(', ')}
-              </p>
-            )}
-          </CardHeader>
-          <CardContent>
-            <DriverProfileForm driver={driver.data} />
-          </CardContent>
-        </Card>
-      )}
-    </PageContainer>
+    <InfoCard
+      icon={Car}
+      title={`${vehicle.make} ${vehicle.model} · ${vehicle.color}`}
+      text={`Госномер ${vehicle.plate_number}${carClass}`}
+    />
+  )
+}
+
+function ratingSuffix(driver: NextDriver): string {
+  const rating = formatRating(driver.rating)
+  return rating ? ` · ${rating}` : ''
+}
+
+/** Figma 6:348: profile, approval, vehicle and contacts. */
+export function DriverProfilePage() {
+  const { user, logout } = useSession()
+  const driver = useDriverProfile()
+  const data = driver.data
+  const name = data?.full_name ?? user?.username ?? ''
+
+  return (
+    <Screen>
+      <ScreenColumn className="gap-5 pt-[calc(17px+env(safe-area-inset-top))] pb-6">
+        <div className="flex w-full items-center gap-4">
+          <Avatar name={name} size={64} />
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <h1 className="truncate text-headline text-text-primary">{name}</h1>
+            <p className="truncate text-callout text-text-secondary">
+              @{user?.username} · водитель{data ? ratingSuffix(data) : ''}
+            </p>
+          </div>
+          <Link
+            to="/driver/settings"
+            aria-label="Настройки"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full bg-bg-subtle text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-bg-inverse"
+          >
+            <Settings className="size-6" strokeWidth={2} aria-hidden />
+          </Link>
+        </div>
+        {driver.isPending && <Skeleton className="h-60 w-full rounded-lg" />}
+        <ErrorAlert error={driver.error} />
+        {data && (
+          <>
+            <ApprovalCard driver={data} />
+            <VehicleCard driver={data} />
+            <div className="flex w-full flex-col">
+              <ListRow icon={Phone} title="Телефон" subtitle={data.phone ?? 'Не указан'} />
+              <ListRow
+                icon={CreditCard}
+                title="Водительское удостоверение"
+                subtitle={data.license_number ?? 'Не указано'}
+              />
+            </div>
+          </>
+        )}
+        <button
+          type="button"
+          disabled={logout.isPending}
+          onClick={() => logout.mutate()}
+          className="flex w-full items-center gap-3 py-3 text-accent-danger outline-none focus-visible:underline disabled:opacity-40"
+        >
+          <LogOut className="size-6 shrink-0" strokeWidth={2} aria-hidden />
+          <span className="text-body-medium">Выйти из аккаунта</span>
+        </button>
+      </ScreenColumn>
+    </Screen>
   )
 }
