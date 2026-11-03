@@ -21,7 +21,6 @@ from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.auth.rate_limit import LoginAttemptLimiter
 from taxi_service.modules.auth.service import AuthenticatedUser
 from taxi_service.modules.users.models import UserRole
-from taxi_service.modules.users.service import UserService
 
 CSRF_HEADER_NAME = "X-CSRF-Token"
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
@@ -56,13 +55,6 @@ def get_login_limiter(request: Request) -> LoginAttemptLimiter:
 
 
 LoginLimiterDep = Annotated[LoginAttemptLimiter, Depends(get_login_limiter)]
-
-
-def get_user_service(session: DbSession, clock: ClockDep, hasher: PasswordHasherDep) -> UserService:
-    return UserService(session, clock, hasher)
-
-
-UserServiceDep = Annotated[UserService, Depends(get_user_service)]
 
 
 async def get_current_user(

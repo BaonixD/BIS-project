@@ -15,10 +15,10 @@ from taxi_service.modules.auth.dependencies import (
     CurrentUser,
     LoginLimiterDep,
     PasswordHasherDep,
-    UserServiceDep,
     require_allowed_origin,
 )
 from taxi_service.modules.auth.schemas import LoginRequest, RegisterRequest, SessionResponse
+from taxi_service.modules.users import service as users_service
 from taxi_service.modules.users.models import UserRole
 from taxi_service.modules.users.schemas import UserResponse
 from taxi_service.schemas.errors import error_responses
@@ -32,12 +32,16 @@ router = APIRouter(prefix="/auth", tags=["auth"])
     dependencies=[Depends(require_allowed_origin)],
     responses=error_responses(403, 409),
 )
-async def register(body: RegisterRequest, users: UserServiceDep) -> UserResponse:
-    """Create a passenger or driver account. It does not log in: call ``/auth/login``."""
-    user = await users.create_user(
-        username=body.username,
-        password=body.password.get_secret_value(),
-        role=UserRole(body.role),
+async def register(
+    body: RegisterRequest, db: DbSession, clock: ClockDep, hasher: PasswordHasherDep
+) -> UserResponse:
+    user = await users_service.create_user(
+        db,
+        body.username,
+        body.password.get_secret_value(),
+        UserRole(body.role),
+        clock=clock,
+        hasher=hasher,
     )
     return UserResponse.model_validate(user)
 
