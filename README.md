@@ -19,7 +19,7 @@
 | --- | --- |
 | [docs/architecture.md](docs/architecture.md) | Устройство приложения: слои, транзакции, модули, ER-схема, состояния, единицы |
 | [docs/api-handoff.md](docs/api-handoff.md) | API для React-клиента: cookie/CSRF, все маршруты, потоки пассажира и водителя, polling, оплата, коды ошибок |
-| [docs/decisions/](docs/decisions/README.md) | ADR 0001–0007 |
+| [docs/decisions/](docs/decisions/README.md) | ADR 0001–0008 |
 | [docs/MVP_SPEC.md](docs/MVP_SPEC.md) | Контракты и рабочие допущения |
 | [BACKEND_PLAN.md](BACKEND_PLAN.md) | Инженерный план и ответы опроса |
 | [docs/TASKS.md](docs/TASKS.md), [docs/reports/](docs/reports/) | Очередь T00–T11, статусы и отчёты задач |
@@ -98,7 +98,7 @@ Alembic берёт URL из `DATABASE_URL` (окружение или `.env`); �
 | Запись, а также чтение, от которого зависит запись | `async with session.begin():` | `BEGIN IMMEDIATE`: пишущие транзакции выполняются по очереди |
 | Только чтение | `async with read_transaction(session):` (`taxi_service.database.session`); без сессии — `read_connection(engine)` | `BEGIN DEFERRED` + `PRAGMA query_only`: не ждёт писателей, любая запись падает с ошибкой |
 
-Правило: роутер или auth-зависимость — короткий `read_transaction`; сервис — один `async with session.begin()` на операцию; внутри транзакции никогда не ждать внешний HTTP (маршруты) и другой медленный ввод-вывод. `SessionDep` сам ничего не открывает и не коммитит. Опция выполнения `isolation_level` (включая `AUTOCOMMIT`) с этой схемой не поддерживается и отклоняется.
+Правило ([ADR 0008](docs/decisions/0008-functional-services.md)): транзакцию открывает бизнес-функция сервиса — один `async with db.begin()` на команду или короткий `read_transaction(db)` на чтение (в том числе `auth.service.authenticate` для `CurrentUser`); SQL-функции и роутеры транзакцию не открывают. Внутри транзакции никогда не ждать внешний HTTP (маршруты) и другой медленный ввод-вывод. `DbSession` сам ничего не открывает и не коммитит. Опция выполнения `isolation_level` (включая `AUTOCOMMIT`) с этой схемой не поддерживается и отклоняется.
 
 Миграции работают с отключённой на время проверкой внешних ключей (пересоздание таблицы в batch-режиме иначе каскадно удалило бы связанные строки) и перед commit выполняют `PRAGMA foreign_key_check`; при нарушении вся ревизия откатывается.
 
@@ -417,7 +417,7 @@ uv run python scripts/seed.py --refresh-locations   # перед показом:
 - **Коды выхода:** `0` — готово (сводка `created / skipped / refreshed`); `1` — окружение или БД (не SQLite-файл, нет файла, не мигрирована, конфликт с существующими данными); `2` — ввод (пароль вне 10–128 символов, повтор не совпал, нет терминала для запроса).
 - Если запуск прервался посреди создания водителя, повторный запуск пропустит уже созданный аккаунт; проверьте его в `GET /api/v1/admin/drivers` и при необходимости завершите профиль и допуск через API.
 
-Код: `scripts/seed.py` (CLI) и `src/taxi_service/seeds/demo.py` (данные и логика через `UserService`, `DriverService`, `DriverAdminService`). Пакет `seeds` лежит внутри `taxi_service`, а не в корне репозитория: так он импортируется из `scripts/` без правки `sys.path` и проверяется общей командой `uv run mypy src/taxi_service tests scripts`. Тесты — `tests/seeds/`; остальные тесты демо-seed не используют.
+Код: `scripts/seed.py` (CLI) и `src/taxi_service/seeds/demo.py` (данные и логика через функции `users.service` и `drivers.service`: `create_user`, `update_profile`, `approve_driver`, `update_location`, `set_availability`). Пакет `seeds` лежит внутри `taxi_service`, а не в корне репозитория: так он импортируется из `scripts/` без правки `sys.path` и проверяется общей командой `uv run mypy src/taxi_service tests scripts`. Тесты — `tests/seeds/`; остальные тесты демо-seed не используют.
 
 ## Назначение водителя
 
@@ -446,7 +446,7 @@ OFFER_ID=$(curl -s -b jar.txt "$API/drivers/me/offers" \
 curl -s -b jar.txt -X POST "$API/ride-offers/$OFFER_ID/accept" -H "X-CSRF-Token: $CSRF"
 ```
 
-В тестах цикл выключен (`DISPATCH_LOOP_ENABLED=false` в `tests/conftest.py`); фикстура `dispatcher` вызывает сервис напрямую (`process`, `process_due`, `accept`, `reject`, `offers`), время двигает `clock.advance(...)`. Фикстура `available_driver` — один свободный водитель у pickup по умолчанию, чтобы поездка из API оставалась `searching`.
+В тестах цикл выключен (`DISPATCH_LOOP_ENABLED=false` в `tests/conftest.py`); фикстура `dispatcher` вызывает функции `rides.dispatch` на своих сессиях (`process`, `process_due`, `accept`, `reject`, `offers`), время двигает `clock.advance(...)`. Фикстура `available_driver` — один свободный водитель у pickup по умолчанию, чтобы поездка из API оставалась `searching`.
 
 ## Жизненный цикл поездки
 
@@ -476,7 +476,7 @@ assigned / arrived → searching  (release)
 - История: каждый переход — строка `ride_events` (`from_status`, `to_status`, `command`, `actor_id`, `reason`, `created_at`) в той же транзакции, что и смена статуса, включая системные `assign` (accept) и `mark_no_driver` (`actor_id = null`). Координат и секретов там нет.
 - `GET /rides/{id}` для пассажира и назначенного водителя активной поездки (`assigned/arrived/in_progress`) содержит `driver`: `full_name`, `phone`, `vehicle` (`make`, `model`, `color`, `plate_number`), последнюю `location` и `location_updated_at`. Admin и другие статусы — `driver: null`. Устаревшая координата поездку не завершает и не отменяет — клиент показывает время последнего обновления.
 - Водитель во время поездки не уходит offline и не меняет профиль и машину (`409 driver_on_active_ride`).
-- Завершение вызывает в той же транзакции точку расширения оплаты `modules/rides/completion.py::on_ride_completed`: она открывает неоплаченную наличную оплату поездки (см. «Оплата»); сбой открытия откатывает завершение.
+- Завершение вызывает в той же транзакции точку расширения оплаты `modules/rides/lifecycle.py::on_ride_completed`: она открывает неоплаченную наличную оплату поездки (см. «Оплата»); сбой открытия откатывает завершение.
 
 Пример (водитель вошёл, `$RIDE_ID` — его поездка):
 
