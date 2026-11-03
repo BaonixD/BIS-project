@@ -8,17 +8,17 @@
 
 | ID | Задача | Зависимости | Плановая ветка | Статус |
 | --- | --- | --- | --- | --- |
-| [T00](tasks/T00-foundation.md) | Основа, запуск и проверки | — | `task/t00-foundation` | integrated (`c6da39d`, [отчёт](reports/T00.md)) |
-| [T01](tasks/T01-database.md) | БД (SQLite), Alembic, изоляция тестов | T00 | `task/t01-database` | integrated (`df9e473`, [отчёт](reports/T01.md)) |
-| [T02](tasks/T02-auth.md) | Регистрация, сессии и права | T01 | `task/t02-auth` | integrated (`2446e6f`, [отчёт](reports/T02.md)) |
-| [T03](tasks/T03-drivers.md) | Профили, автомобиль и координаты | T02 | `task/t03-drivers` | integrated (`70e2160` + `fix/t03-review` `90656de`, [отчёт](reports/T03.md)) |
-| [T04](tasks/T04-routing-pricing.md) | Дорожный маршрут и учебная цена | T02 | `task/t04-routing-pricing` | часть A integrated (`36f25bb`, [отчёт](reports/T04.md)); часть B integrated (`a484235`); реальный маршрут external_pending |
-| [T05](tasks/T05-ride-creation.md) | Quote и идемпотентное создание заказа | T03, T04 | `task/t05-ride-creation` | integrated (`9582b47`, [отчёт](reports/T05.md)) |
-| [T06](tasks/T06-dispatch.md) | Поиск и предложения водителям | T05 | `task/t06-dispatch` | integrated (`cf151ae`, [отчёт](reports/T06.md)) |
-| [T07](tasks/T07-ride-lifecycle.md) | Жизненный цикл и отмена поездки | T06 | `task/t07-ride-lifecycle` | части A и B integrated (`f8686ab`, `7a53516` + `fix/t07b-review` `041c136`, [отчёт](reports/T07.md)) |
-| [T08](tasks/T08-payments.md) | Наличные и Kaspi-ссылка | T07 | `task/t08-payments` | части A и B integrated (`8a56b31`, `6b8dd5b` + `fix/t08b-review` `012fe8b`, [отчёт](reports/T08.md)) |
-| [T09](tasks/T09-history-admin.md) | История и административное чтение | T07 | `task/t09-history-admin` | integrated (`4381f72`, [отчёт](reports/T09.md)); payment-поля добавлены в T08 часть B |
-| [T10](tasks/T10-acceptance.md) | Seed, E2E, документация и передача | T08, T09 | `task/t10-acceptance` | integrated (`3a40ba8`, `4420d92`, `718ff1c`, [отчёт](reports/T10.md), [FINAL](reports/FINAL.md)) |
+| [T00](tasks/T00-foundation.md) | Основа, запуск и проверки | — | `task/t00-foundation` | integrated (`45d2178`, [отчёт](reports/T00.md)) |
+| [T01](tasks/T01-database.md) | БД (SQLite), Alembic, изоляция тестов | T00 | `task/t01-database` | integrated (`bc9f610`, [отчёт](reports/T01.md)) |
+| [T02](tasks/T02-auth.md) | Регистрация, сессии и права | T01 | `task/t02-auth` | integrated (`a8b5e71`, [отчёт](reports/T02.md)) |
+| [T03](tasks/T03-drivers.md) | Профили, автомобиль и координаты | T02 | `task/t03-drivers` | integrated (`93cc3f8` + `fix/t03-review` `3fe57a2`, [отчёт](reports/T03.md)) |
+| [T04](tasks/T04-routing-pricing.md) | Дорожный маршрут и учебная цена | T02 | `task/t04-routing-pricing` | часть A integrated (`4805646`, [отчёт](reports/T04.md)); часть B integrated (`5b6bf33`); реальный маршрут external_pending |
+| [T05](tasks/T05-ride-creation.md) | Quote и идемпотентное создание заказа | T03, T04 | `task/t05-ride-creation` | integrated (`714a000`, [отчёт](reports/T05.md)) |
+| [T06](tasks/T06-dispatch.md) | Поиск и предложения водителям | T05 | `task/t06-dispatch` | integrated (`18747e5`, [отчёт](reports/T06.md)) |
+| [T07](tasks/T07-ride-lifecycle.md) | Жизненный цикл и отмена поездки | T06 | `task/t07-ride-lifecycle` | части A и B integrated (`38f002e`, `a5a3d6b` + `fix/t07b-review` `45fb8ff`, [отчёт](reports/T07.md)) |
+| [T08](tasks/T08-payments.md) | Наличные и Kaspi-ссылка | T07 | `task/t08-payments` | части A и B integrated (`0701274`, `96b3777` + `fix/t08b-review` `9056705`, [отчёт](reports/T08.md)) |
+| [T09](tasks/T09-history-admin.md) | История и административное чтение | T07 | `task/t09-history-admin` | integrated (`e0453b1`, [отчёт](reports/T09.md)); payment-поля добавлены в T08 часть B |
+| [T10](tasks/T10-acceptance.md) | Seed, E2E, документация и передача | T08, T09 | `task/t10-acceptance` | integrated (`d85b2b9`, `9c99d7c`, `6e9cc49`, [отчёт](reports/T10.md), [FINAL](reports/FINAL.md)) |
 | [T11](tasks/T11-google.md) | Google-вход | T10 + отдельный запуск | `task/t11-google` | deferred |
 
 ## Что может идти параллельно
