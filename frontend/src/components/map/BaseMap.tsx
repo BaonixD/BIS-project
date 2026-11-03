@@ -31,7 +31,7 @@ function VectorBasemap() {
 function AttributionTopRight() {
   const map = useMap()
   useEffect(() => {
-    // The map's own control, moved: layers (e.g. the openrouteservice route) report their attribution to it.
+    // The map's own control, moved: layers (e.g. the route line) report their attribution to it.
     const control = map.attributionControl
     control?.setPosition('topright').setPrefix(false).addAttribution(ATTRIBUTION)
     return () => {

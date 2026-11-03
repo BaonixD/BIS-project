@@ -3,6 +3,7 @@ import { Marker, Polyline, useMap } from 'react-leaflet'
 import { latLngBounds, type LatLngTuple } from 'leaflet'
 import type { Coordinates, RouteResult } from '@/api'
 import { routeToLatLngs, toLatLng } from '@/lib/geo'
+import { routeAttribution } from './attribution'
 import { carIcon, dropoffIcon, myLocationIcon, pickupIcon } from './markers'
 
 export type PointKind = 'pickup' | 'dropoff' | 'driver' | 'me'
@@ -13,9 +14,6 @@ const MARKERS = {
   driver: { icon: carIcon, label: 'Водитель' },
   me: { icon: myLocationIcon, label: 'Вы здесь' },
 } as const
-
-const ROUTE_ATTRIBUTION =
-  'Маршрут &copy; <a href="https://openrouteservice.org/">openrouteservice.org</a> by HeiGIT'
 
 export function PointMarker({ point, kind }: { point: Coordinates; kind: PointKind }) {
   const { icon, label } = MARKERS[kind]
@@ -38,11 +36,14 @@ export const ROUTE_COLOR = '#05A357'
 /** Figma route line: green, 5px, round caps. */
 export function RouteLine({ route }: { route: RouteResult | LatLngTuple[] }) {
   const positions = Array.isArray(route) ? route : routeToLatLngs(route)
+  const attribution = Array.isArray(route) ? undefined : routeAttribution(route.provider)
   return (
+    // Leaflet reads a layer's attribution only when it is added: a new credit needs a new layer.
     <Polyline
+      key={attribution ?? 'no-attribution'}
       positions={positions}
       pathOptions={{ color: ROUTE_COLOR, weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round' }}
-      attribution={Array.isArray(route) ? undefined : ROUTE_ATTRIBUTION}
+      attribution={attribution}
     />
   )
 }
