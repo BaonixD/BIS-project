@@ -12,21 +12,14 @@ from taxi_service.modules.auth.dependencies import require_roles
 from taxi_service.modules.auth.service import AuthenticatedUser
 from taxi_service.modules.rides.history_router import RideQueriesDep
 from taxi_service.modules.rides.history_schemas import RideFiltersDep, RideSummary
+from taxi_service.modules.users import service as users_service
 from taxi_service.modules.users.models import UserRole
-from taxi_service.modules.users.queries import UserQueries
 from taxi_service.schemas.errors import error_responses
 from taxi_service.schemas.pagination import Page, PageParamsDep
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 AdminUser = Annotated[AuthenticatedUser, Depends(require_roles(UserRole.ADMIN))]
-
-
-def get_user_queries(session: DbSession) -> UserQueries:
-    return UserQueries(session)
-
-
-UserQueriesDep = Annotated[UserQueries, Depends(get_user_queries)]
 
 
 @router.get("/rides", responses=error_responses(401, 403))
@@ -55,16 +48,11 @@ async def list_all_rides(
 @router.get("/users", responses=error_responses(401, 403))
 async def list_users(
     _admin: AdminUser,
-    queries: UserQueriesDep,
+    db: DbSession,
     page: PageParamsDep,
     role: Annotated[UserRole | None, Query(description="Only accounts with this role.")] = None,
 ) -> Page[AdminUserResponse]:
-    """Accounts, newest first (`created_at DESC, id DESC`); admin only.
-
-    Each item has `id`, `username`, `role`, `created_at` and the profile's
-    `display_name` (null without one); never passwords, sessions or phones.
-    """
-    result = await queries.list_users(role, limit=page.limit, offset=page.offset)
+    result = await users_service.list_users(db, role, limit=page.limit, offset=page.offset)
     return Page(
         items=[AdminUserResponse.model_validate(row) for row in result.rows],
         limit=page.limit,
