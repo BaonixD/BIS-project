@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from 'react-router/dom'
 import { SessionProvider } from '@/auth/SessionProvider'
+import { Toaster } from '@/components/ui-kit'
 import { createQueryClient } from '@/lib/query-client'
 import { router } from '@/routes/router'
 
@@ -11,6 +12,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
         <RouterProvider router={router} />
+        <Toaster />
       </SessionProvider>
     </QueryClientProvider>
   )

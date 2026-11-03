@@ -1,19 +1,27 @@
 import type { ReactNode } from 'react'
-import { cn } from '@/lib/utils'
+import { BottomSheet } from '@/components/ui-kit'
 
-/** Full-height map page above the bottom nav with a bottom sheet (side panel on ≥ 1024px). */
-export function MapScreen({ map, sheet }: { map: ReactNode; sheet: ReactNode }) {
+/**
+ * Full-screen map under the shell chrome with a bottom sheet
+ * (a floating left panel at ≥1024px, as in Figma Desktop 7:2).
+ */
+export function MapScreen({
+  map,
+  sheet,
+  sheetLabel = 'Панель заказа',
+  onSheetHeightChange,
+}: {
+  map: ReactNode
+  sheet: ReactNode
+  sheetLabel?: string
+  onSheetHeightChange?: (height: number) => void
+}) {
   return (
-    <div className="relative h-[calc(100dvh-var(--bottom-nav-height)-env(safe-area-inset-bottom))] lg:h-dvh">
-      {map}
-      <section
-        className={cn(
-          'absolute inset-x-0 bottom-0 z-10 max-h-[65%] overflow-y-auto rounded-t-2xl border-t bg-background p-4 shadow-lg',
-          'lg:inset-x-auto lg:top-4 lg:bottom-auto lg:left-4 lg:max-h-[calc(100%-2rem)] lg:w-96 lg:rounded-2xl lg:border',
-        )}
-      >
+    <div className="fixed inset-0 isolate lg:top-(--top-bar-height)">
+      <div className="absolute inset-0 z-0">{map}</div>
+      <BottomSheet aria-label={sheetLabel} onHeightChange={onSheetHeightChange}>
         {sheet}
-      </section>
+      </BottomSheet>
     </div>
   )
 }
