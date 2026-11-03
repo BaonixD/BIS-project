@@ -446,7 +446,7 @@ OFFER_ID=$(curl -s -b jar.txt "$API/drivers/me/offers" \
 curl -s -b jar.txt -X POST "$API/ride-offers/$OFFER_ID/accept" -H "X-CSRF-Token: $CSRF"
 ```
 
-В тестах цикл выключен (`DISPATCH_LOOP_ENABLED=false` в `tests/conftest.py`); фикстура `dispatcher` вызывает сервис напрямую (`process`, `process_due`, `accept`, `reject`, `offers`), время двигает `clock.advance(...)`. Фикстура `available_driver` — один свободный водитель у pickup по умолчанию, чтобы поездка из API оставалась `searching`.
+В тестах цикл выключен (`DISPATCH_LOOP_ENABLED=false` в `tests/conftest.py`); фикстура `dispatcher` вызывает функции `rides.dispatch` на своих сессиях (`process`, `process_due`, `accept`, `reject`, `offers`), время двигает `clock.advance(...)`. Фикстура `available_driver` — один свободный водитель у pickup по умолчанию, чтобы поездка из API оставалась `searching`.
 
 ## Жизненный цикл поездки
 
@@ -476,7 +476,7 @@ assigned / arrived → searching  (release)
 - История: каждый переход — строка `ride_events` (`from_status`, `to_status`, `command`, `actor_id`, `reason`, `created_at`) в той же транзакции, что и смена статуса, включая системные `assign` (accept) и `mark_no_driver` (`actor_id = null`). Координат и секретов там нет.
 - `GET /rides/{id}` для пассажира и назначенного водителя активной поездки (`assigned/arrived/in_progress`) содержит `driver`: `full_name`, `phone`, `vehicle` (`make`, `model`, `color`, `plate_number`), последнюю `location` и `location_updated_at`. Admin и другие статусы — `driver: null`. Устаревшая координата поездку не завершает и не отменяет — клиент показывает время последнего обновления.
 - Водитель во время поездки не уходит offline и не меняет профиль и машину (`409 driver_on_active_ride`).
-- Завершение вызывает в той же транзакции точку расширения оплаты `modules/rides/completion.py::on_ride_completed`: она открывает неоплаченную наличную оплату поездки (см. «Оплата»); сбой открытия откатывает завершение.
+- Завершение вызывает в той же транзакции точку расширения оплаты `modules/rides/lifecycle.py::on_ride_completed`: она открывает неоплаченную наличную оплату поездки (см. «Оплата»); сбой открытия откатывает завершение.
 
 Пример (водитель вошёл, `$RIDE_ID` — его поездка):
 

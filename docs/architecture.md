@@ -66,10 +66,9 @@ flowchart LR
 ```
 
 - **Router** — один `router.py` на модуль, тонкий: берёт зависимости, вызывает одну функцию сервиса и строит схему ответа; сам делает только HTTP (cookie, заголовки, статус). Форму данных проверяет Pydantic (`extra="forbid"` у тел команд), схемы API отделены от ORM. Docstring у эндпоинтов нет: ошибки — в `responses=error_responses(...)` и [api-handoff.md](api-handoff.md).
-- **Зависимости** — `dependencies.py` модуля: `CurrentUser`, `require_roles(...)`, `require_allowed_origin`, `PasswordHasherDep`, `LoginLimiterDep` (auth), `RoutingProviderDep` (geo) — объекты из `app.state`. Сессия — `DbSession` (`database/session.py`), время — `ClockDep` (`core/clock.py`). Фабрик сервисов нет.
-- **Service** — `async def` бизнес-операции: `db: AsyncSession`, данные, затем keyword-only зависимости (`clock`, `hasher`, `limiter`, …). Владеет транзакцией и не знает про HTTP: выбрасывает `AppError`-подклассы из `exceptions.py`. Одна команда — один `async with db.begin()`, чтение — `read_transaction(db)`.
-- **SQL-функции** — приватные (`_get_active_session`, `_get_profile_for_update`) или публичные для других модулей (`users.service.get_user_by_username`, `drivers.service.get_driver_profile`). Транзакцию не начинают и не коммитят — работают в транзакции вызывающего. Права на конкретный объект проверяет бизнес-функция по строке из БД; ограничения БД дублируют ключевые инварианты на случай гонок.
-- Переведены `auth`, `users`, `drivers`, `geo`, `seeds`. В `rides`, `payments`, `admin` пока остаются классы-сервисы и `repository.py` / `queries.py`; их перевод — следующий шаг ADR 0008.
+- **Зависимости** — `dependencies.py` модуля: `CurrentUser`, `require_roles(...)`, `require_allowed_origin`, `PasswordHasherDep`, `LoginLimiterDep` (auth), `RoutingProviderDep` (geo), `DispatchPolicyDep`, `CompletionHookDep`, `IdempotencyKeyDep`, `RideFiltersDep`, `PassengerUser`, `DriverUser` (rides), `PaymentSettingsDep` (payments) — объекты из `app.state`, заголовки и параметры запроса. Сессия — `DbSession` (`database/session.py`), время — `ClockDep` (`core/clock.py`). Фабрик сервисов нет.
+- **Service** — `async def` бизнес-операции: `db: AsyncSession`, данные, затем keyword-only зависимости (`clock`, `hasher`, `limiter`, `policy`, `settings`, `routing`). Крупный модуль делится по сценариям: `rides/service.py` (quote, заказ, чтение), `dispatch.py` (поиск и предложения), `lifecycle.py` (команды поездки), `history.py` (списки), `transitions.py` (`lock_ride`, `move_ride`). Владеет транзакцией и не знает про HTTP: выбрасывает `AppError`-подклассы из `exceptions.py`. Одна команда — один `async with db.begin()`, чтение — `read_transaction(db)`.
+- **SQL-функции** — приватные (`_get_active_session`, `_get_profile_for_update`) или публичные для других модулей (`users.service.get_user_by_username`, `drivers.service.get_driver_profile`, `rides.transitions.lock_ride`). Транзакцию не начинают и не коммитят — работают в транзакции вызывающего. Права на конкретный объект проверяет бизнес-функция по строке из БД; ограничения БД дублируют ключевые инварианты на случай гонок.
 
 Правила транзакций (`database/session.py`, `database/sqlite.py`):
 
@@ -85,7 +84,7 @@ flowchart LR
 
 **Clock** (`core/clock.py`): протокол `Clock.now() -> datetime` (aware UTC), `SystemClock` в приложении, `ManualClock` в тестах (`clock.advance(...)`). Через него идут срок сессии, ограничитель входа, срок quote, предложения, окно поиска, время координат, этапы поездки и оплаты. `datetime.now()` в бизнес-правилах не вызывается.
 
-**Фоновый цикл назначения** (`modules/rides/dispatch_loop.py`): одна asyncio-задача на процесс, раз в `DISPATCH_INTERVAL_S` (1 с) read-транзакцией находит поездки с просроченным `pending`, `searching` без предложения и не-`searching` с висящим предложением, затем обрабатывает каждую своей пишущей транзакцией (`DispatchService.process_ride`). Ошибка одной поездки логируется и не останавливает другие. После перезапуска первый проход приводит всё в порядок по данным БД. В тестах цикл выключен (`DISPATCH_LOOP_ENABLED=false`).
+**Фоновый цикл назначения** (`modules/rides/dispatch_loop.py`): одна asyncio-задача на процесс, раз в `DISPATCH_INTERVAL_S` (1 с) read-транзакцией находит поездки с просроченным `pending`, `searching` без предложения и не-`searching` с висящим предложением, затем обрабатывает каждую своей пишущей транзакцией (`dispatch.process_due` → `process_ride`). Ошибка одной поездки логируется и не останавливает другие. После перезапуска первый проход приводит всё в порядок по данным БД. В тестах цикл выключен (`DISPATCH_LOOP_ENABLED=false`).
 
 **Ошибки и логи**: `AppError(status_code, code, message, details)`; `details` без секретов. Логи `taxi_service.*` — JSON в stderr с `request_id`; заголовок `X-Request-ID` в каждом ответе.
 
@@ -129,10 +128,10 @@ flowchart TB
     rides -->|"open_payment, Payment для LEFT JOIN истории"| payments
     payments -->|"CurrentUser"| auth
     payments -->|"UserRole"| users
-    payments -->|"Ride, RideRepository, can_view_ride, RideStatus, RideNotFoundError"| rides
+    payments -->|"Ride, lock_ride, can_view_ride, RideStatus, RideNotFoundError"| rides
     admin -->|"require_roles"| auth
     admin -->|"users.service.list_users, UserRole"| users
-    admin -->|"RideQueries, RideSummary, фильтры"| rides
+    admin -->|"history.list_all_rides, RideSummary, RideFiltersDep"| rides
     seeds -->|"users.service: create_user, get_user_by_username, update_profile"| users
     seeds -->|"drivers.service: update_profile, approve_driver, update_location, set_availability"| drivers
     seeds -->|"PasswordHasher"| auth
@@ -142,8 +141,8 @@ flowchart TB
 Правила зависимостей:
 
 - `core/`, `database/`, `schemas/` не импортируют предметные модули (исключение — `core/lifespan.py`, который собирает провайдер маршрута и цикл dispatch, и `database/metadata.py`, который импортирует все `models.py` для Alembic).
-- Модуль обращается к другому через названные функции и контракты, а не через чужие роутеры: `users.service.get_user_by_username`, `users.service.create_user`, `users.service.list_users`, `drivers.service.get_driver_profile`, `drivers.candidates.find_nearby_candidates`, `geo.service.plan_road_route`, `rides.dispatch.revoke_driver_offers`, `rides.repository.driver_has_active_ride`, `rides.completion.on_ride_completed → payments.service.open_payment`, `rides.service.can_view_ride`.
-- На уровне пакетов есть взаимные зависимости `auth ↔ users`, `drivers ↔ rides`, `rides ↔ payments`. Циклов импорта на уровне файлов нет: каждая пара связана разными файлами (например, `drivers/service.py → rides/dispatch.py`, а `rides/dispatch.py → drivers/candidates.py`). Это осознанный компромисс MVP; при росте связей выделяется отдельный контракт.
+- Модуль обращается к другому через названные функции и контракты, а не через чужие роутеры: `users.service.get_user_by_username`, `users.service.create_user`, `users.service.list_users`, `drivers.service.get_driver_profile`, `drivers.candidates.find_nearby_candidates`, `geo.service.plan_road_route`, `rides.dispatch.revoke_driver_offers`, `rides.service.driver_has_active_ride`, `rides.service.can_view_ride`, `rides.transitions.lock_ride`, `rides.history.list_all_rides`, `rides.lifecycle.on_ride_completed → payments.service.open_payment`.
+- На уровне пакетов есть взаимные зависимости `auth ↔ users`, `drivers ↔ rides`, `rides ↔ payments`. Обычно пару связывают разные файлы (`drivers/service.py → rides/dispatch.py`, а `rides/dispatch.py → drivers/candidates.py`). Единственный цикл файлов — `drivers/service.py ↔ rides/service.py` (`get_driver_profile` и `driver_has_active_ride`): оба импортируют чужой модуль целиком (`from taxi_service.modules.rides import service as rides_service`) и обращаются к функции при вызове, поэтому порядок импорта не важен. Это осознанный компромисс MVP; при росте связей выделяется отдельный контракт.
 - `admin` — только чтение (история поездок и пользователи); допуск водителей живёт в модуле `drivers`: `admin_router` (`/admin/drivers`) в `drivers/router.py` и функции `drivers.service.list_drivers`, `approve_driver`.
 - `seeds` вызывает функции сервисов `users` и `drivers`, а не прямой SQL; приложение `seeds` не импортирует.
 
@@ -490,7 +489,7 @@ amount_kzt = ROUND_HALF_UP( max(800, 500 + 120 * distance_m / 1000 + 20 * durati
 | [0004](decisions/0004-payments-cash-kaspi.md) | наличные по умолчанию, Kaspi по ссылке из настроек, ручная сверка, аудит | `modules/payments/` |
 | [0005](decisions/0005-quotes-idempotency.md) | quote 5 минут, снимок цены, обязательный `Idempotency-Key` для `POST /rides` | `rides/service.py`, `rides/idempotency.py` |
 | [0006](decisions/0006-dispatch.md) | поиск по одному водителю, предложения 30 с, бюджет 180 с, фоновый цикл в процессе, порядок блокировок | `rides/dispatch.py`, `rides/dispatch_loop.py` |
-| [0007](decisions/0007-ride-lifecycle.md) | команды поездки, журнал `ride_events`, гонки, карточка водителя, хук завершения | `rides/lifecycle.py`, `rides/transitions.py`, `rides/completion.py` |
+| [0007](decisions/0007-ride-lifecycle.md) | команды поездки, журнал `ride_events`, гонки, карточка водителя, хук завершения | `rides/lifecycle.py` (с `on_ride_completed`), `rides/transitions.py` |
 | [0008](decisions/0008-functional-services.md) | сервисы — функции модуля, SQL в сервисе без слоя репозиториев, зависимости через `Depends`, тонкие роутеры без docstring | `modules/*/service.py`, `modules/*/dependencies.py`, `modules/*/router.py` |
 
 ## Ограничения
