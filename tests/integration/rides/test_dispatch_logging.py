@@ -13,9 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from support.clock import ManualClock
 from support.rides import PICKUP, RideFactory
 from taxi_service.database.session import SessionFactory
-from taxi_service.modules.rides.dispatch import DispatchService
+from taxi_service.modules.rides import dispatch
 from taxi_service.modules.rides.dispatch_loop import DispatchLoop
-from taxi_service.modules.rides.models import Ride
 from taxi_service.modules.rides.policy import DEFAULT_DISPATCH_POLICY
 
 
@@ -48,12 +47,12 @@ async def test_repeated_failures_of_one_ride_log_one_traceback_per_series(
     await ride_factory.searching_ride(pickup=PICKUP)
     outcomes = iter(["fail", "fail", "ok", "fail"])
 
-    async def scripted_step(self: DispatchService, ride: Ride, *args: object) -> None:
+    async def scripted_step(*args: object) -> None:
         if next(outcomes) == "fail":
             raise RuntimeError("step failed")
         # "ok": a successful step that leaves the ride searching, so it comes back
 
-    monkeypatch.setattr(DispatchService, "_step", scripted_step)
+    monkeypatch.setattr(dispatch, "_step", scripted_step)
     loop = DispatchLoop(
         session_factory,
         clock,

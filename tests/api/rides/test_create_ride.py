@@ -26,7 +26,6 @@ from taxi_service.modules.rides import service
 from taxi_service.modules.rides.idempotency import IDEMPOTENCY_HEADER
 from taxi_service.modules.rides.models import IdempotencyRecord, Ride
 from taxi_service.modules.rides.pricing import Fare
-from taxi_service.modules.rides.repository import RideRepository
 from taxi_service.modules.rides.states import RideStatus
 
 REPLAY_HEADER = "Idempotent-Replayed"
@@ -463,21 +462,21 @@ def stale_checks(monkeypatch: pytest.MonkeyPatch) -> Callable[[], None]:
     """
 
     def miss_once(name: str, empty: object) -> None:
-        original: Callable[..., Awaitable[Any]] = getattr(RideRepository, name)
+        original: Callable[..., Awaitable[Any]] = getattr(service, name)
         missed: list[bool] = []
 
-        async def check(self: RideRepository, *args: Any) -> Any:
+        async def check(*args: Any) -> Any:
             if not missed:
                 missed.append(True)
                 return empty
-            return await original(self, *args)
+            return await original(*args)
 
-        monkeypatch.setattr(RideRepository, name, check)
+        monkeypatch.setattr(service, name, check)
 
     def activate() -> None:
-        miss_once("get_idempotency_record", None)
-        miss_once("quote_is_used", False)
-        miss_once("has_active_ride", False)
+        miss_once("_get_idempotency_record", None)
+        miss_once("_quote_is_used", False)
+        miss_once("_has_active_ride", False)
 
     return activate
 

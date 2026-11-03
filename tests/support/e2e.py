@@ -43,7 +43,7 @@ from support.lifecycle import body_for, command_url
 from support.payments import payment_url
 from support.rides import QUOTE_BODY, QUOTES_URL, RIDES_URL, ride_url
 from taxi_service.database.session import SessionFactory
-from taxi_service.modules.rides.dispatch import DispatchService
+from taxi_service.modules.rides import dispatch
 from taxi_service.modules.rides.idempotency import IDEMPOTENCY_HEADER
 
 BASE_URL: Final = "https://testserver"
@@ -174,8 +174,9 @@ class Town:
         state = self.app.state
         factory: SessionFactory = state.session_factory
         async with factory() as session:
-            service = DispatchService(session, state.clock, state.dispatch_policy)
-            return await service.process_due()
+            return await dispatch.process_due(
+                session, clock=state.clock, policy=state.dispatch_policy
+            )
 
 
 @asynccontextmanager

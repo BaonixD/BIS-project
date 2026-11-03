@@ -36,8 +36,7 @@ from support.lifecycle import (
 from support.rides import order_ride, ride_url
 from taxi_service.database.session import SessionFactory, read_transaction
 from taxi_service.modules.geo.schemas import Coordinates
-from taxi_service.modules.rides.dispatch import DispatchService
-from taxi_service.modules.rides.lifecycle import RideLifecycleService
+from taxi_service.modules.rides import dispatch, lifecycle
 from taxi_service.modules.rides.models import Ride, RideEvent
 from taxi_service.modules.rides.states import OfferStatus, RideCommand, RideStatus
 from taxi_service.modules.users.models import UserRole
@@ -549,20 +548,24 @@ async def test_release_answer_does_not_show_a_later_cancel(
 ) -> None:
     """The passenger cancels between the release commit and its search step."""
     trip = await trip_in("assigned", client, driver_factory, dispatcher)
-    original = DispatchService.process_ride
+    original = dispatch.process_ride
 
-    async def passenger_cancels_first(self: DispatchService, ride_id: uuid.UUID) -> Ride | None:
+    async def passenger_cancels_first(
+        db: AsyncSession, ride_id: uuid.UUID, **kwargs: Any
+    ) -> Ride | None:
         async with session_factory() as session:
-            await RideLifecycleService(session, dispatcher.clock).execute(
+            await lifecycle.execute_command(
+                session,
                 ride_id,
                 RideCommand.CANCEL,
                 user_id=trip.passenger_id,
                 role=UserRole.PASSENGER,
                 reason="private note",
+                clock=dispatcher.clock,
             )
-        return await original(self, ride_id)
+        return await original(db, ride_id, **kwargs)
 
-    monkeypatch.setattr(DispatchService, "process_ride", passenger_cancels_first)
+    monkeypatch.setattr(dispatch, "process_ride", passenger_cancels_first)
     response = await send(client, trip.ride_id, "release", trip.driver)
 
     assert response.status_code == 200, response.text
@@ -580,18 +583,18 @@ async def test_release_answer_does_not_show_the_next_driver(
     """Another driver gets the offer and accepts before the releaser's answer is built."""
     trip = await trip_in("assigned", client, driver_factory, dispatcher)
     other = await driver_factory.driver("other_driver", location=OTHER_SPOT)
-    original = DispatchService.process_ride
+    original = dispatch.process_ride
 
     async def other_driver_accepts_meanwhile(
-        self: DispatchService, ride_id: uuid.UUID
+        db: AsyncSession, ride_id: uuid.UUID, **kwargs: Any
     ) -> Ride | None:
-        await original(self, ride_id)
+        await original(db, ride_id, **kwargs)
         offer = await dispatcher.pending(ride_id)
         assert offer is not None
         await dispatcher.accept(offer.id, other)
-        return await original(self, ride_id)
+        return await original(db, ride_id, **kwargs)
 
-    monkeypatch.setattr(DispatchService, "process_ride", other_driver_accepts_meanwhile)
+    monkeypatch.setattr(dispatch, "process_ride", other_driver_accepts_meanwhile)
     response = await send(client, trip.ride_id, "release", trip.driver)
 
     assert response.status_code == 200, response.text
@@ -609,10 +612,10 @@ async def test_release_answers_even_if_the_search_step_fails(
 ) -> None:
     trip = await trip_in("assigned", client, driver_factory, dispatcher)
 
-    async def broken(self: DispatchService, ride_id: uuid.UUID) -> Ride | None:
+    async def broken(*args: object, **kwargs: object) -> Ride | None:
         raise RuntimeError("dispatch is down")
 
-    monkeypatch.setattr(DispatchService, "process_ride", broken)
+    monkeypatch.setattr(dispatch, "process_ride", broken)
     response = await send(client, trip.ride_id, "release", trip.driver)
 
     assert response.status_code == 200, response.text

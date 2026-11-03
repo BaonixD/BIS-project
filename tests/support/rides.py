@@ -24,10 +24,10 @@ from taxi_service.database.base import Base
 from taxi_service.database.session import SessionFactory, read_transaction
 from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.geo.schemas import Coordinates
+from taxi_service.modules.rides import service as rides_service
 from taxi_service.modules.rides.idempotency import IDEMPOTENCY_HEADER
 from taxi_service.modules.rides.models import Ride
 from taxi_service.modules.rides.schemas import QuoteRequest, RideCreateRequest
-from taxi_service.modules.rides.service import RideService
 from taxi_service.modules.users import service as users_service
 from taxi_service.modules.users.models import UserRole
 
@@ -117,11 +117,18 @@ class RideFactory:
         """Quote and ride for ``passenger_id`` (a new passenger if omitted)."""
         passenger_id = passenger_id or await self.passenger()
         async with self.session_factory() as session:
-            rides = RideService(session, self.clock)
-            quote = await rides.create_quote(
-                passenger_id, QuoteRequest(pickup=pickup, dropoff=dropoff), self.routing
+            quote = await rides_service.create_quote(
+                session,
+                passenger_id,
+                QuoteRequest(pickup=pickup, dropoff=dropoff),
+                clock=self.clock,
+                routing=self.routing,
             )
-            creation = await rides.create_ride(
-                passenger_id, RideCreateRequest(quote_id=quote.id), uuid.uuid4().hex
+            creation = await rides_service.create_ride(
+                session,
+                passenger_id,
+                RideCreateRequest(quote_id=quote.id),
+                uuid.uuid4().hex,
+                clock=self.clock,
             )
         return creation.ride
