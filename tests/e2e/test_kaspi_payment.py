@@ -2,7 +2,7 @@
 
 The link is ``TEST_KASPI_URL`` (``support.payments``), never the owner's real
 one; no request leaves the test process and no payment is made. ``paid`` here is
-only a simulated charge, ``refunded`` a simulated refund.
+only a simulated charge when a driver accepts, ``refunded`` a simulated refund.
 """
 
 import uuid
@@ -45,7 +45,7 @@ def at(body: dict[str, object], field: str) -> datetime:
     return datetime.fromisoformat(value)
 
 
-async def test_kaspi_ride_is_paid_with_the_order_and_stays_paid(
+async def test_kaspi_ride_is_paid_when_a_driver_accepts_and_stays_paid(
     app: FastAPI, session_factory: SessionFactory, clock: ManualClock
 ) -> None:
     async with open_town(app, session_factory, clock) as town:
@@ -55,17 +55,21 @@ async def test_kaspi_ride_is_paid_with_the_order_and_stays_paid(
 
         created = await order(pat, KASPI)
         ride_id = created["id"]
-        assert (created["payment_method"], created["payment_status"]) == (KASPI, "paid")
-        paid = await payment(pat, ride_id)
-        assert (paid["method"], paid["status"], paid["payment_url"]) == (
-            KASPI,
-            "paid",
+        assert (created["payment_method"], created["payment_status"]) == (KASPI, "unpaid")
+        waiting = await payment(pat, ride_id)
+        assert (waiting["status"], waiting["paid_at"], waiting["payment_url"]) == (
+            "unpaid",
+            None,
             TEST_KASPI_URL,
         )
-        assert at(paid, "paid_at") == clock.now()
 
         [offer] = await offers(dana)
-        expect(await answer(dana, offer["id"], "accept"))
+        clock.advance(timedelta(seconds=10))
+        accepted = expect(await answer(dana, offer["id"], "accept"))
+        assert accepted["payment_status"] == "paid"
+        paid = await payment(pat, ride_id)
+        assert (paid["method"], paid["status"]) == (KASPI, "paid")
+        assert at(paid, "paid_at") == clock.now()
         clock.advance(timedelta(minutes=20))
         for command in ("arrive", "start", "complete"):
             expect(await ride_command(dana, ride_id, command))
@@ -108,7 +112,7 @@ async def test_cancelled_kaspi_ride_is_refunded(
     )
 
 
-async def test_kaspi_ride_without_drivers_is_refunded(
+async def test_kaspi_ride_without_drivers_is_never_charged(
     app: FastAPI, session_factory: SessionFactory, clock: ManualClock
 ) -> None:
     async with open_town(app, session_factory, clock) as town:
@@ -116,5 +120,5 @@ async def test_kaspi_ride_without_drivers_is_refunded(
 
         created = await order(pat, KASPI)
 
-        assert (created["status"], created["payment_status"]) == ("no_driver", "refunded")
-        assert (await payment(pat, created["id"]))["status"] == "refunded"
+        assert (created["status"], created["payment_status"]) == ("no_driver", "unpaid")
+        assert (await payment(pat, created["id"]))["paid_at"] is None

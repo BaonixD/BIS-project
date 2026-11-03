@@ -258,7 +258,7 @@ CI и Git hooks не настраиваются; проверки запуска
 
 ## Продукт
 
-Алматы, KZT. Вход по username/password; пассажиры могут входить через Google (при заданном `GOOGLE_CLIENT_ID`). Поездка предлагается ближайшему доступному водителю; 30 секунд на ответ, затем следующий. Реальный дорожный маршрут, учебный расчёт цены, наличные и Kaspi по ссылке; способ выбирается при заказе, наличные подтверждает водитель, Kaspi засчитывается сразу (имитация) без проверки.
+Алматы, KZT. Вход по username/password; пассажиры могут входить через Google (при заданном `GOOGLE_CLIENT_ID`). Поездка предлагается ближайшему доступному водителю; 30 секунд на ответ, затем следующий. Реальный дорожный маршрут, учебный расчёт цены, наличные и Kaspi по ссылке; способ выбирается при заказе, наличные подтверждает водитель, Kaspi засчитывается при назначении водителя (имитация) без проверки. Четыре тарифа (economy, comfort, comfort_plus, business).
 
 Внешние значения хранятся только в локальном `.env` и в Git не попадают: `ROUTING_API_KEY` (без него маршрут и quote — `503 routing_unavailable`), `KASPI_PAYMENT_URL` (без неё доступны только наличные), `DEMO_PASSWORD` (seed). `ADMIN_PASSWORD` задаётся только в окружении команды `create_admin`.
 
@@ -266,7 +266,7 @@ CI и Git hooks не настраиваются; проверки запуска
 
 - SQLite-файл и один процесс uvicorn: запись в БД сериализована, ограничитель входа живёт в памяти процесса и сбрасывается при перезапуске. PostgreSQL/PostGIS не проверялись ([ADR 0001](docs/decisions/0001-sqlite-without-docker.md)).
 - Реальный маршрут по Алматы — **external_pending**: без ключа заказ поездки через API невозможен (quote отвечает `503`), подставного маршрута нет. Тесты используют контролируемый провайдер.
-- Оплата учебная ([ADR 0010](docs/decisions/0010-pay-before-order.md)): заказ с Kaspi сразу `paid`, отмена или `no_driver` — `refunded`; это имитация, сервер не проверяет движение денег и не обращается к Kaspi. Реальная оплата по ссылке не проверялась (**external_pending**). Эквайринга нет.
+- Оплата учебная ([ADR 0010](docs/decisions/0010-pay-before-order.md)): Kaspi становится `paid` при назначении водителя, отмена или `no_driver` после этого — `refunded`; это имитация, сервер не проверяет движение денег и не обращается к Kaspi. Реальная оплата по ссылке не проверялась (**external_pending**). Эквайринга нет.
 - Клиенты опрашивают API (polling), WebSocket/SSE нет. Ближайший водитель — по прямой (haversine), не по дорогам. Адресного поиска (геокодирования) нет: клиент передаёт точки.
 - Нет автоматической очистки истёкших сессий, quote, ключей идемпотентности, предложений и журналов.
 - Нет CI, Docker и деплоя; HTTPS не настроен (локально `SESSION_COOKIE_SECURE=false`).
@@ -512,8 +512,8 @@ curl -s -b jar.txt -X POST "$API/rides/$RIDE_ID/release" -H "X-CSRF-Token: $CSRF
 
 Учебная оплата «как в такси» ([ADR 0010](docs/decisions/0010-pay-before-order.md), заменяет поток ADR 0009): способ выбирается при заказе. Реальных списаний и возвратов нет: сервер не обращается к Kaspi и не проверяет, что деньги пришли; `paid` и `refunded` — только учебные отметки.
 
-- `POST /rides` принимает `payment_method`: `cash` (по умолчанию) или `kaspi_link`. В той же транзакции создаётся одна запись оплаты (`UNIQUE ride_id`), сумма — копия `amount_kzt` поездки: `cash` → `unpaid`; `kaspi_link` → сразу `paid` (имитация списания). `kaspi_link` без ссылки — `503 kaspi_unavailable`, поездка не создаётся.
-- Отмена пассажиром или `no_driver` при `paid` → `refunded` (`refunded_at`) в той же транзакции. Release водителем оплату не меняет.
+- `POST /rides` принимает `payment_method`: `cash` (по умолчанию) или `kaspi_link`. В той же транзакции создаётся одна запись оплаты (`UNIQUE ride_id`), сумма — копия `amount_kzt` поездки: `cash` и `kaspi_link` → `unpaid`. Kaspi списывается при назначении водителя: accept в той же транзакции переводит `unpaid → paid` (`paid_at`, имитация списания). `kaspi_link` без ссылки — `503 kaspi_unavailable`, поездка не создаётся.
+- Отмена пассажиром или `no_driver` при `paid` → `refunded` (`refunded_at`) в той же транзакции; до назначения Kaspi остаётся `unpaid`. Release водителем оплату не меняет (списанная остаётся за следующим водителем).
 - Наличные подтверждает назначенный водитель после `completed`.
 - Ссылка берётся только из `KASPI_PAYMENT_URL` (формат `https://pay.kaspi.kz/pay/<id>`), читается один раз при сборке приложения (`create_app`), из тела запроса не принимается. Сумму покупатель вводит в Kaspi сам. Без ссылки Kaspi недоступен, наличные работают.
 
@@ -524,17 +524,17 @@ curl -s -b jar.txt -X POST "$API/rides/$RIDE_ID/release" -H "X-CSRF-Token: $CSRF
 
 - `cash-received` требует `X-CSRF-Token`, тела не принимает.
 - Ошибки: чужая или несуществующая поездка — `404 ride_not_found`; пассажир или admin на `cash-received` — `403 payment_action_forbidden`; поездка не завершена — `409 ride_not_completed`; способ не `cash` — `409 invalid_payment_transition`.
-- Команды блокируют поездку, затем оплату (`rides → payments`): конкурентные `cash-received` или `cancel` дают одно изменение.
+- Команды блокируют поездку, затем оплату (`rides → payments`; accept — `rides → ride_offers → payments`): конкурентные `cash-received`, `cancel` или accept дают одно изменение.
 - `payment_method` и `payment_status` есть в ответах поездки, деталях, истории (`GET /rides`) и `GET /admin/rides`.
 - Миграция `80db0ba7c3f3` (ADR 0010) добавляет `refunded_at`, CHECK статусов и создаёт `cash`/`unpaid` для поездок без оплаты. Откат удаляет оплаты незавершённых поездок — перед ним сделайте резервную копию. Миграция `4fdb9385a8e5` (ADR 0009) удалила `payment_events` и колонки сверки без восстановления при откате.
 
 Пример (Kaspi включён). Реальная оплата по ссылке владельца не проверялась — `external_pending`.
 
 ```bash
-# пассажир: заказ с Kaspi, затем открыть payment_url
+# пассажир: заказ с Kaspi (ссылка — kaspi_payment_url quote или payment_url оплаты)
 curl -s -b jar.txt -X POST "$API/rides" -H "X-CSRF-Token: $CSRF" -H "Idempotency-Key: $(uuidgen)" \
   -H "Content-Type: application/json" -d "{\"quote_id\": \"$QUOTE_ID\", \"payment_method\": \"kaspi_link\"}"
-curl -s -b jar.txt "$API/rides/$RIDE_ID/payment"   # status: paid, payment_url
+curl -s -b jar.txt "$API/rides/$RIDE_ID/payment"   # status: unpaid до accept водителем, затем paid
 # водитель: наличные получены (для поездки с cash после complete)
 curl -s -b driver.txt -X POST "$API/rides/$RIDE_ID/payment/cash-received" -H "X-CSRF-Token: $DRIVER_CSRF"
 ```
@@ -583,4 +583,4 @@ curl -s -b p.txt "$API/rides?limit=5" | json '["items"][0]["payment_status"]'   
 rm -f p.txt d1.txt d2.txt
 ```
 
-Вместо отказа можно дождаться истечения 30 с: фоновый цикл сам предложит поездку следующему водителю (если с `--refresh-locations` прошло больше 60 с, повторите его). Для Kaspi нужен `KASPI_PAYMENT_URL`: пассажир заказывает с `"payment_method": "kaspi_link"` и открывает `payment_url` (раздел «Оплата»).
+Вместо отказа можно дождаться истечения 30 с: фоновый цикл сам предложит поездку следующему водителю (если с `--refresh-locations` прошло больше 60 с, повторите его). Для Kaspi нужен `KASPI_PAYMENT_URL`: пассажир заказывает с `"payment_method": "kaspi_link"` и открывает `kaspi_payment_url` quote; оплата становится `paid`, когда водитель принимает заказ (раздел «Оплата»).

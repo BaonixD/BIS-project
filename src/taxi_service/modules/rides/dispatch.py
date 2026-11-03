@@ -262,6 +262,8 @@ async def _accept(
         raise InvalidOfferTransitionError(
             current_status=offer.status.value, command=OfferCommand.ACCEPT.value
         )
+    # Locks the payment last (rides -> ride_offers -> payments).
+    await payment_records.charge_kaspi(db, ride, now)
     return ride
 
 

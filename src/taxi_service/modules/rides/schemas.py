@@ -75,9 +75,10 @@ class RideCreateRequest(BaseModel):
     quote_id: uuid.UUID
     payment_method: PaymentMethod = Field(
         default=PaymentMethod.CASH,
-        description="Chosen with the order. kaspi_link counts as paid at once (a simulated "
-        "charge, no money is checked) and needs KASPI_PAYMENT_URL; its link is the "
-        "payment_url of GET /rides/{ride_id}/payment.",
+        description="Chosen with the order. kaspi_link needs KASPI_PAYMENT_URL and counts as "
+        "paid when a driver accepts the ride (a simulated charge, no money is checked); "
+        "its link is kaspi_payment_url of the quote and payment_url of "
+        "GET /rides/{ride_id}/payment.",
     )
     tariff: Tariff = Field(
         default=Tariff.ECONOMY,

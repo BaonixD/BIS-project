@@ -51,7 +51,8 @@ async def test_history_shows_the_payment_of_a_completed_ride(
     ("status", "method", "expected"),
     [
         ("in_progress", None, ("unpaid", "cash")),
-        ("searching", "kaspi_link", ("paid", "kaspi_link")),
+        ("searching", "kaspi_link", ("unpaid", "kaspi_link")),
+        ("assigned", "kaspi_link", ("paid", "kaspi_link")),
         ("cancelled", "kaspi_link", ("refunded", "kaspi_link")),
     ],
 )

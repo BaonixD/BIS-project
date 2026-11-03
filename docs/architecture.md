@@ -430,15 +430,16 @@ stateDiagram-v2
 
 ```mermaid
 stateDiagram-v2
-    [*] --> unpaid : заказ, cash
-    [*] --> paid : заказ, kaspi_link
-    unpaid --> paid : cash-received, водитель после completed
+    [*] --> unpaid : заказ, cash или kaspi_link
+    unpaid --> paid : kaspi_link — accept водителем; cash — cash-received после completed
+    unpaid --> [*] : cancel или no_driver до назначения
     paid --> refunded : cancel пассажиром или no_driver
     paid --> [*]
     refunded --> [*]
 ```
 
 - Способ выбирается в `POST /rides` и дальше не меняется; `kaspi_link` без ссылки — `503 kaspi_unavailable`.
+- Kaspi списывается в транзакции accept (блокировки `rides → ride_offers → payments`); release оплату не трогает.
 - `cash-received` — только назначенный водитель завершённой `cash`-поездки; повтор — `200` с тем же ответом.
 
 ## Единицы и форматы
@@ -478,7 +479,7 @@ economy 500/120/20/800, comfort 700/160/25/1100, comfort_plus 900/200/30/1500, b
 | [0007](decisions/0007-ride-lifecycle.md) | команды поездки, журнал `ride_events`, гонки, карточка водителя, хук завершения | `rides/lifecycle.py` (с `on_ride_completed`), `rides/transitions.py` |
 | [0008](decisions/0008-functional-services.md) | сервисы — функции модуля, SQL в сервисе без слоя репозиториев, зависимости через `Depends`, тонкие роутеры без docstring | `modules/*/service.py`, `modules/*/dependencies.py`, `modules/*/router.py` |
 | [0009](decisions/0009-simple-payments.md) | поток заменён ADR 0010; правила ссылки Kaspi | `modules/payments/config.py` |
-| [0010](decisions/0010-pay-before-order.md) | способ оплаты при заказе, Kaspi сразу `paid`, `refunded` при отмене или `no_driver`, наличные подтверждает водитель | `modules/payments/`, `rides/service.py` |
+| [0010](decisions/0010-pay-before-order.md) | способ оплаты при заказе, Kaspi `paid` при назначении водителя, `refunded` при отмене или `no_driver` после списания, наличные подтверждает водитель | `modules/payments/`, `rides/service.py`, `rides/dispatch.py` |
 | [0012](decisions/0012-tariffs-and-car-classes.md) | четыре тарифа `edu-v2`, `tariff` поездки, класс машины от admin, кандидат класса не ниже тарифа | `rides/tariffs.py`, `rides/pricing.py`, `drivers/candidates.py`, `drivers/service.py` |
 
 ## Ограничения
@@ -486,7 +487,7 @@ economy 500/120/20/800, comfort 700/160/25/1100, comfort_plus 900/200/30/1500, b
 - **SQLite вместо PostgreSQL/PostGIS.** Запись сериализована на уровне всей БД, пространственного индекса нет, `SELECT ... FOR UPDATE` опускается. Конкурентные тесты доказывают инварианты при сериализованной записи, а не при пересечении транзакций; PostgreSQL проверен только компиляцией DDL и блокирующих запросов. Переход — отдельная задача (asyncpg, geography, повтор тестов).
 - **Один процесс.** Ограничитель входа хранится в памяти и сбрасывается при перезапуске; несколько воркеров ослабят лимит. Фоновый цикл безопасен и при двух процессах (состояние в БД, индексы), но рассчитан на один.
 - **Маршрутизация — `external_pending`.** Без `ROUTING_API_KEY` quote и `/geo/route` отвечают `503 routing_unavailable`; подставного маршрута нет. Реальный маршрут по Алматы не запрашивался (`scripts/routing_smoke.py`).
-- **Оплата без проверки.** Заказ с Kaspi сразу даёт `paid`, отмена — `refunded`; это имитация, сервер не получает статусов от Kaspi и не проверяет движение денег. Реальная оплата по ссылке не проверялась (`external_pending`). Эквайринга и webhook нет.
+- **Оплата без проверки.** Kaspi даёт `paid` при назначении водителя, отмена после этого — `refunded`; это имитация, сервер не получает статусов от Kaspi и не проверяет движение денег. Реальная оплата по ссылке не проверялась (`external_pending`). Эквайринга и webhook нет.
 - **Polling без WebSocket/SSE.** Клиент опрашивает `GET /rides/{id}` и `GET /drivers/me/offers`; движение водителя видно по последней координате и её времени.
 - **Нет фоновой очистки** истёкших сессий, quote, записей идемпотентности, старых предложений и событий.
 - **Ближайший водитель — по прямой**, не по времени подачи по дорогам.

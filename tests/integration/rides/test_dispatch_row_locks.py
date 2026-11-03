@@ -49,7 +49,8 @@ def locking_selects(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 @pytest.mark.parametrize(
     ("answer", "locked"),
     [
-        ("accept", ["rides", "ride_offers"]),
+        # Accept charges a Kaspi payment, so it locks the payment last.
+        ("accept", ["rides", "ride_offers", "payments"]),
         # The only driver declined: the search ends with no_driver and refunds.
         ("reject", ["rides", "ride_offers", "payments"]),
     ],

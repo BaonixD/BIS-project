@@ -1,6 +1,6 @@
 """The order opens the ride's payment in its own transaction; later commands keep it (ADR 0010).
 
-Kaspi is on with ``TEST_KASPI_URL``; a Kaspi order is only a simulated charge.
+Kaspi is on with ``TEST_KASPI_URL``; the Kaspi charge on accept is only simulated.
 """
 
 import asyncio
@@ -12,15 +12,24 @@ from sqlalchemy import select
 
 from support.auth import register_and_login
 from support.clock import ManualClock
-from support.dispatch import Dispatcher
+from support.dispatch import Dispatcher, accept_url
 from support.drivers import DriverFactory, login_as
-from support.lifecycle import NEAR_PICKUP, command_url, commands_of, expect_ok, send, trip_in
+from support.lifecycle import (
+    NEAR_PICKUP,
+    accept,
+    command_url,
+    commands_of,
+    expect_ok,
+    send,
+    trip_in,
+)
 from support.payments import StoredPayment, kaspi_on, stored_payment
 from support.rides import RIDES_URL, count_rows, request_quote, ride_body, ride_headers
 from taxi_service.database.session import SessionFactory, read_transaction
 from taxi_service.modules.payments.config import PaymentSettings
 from taxi_service.modules.payments.models import Payment
 from taxi_service.modules.rides.models import IdempotencyRecord, Ride
+from taxi_service.modules.rides.states import OfferStatus
 
 RECORDS = "taxi_service.modules.payments.records"
 
@@ -55,7 +64,7 @@ async def test_order_opens_one_unpaid_cash_payment_with_the_ride_amount(
 
 
 @pytest.mark.parametrize(
-    ("method", "status"), [(None, "unpaid"), ("cash", "unpaid"), ("kaspi_link", "paid")]
+    ("method", "status"), [(None, "unpaid"), ("cash", "unpaid"), ("kaspi_link", "unpaid")]
 )
 async def test_ride_responses_carry_the_payment(
     client: httpx.AsyncClient,
@@ -197,3 +206,89 @@ async def test_concurrent_cancels_refund_once(
         [payment] = list(await session.scalars(select(Payment)))
     assert payment.status.value == "refunded"
     assert (await commands_of(session_factory, trip.ride_id)).count("cancel") == 1
+
+
+async def test_failed_charge_rolls_the_accept_back(
+    client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    session_factory: SessionFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trip = await trip_in(
+        "searching", client, driver_factory, dispatcher, payment_method="kaspi_link"
+    )
+
+    async def failing(*args: Any, **kwargs: Any) -> None:
+        raise RuntimeError("charge failed")
+
+    monkeypatch.setattr(RECORDS + ".charge_kaspi", failing)
+
+    with pytest.raises(RuntimeError, match="charge failed"):
+        await accept(client, trip)
+
+    ride = await dispatcher.ride(trip.ride_id)
+    assert (ride.status.value, ride.driver_id) == ("searching", None)
+    [offer] = await dispatcher.offers(trip.ride_id)
+    assert offer.status is OfferStatus.PENDING
+    assert await commands_of(session_factory, trip.ride_id) == []
+    stored = await stored_payment(session_factory, trip.ride_id)
+    assert stored is not None
+    assert stored.status == "unpaid"
+
+
+async def test_kaspi_accept_against_cancel(
+    client: httpx.AsyncClient,
+    other_client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    session_factory: SessionFactory,
+) -> None:
+    trip = await trip_in(
+        "searching", client, driver_factory, dispatcher, payment_method="kaspi_link"
+    )
+    driver = await login_as(client, trip.driver)
+    passenger = await login_as(other_client, trip.passenger)
+
+    accepted, cancelled = await asyncio.gather(
+        client.post(accept_url(trip.offer_id), headers=driver.csrf_headers),
+        other_client.post(command_url(trip.ride_id, "cancel"), headers=passenger.csrf_headers),
+    )
+
+    assert cancelled.status_code == 200, cancelled.text
+    stored = await stored_payment(session_factory, trip.ride_id)
+    assert stored is not None
+    if accepted.status_code == 200:
+        # Charged by the accept, refunded by the cancel that followed it.
+        assert await commands_of(session_factory, trip.ride_id) == ["assign", "cancel"]
+        assert stored.status == "refunded"
+        assert stored.paid_at is not None
+    else:
+        assert accepted.json()["error"]["code"] == "invalid_ride_transition"
+        assert await commands_of(session_factory, trip.ride_id) == ["cancel"]
+        assert (stored.status, stored.paid_at, stored.refunded_at) == ("unpaid", None, None)
+    assert cancelled.json()["payment_status"] == stored.status
+
+
+async def test_concurrent_accepts_charge_once(
+    client: httpx.AsyncClient,
+    other_client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    session_factory: SessionFactory,
+) -> None:
+    trip = await trip_in(
+        "searching", client, driver_factory, dispatcher, payment_method="kaspi_link"
+    )
+    first = await login_as(client, trip.driver)
+    second = await login_as(other_client, trip.driver)
+
+    responses = await asyncio.gather(
+        client.post(accept_url(trip.offer_id), headers=first.csrf_headers),
+        other_client.post(accept_url(trip.offer_id), headers=second.csrf_headers),
+    )
+
+    assert [response.status_code for response in responses] == [200, 200]
+    assert {response.json()["payment_status"] for response in responses} == {"paid"}
+    assert await commands_of(session_factory, trip.ride_id) == ["assign"]
+    assert await count_rows(session_factory, Payment) == 1

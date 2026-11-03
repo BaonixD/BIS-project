@@ -1,7 +1,7 @@
 """Payment chosen before the order (ADR 0010): cash or the Kaspi link.
 
 Kaspi is on with ``TEST_KASPI_URL``; no request leaves the test process and no
-real payment is made: a Kaspi order is only a simulated charge.
+real payment is made: the Kaspi charge on accept is only simulated.
 Passenger ``pat``, driver ``dana``, admin ``admin``.
 """
 
@@ -17,7 +17,7 @@ from support.auth import register_and_login
 from support.clock import ManualClock
 from support.dispatch import Dispatcher
 from support.drivers import DriverFactory, login_as
-from support.lifecycle import NEAR_PICKUP, Trip, expect_ok, send, trip_in
+from support.lifecycle import NEAR_PICKUP, Trip, accept, expect_ok, send, trip_in
 from support.payments import (
     ADMIN,
     TEST_KASPI_URL,
@@ -142,10 +142,10 @@ async def test_payment_needs_a_session(client: httpx.AsyncClient, completed: Tri
     expect_error(await client.get(payment_url(completed.ride_id)), 401, "not_authenticated")
 
 
-# Kaspi: paid with the order, refunded when the ride does not happen
+# Kaspi: charged when a driver accepts, refunded when the ride does not happen after that
 
 
-async def test_kaspi_order_is_paid_at_once(
+async def test_kaspi_order_waits_unpaid_for_a_driver(
     client: httpx.AsyncClient,
     driver_factory: DriverFactory,
     dispatcher: Dispatcher,
@@ -161,18 +161,82 @@ async def test_kaspi_order_is_paid_at_once(
         "amount_kzt": 2200,
         "currency": "KZT",
         "method": KASPI,
-        "status": "paid",
-        "paid_at": body["paid_at"],
+        "status": "unpaid",
+        "paid_at": None,
         "refunded_at": None,
         "payment_url": TEST_KASPI_URL,
     }
+    stored = await stored_payment(session_factory, trip.ride_id)
+    assert stored is not None
+    assert (stored.status, stored.created_at) == ("unpaid", clock.now())
+
+
+async def test_accept_charges_the_kaspi_payment(
+    client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    session_factory: SessionFactory,
+    clock: ManualClock,
+) -> None:
+    trip = await trip_in("searching", client, driver_factory, dispatcher, payment_method=KASPI)
+    clock.advance(timedelta(seconds=10))
+
+    accepted = await accept(client, trip)
+
+    assert accepted.status_code == 200, accepted.text
+    assert (accepted.json()["status"], accepted.json()["payment_status"]) == ("assigned", "paid")
+    body = await read_payment(client, trip.ride_id, trip.passenger)
+    assert (body["status"], body["refunded_at"]) == ("paid", None)
     assert at(body, "paid_at") == clock.now()
     stored = await stored_payment(session_factory, trip.ride_id)
     assert stored is not None
-    assert (stored.status, stored.paid_at, stored.created_at) == ("paid", clock.now(), clock.now())
+    assert (stored.status, stored.paid_at, stored.updated_at) == ("paid", clock.now(), clock.now())
 
 
-@pytest.mark.parametrize("status", ["searching", "assigned", "arrived"])
+async def test_repeated_accept_keeps_the_first_charge(
+    client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    clock: ManualClock,
+) -> None:
+    trip = await trip_in("assigned", client, driver_factory, dispatcher, payment_method=KASPI)
+    first = await read_payment(client, trip.ride_id, trip.passenger)
+    clock.advance(timedelta(seconds=5))
+
+    repeated = await accept(client, trip)
+
+    assert repeated.status_code == 200, repeated.text
+    assert await read_payment(client, trip.ride_id, trip.passenger) == first
+
+
+async def test_accept_leaves_a_cash_payment_unpaid(
+    client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    session_factory: SessionFactory,
+) -> None:
+    trip = await trip_in("assigned", client, driver_factory, dispatcher)
+
+    await expect_unpaid_cash(session_factory, trip.ride_id)
+
+
+async def test_cancel_before_a_driver_charges_nothing(
+    client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    session_factory: SessionFactory,
+) -> None:
+    trip = await trip_in("searching", client, driver_factory, dispatcher, payment_method=KASPI)
+
+    cancelled = await expect_ok(client, trip, "cancel")
+
+    assert (cancelled["payment_method"], cancelled["payment_status"]) == (KASPI, "unpaid")
+    stored = await stored_payment(session_factory, trip.ride_id)
+    assert stored is not None
+    assert (stored.status, stored.paid_at, stored.refunded_at) == ("unpaid", None, None)
+
+
+@pytest.mark.parametrize("status", ["assigned", "arrived"])
 async def test_passenger_cancel_refunds_a_kaspi_payment(
     client: httpx.AsyncClient,
     driver_factory: DriverFactory,
@@ -217,21 +281,18 @@ async def test_repeated_cancel_keeps_the_first_refund(
     assert await read_payment(client, trip.ride_id, trip.passenger) == first
 
 
-async def test_no_driver_refunds_a_kaspi_payment(
-    client: httpx.AsyncClient,
-    driver_factory: DriverFactory,
-    dispatcher: Dispatcher,
-    clock: ManualClock,
+async def test_no_driver_charges_nothing(
+    client: httpx.AsyncClient, driver_factory: DriverFactory, dispatcher: Dispatcher
 ) -> None:
     trip = await trip_in("no_driver", client, driver_factory, dispatcher, payment_method=KASPI)
 
     body = await read_payment(client, trip.ride_id, trip.passenger)
 
-    assert (body["method"], body["status"]) == (KASPI, "refunded")
-    assert at(body, "paid_at") == at(body, "refunded_at") == clock.now()
+    assert (body["method"], body["status"]) == (KASPI, "unpaid")
+    assert (body["paid_at"], body["refunded_at"]) == (None, None)
 
 
-async def test_search_running_out_refunds_a_kaspi_payment(
+async def test_search_running_out_before_a_driver_charges_nothing(
     client: httpx.AsyncClient,
     driver_factory: DriverFactory,
     dispatcher: Dispatcher,
@@ -243,8 +304,7 @@ async def test_search_running_out_refunds_a_kaspi_payment(
     await dispatcher.process(trip.ride_id)
 
     body = await read_payment(client, trip.ride_id, trip.passenger)
-    assert body["status"] == "refunded"
-    assert at(body, "refunded_at") == clock.now()
+    assert (body["status"], body["paid_at"], body["refunded_at"]) == ("unpaid", None, None)
 
 
 async def test_release_by_the_driver_keeps_the_kaspi_payment(
@@ -258,6 +318,44 @@ async def test_release_by_the_driver_keeps_the_kaspi_payment(
 
     assert (released["status"], released["payment_status"]) == ("searching", "paid")
     assert await read_payment(client, trip.ride_id, trip.passenger) == paid
+
+
+async def test_next_driver_keeps_the_charge_made_for_the_first(
+    client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    clock: ManualClock,
+) -> None:
+    trip = await trip_in("assigned", client, driver_factory, dispatcher, payment_method=KASPI)
+    next_driver = await driver_factory.driver("next_driver", location=NEAR_PICKUP)
+    paid = await read_payment(client, trip.ride_id, trip.passenger)
+    await expect_ok(client, trip, "release")
+    offer = await dispatcher.pending(trip.ride_id)
+    assert offer is not None
+    clock.advance(timedelta(seconds=10))
+
+    ride = await dispatcher.accept(offer.id, next_driver)
+
+    assert ride.driver_id == next_driver
+    assert await read_payment(client, trip.ride_id, trip.passenger) == paid
+
+
+async def test_search_running_out_after_release_refunds_the_charge(
+    client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    clock: ManualClock,
+) -> None:
+    trip = await trip_in("assigned", client, driver_factory, dispatcher, payment_method=KASPI)
+    paid = await read_payment(client, trip.ride_id, trip.passenger)
+    clock.advance(timedelta(minutes=1))
+
+    released = await expect_ok(client, trip, "release")  # no other driver: no_driver at once
+
+    assert (released["status"], released["payment_status"]) == ("no_driver", "refunded")
+    body = await read_payment(client, trip.ride_id, trip.passenger)
+    assert body["paid_at"] == paid["paid_at"]
+    assert at(body, "refunded_at") == clock.now()
 
 
 @pytest.mark.parametrize("status", ["cancelled", "no_driver"])
