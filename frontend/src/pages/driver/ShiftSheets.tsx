@@ -1,6 +1,6 @@
 import { Link } from 'react-router'
 import { Car, User } from 'lucide-react'
-import type { NextDriver } from '@/api/next-contract-driver'
+import type { NextDriver } from '@/api/driver-types'
 import { Button, ListRow } from '@/components/ui-kit'
 import { formatMoney } from '@/lib/format'
 import { formatSpan, type ShiftStats } from './shift-stats'

@@ -261,7 +261,7 @@ CI и Git hooks не настраиваются; проверки запуска
 
 Веб-клиент в `frontend/`: Vite + React + TypeScript (strict), Tailwind CSS v4, shadcn/ui (стиль `radix-vega`, CSS variables), react-router 7, TanStack Query, openapi-fetch, motion, sonner, react-leaflet с подложкой CARTO Positron (без ключей), адреса — OpenStreetMap Nominatim (без ключей, не чаще 1 запроса в секунду). Нужен Node.js 20+ и npm.
 
-Дизайн — Figma «BIS Taxi» (`6VHeDBRKk6RWdTYqH0r66K`): токены (цвета, радиусы, текстовые стили Inter, тени) — в `src/index.css` под именами переменных Figma (`bg/subtle` → `bg-bg-subtle`, `Callout` → `text-callout`); компоненты — `src/components/ui-kit`, витрина — `http://localhost:5173/dev/kit` (только `npm run dev`). Вход и регистрация уже по макету; остальные экраны пока каркасные.
+Дизайн — Figma «BIS Taxi» (`6VHeDBRKk6RWdTYqH0r66K`): токены (цвета, радиусы, текстовые стили Inter, тени) — в `src/index.css` под именами переменных Figma (`bg/subtle` → `bg-bg-subtle`, `Callout` → `text-callout`); компоненты — `src/components/ui-kit`, витрина — `http://localhost:5173/dev/kit` (только `npm run dev`). Все экраны сделаны по макету: пассажир (заказ, тарифы, оплата наличными или Kaspi, трекинг, отмена, чек и оценка, история, профиль), водитель (смена, предложение с таймером, этапы поездки, получение наличных, оценка пассажира, история, профиль) и админ (допуск водителей с классом машины, поездки, пользователи; таблица на десктопе). Сверка с Figma — `npm run test:visual` (Playwright, эталоны в `tests/visual/figma/`, сравнения в `tests/visual/screenshots/`).
 
 1. Бэкенд на `http://127.0.0.1:8000` с `SESSION_COOKIE_SECURE=false` (иначе браузер не вернёт cookie по `http://`):
 

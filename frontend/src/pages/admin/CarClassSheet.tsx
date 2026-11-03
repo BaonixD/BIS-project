@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Check } from 'lucide-react'
-import { TARIFF_LABELS, TARIFFS, type Tariff } from '@/api/next-contract-driver'
+import { TARIFF_LABELS, TARIFFS, type Tariff } from '@/api/driver-types'
 import { BottomSheet, Button, CarIcon } from '@/components/ui-kit'
 import { cn } from '@/lib/utils'
 

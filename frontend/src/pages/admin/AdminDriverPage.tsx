@@ -1,6 +1,7 @@
+import { APPROVAL_STATUS_LABELS } from '@/lib/labels'
 import { useParams } from 'react-router'
 import { Check, CircleAlert } from 'lucide-react'
-import { TARIFF_LABELS, type NextAdminDriver } from '@/api/next-contract-driver'
+import { TARIFF_LABELS, type NextAdminDriver } from '@/api/driver-types'
 import { ErrorAlert } from '@/components/common/ErrorAlert'
 import { FullScreenLoader } from '@/components/common/FullScreenLoader'
 import { Avatar } from '@/components/driver/Avatar'
@@ -86,7 +87,7 @@ export function AdminDriverPage() {
         <BackHeader
           title="Заявка водителя"
           fallback="/admin"
-          trailing={driver && <StatusPill tone={approved ? 'success' : 'warning'}>{driver.approval_status}</StatusPill>}
+          trailing={driver && <StatusPill tone={approved ? 'success' : 'warning'}>{APPROVAL_STATUS_LABELS[driver.approval_status]}</StatusPill>}
         />
         <ErrorAlert error={drivers.error} />
         {driver ? (

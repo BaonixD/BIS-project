@@ -1,5 +1,5 @@
 import type { RideSummary } from '@/api'
-import type { NextAdminDriver, NextDriver, NextOffer, NextRide } from '@/api/next-contract-driver'
+import type { NextAdminDriver, NextDriver, NextOffer, NextRide } from '@/api/driver-types'
 
 export const PICKUP = { latitude: 43.2399, longitude: 76.915 }
 export const DROPOFF = { latitude: 43.2185, longitude: 76.9282 }
@@ -34,6 +34,7 @@ export function offerFixture(overrides: Partial<NextOffer> = {}): NextOffer {
     amount_kzt: 2200,
     currency: 'KZT',
     tariff: 'economy',
+    payment_method: 'cash',
     passenger_rating: { average: null, count: 0 },
     created_at: '2026-11-03T09:00:00Z',
     expires_at: '2026-11-03T09:00:30Z',
@@ -71,6 +72,7 @@ export function rideFixture(overrides: Partial<NextRide> = {}): NextRide {
     payment_method: 'cash',
     payment_status: 'unpaid',
     driver: null,
+    my_rating: null,
     ...overrides,
   }
 }
@@ -91,6 +93,7 @@ export function summaryFixture(overrides: Partial<RideSummary> = {}): RideSummar
     updated_at: '2026-11-03T09:40:00Z',
     payment_status: 'paid',
     payment_method: 'kaspi_link',
+    tariff: 'economy',
     ...overrides,
   }
 }

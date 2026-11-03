@@ -1,5 +1,5 @@
 import type { DriverProfileUpdate } from '@/api'
-import type { NextDriver } from '@/api/next-contract-driver'
+import type { NextDriver } from '@/api/driver-types'
 
 export interface SettingsForm {
   full_name: string

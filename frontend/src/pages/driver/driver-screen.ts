@@ -1,6 +1,6 @@
 import type { PaymentStatus } from '@/api'
 import { formatMoney } from '@/lib/format'
-import type { NextDriver, NextOffer, NextRide } from '@/api/next-contract-driver'
+import type { NextDriver, NextOffer, NextRide } from '@/api/driver-types'
 
 export type DriverScreen =
   | { kind: 'pending' }

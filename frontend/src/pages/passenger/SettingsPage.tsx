@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router'
-import { AtSign, KeyRound, Phone, User } from 'lucide-react'
+import { AtSign, Phone, User } from 'lucide-react'
 import type { MyProfile } from '@/api'
+import { LoginMethodRow } from '@/components/passenger/LoginMethodRow'
 import { FullScreen, ScreenHeader, SectionLabel } from '@/components/passenger/layout'
 import { Button, Input, ListRow, Skeleton, showToast } from '@/components/ui-kit'
 import { useMyProfile, useUpdateMyProfile } from '@/hooks/use-profile'
@@ -41,7 +42,7 @@ function SettingsForm({ profile }: { profile: MyProfile }) {
         <SectionLabel>АККАУНТ</SectionLabel>
         <div className="flex w-full flex-col">
           <ListRow icon={AtSign} title="Имя пользователя" subtitle={`@${profile.username}`} />
-          <ListRow icon={KeyRound} title="Вход" subtitle="Логин и пароль" />
+          <LoginMethodRow profile={profile} />
         </div>
       </div>
       <div className="mt-auto flex w-full flex-col gap-3 pt-6">

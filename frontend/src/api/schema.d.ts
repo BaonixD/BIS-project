@@ -672,6 +672,8 @@ export interface components {
         /**
          * DriverCard
          * @description ``location`` is the last one sent; a stale one never ends the ride.
+         *
+         *     After completion both location fields are null (ADR 0007).
          */
         DriverCard: {
             /** Full Name */
@@ -792,6 +794,11 @@ export interface components {
              */
             latitude: number;
         };
+        /**
+         * LoginMethod
+         * @enum {string}
+         */
+        LoginMethod: "password" | "google";
         /** LoginRequest */
         LoginRequest: {
             /**
@@ -833,6 +840,13 @@ export interface components {
             phone: string | null;
             /** @description Stars received from the other side of rides (count 0 for an admin). */
             rating: components["schemas"]["RatingSummaryResponse"];
+            /** @description google for an account made by Google sign-in. */
+            login_method: components["schemas"]["LoginMethod"];
+            /**
+             * Email
+             * @description The Google account's email; null for a password login.
+             */
+            email: string | null;
         };
         /**
          * MyProfileUpdate
@@ -880,6 +894,8 @@ export interface components {
              */
             currency: "KZT";
             tariff: components["schemas"]["Tariff"];
+            /** @description How the passenger pays for the ride. */
+            payment_method: components["schemas"]["PaymentMethod"];
             /** @description Stars the passenger received. */
             passenger_rating: components["schemas"]["RatingSummaryResponse"];
             /**
@@ -1196,7 +1212,7 @@ export interface components {
             cancel_reason: string | null;
             payment_method: components["schemas"]["PaymentMethod"] | null;
             payment_status: components["schemas"]["PaymentStatus"] | null;
-            /** @description Only for the passenger and the driver while the ride is assigned, arrived or in_progress; otherwise null. */
+            /** @description Only for the passenger and the driver while the ride is assigned, arrived, in_progress or completed (then without location); otherwise null. */
             driver: components["schemas"]["DriverCard"] | null;
             /** @description The rating the caller gave this ride; null until they rate it (always null for an admin). */
             my_rating: components["schemas"]["MyRating"] | null;

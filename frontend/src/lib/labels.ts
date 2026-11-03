@@ -22,8 +22,8 @@ export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
 }
 
 export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
-  pending: 'Ожидает допуска',
-  approved: 'Допущен',
+  pending: 'На проверке',
+  approved: 'Одобрен',
 }
 
 export const ROLE_LABELS: Record<UserRole, string> = {

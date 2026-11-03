@@ -7,7 +7,7 @@ import {
   type Coordinates,
   type RideSummary,
 } from '@/api'
-import type { NextRide } from '@/api/next-contract-driver'
+import type { NextRide } from '@/api/driver-types'
 import { ErrorAlert } from '@/components/common/ErrorAlert'
 import { FullScreenLoader } from '@/components/common/FullScreenLoader'
 import { DashedLine } from '@/components/driver/DashedLine'

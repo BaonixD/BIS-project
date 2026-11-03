@@ -50,7 +50,7 @@ export function BottomNav({
                   />
                 )}
                 <Icon
-                  className={cn('relative size-6 text-text-primary transition-opacity duration-200', !active && 'opacity-40')}
+                  className={cn('relative size-6 text-text-primary transition-opacity duration-200')}
                   strokeWidth={2}
                   aria-hidden
                 />

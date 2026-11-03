@@ -57,7 +57,7 @@ export function TopBar({
                 !active && 'opacity-60',
               )}
             >
-              {item.label}
+              {item.topLabel ?? item.label}
             </Link>
           )
         })}

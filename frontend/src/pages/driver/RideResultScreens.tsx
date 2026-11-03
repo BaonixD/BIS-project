@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Banknote, Check, CircleDot, MapPin } from 'lucide-react'
 import { errorMessage } from '@/api'
-import { PASSENGER_TAG_LABELS, PASSENGER_TAGS, type NextRide, type PassengerTag } from '@/api/next-contract-driver'
+import { PASSENGER_TAG_LABELS, PASSENGER_TAGS, type NextRide, type PassengerTag } from '@/api/driver-types'
 import { Screen, ScreenColumn, ScreenFooter } from '@/components/driver/Screen'
 import { Button, ListRow, RatingStars, showToast, StatusPill, Tag } from '@/components/ui-kit'
 import { buildRatingBody, useRatePassenger } from '@/hooks/use-driver-rating'

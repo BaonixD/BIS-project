@@ -1,6 +1,7 @@
-import { KeyRound, LogOut, Phone, Settings, User } from 'lucide-react'
+import { LogOut, Phone, Settings, User } from 'lucide-react'
 import { useSession } from '@/auth/use-session'
 import { ErrorAlert } from '@/components/common/ErrorAlert'
+import { LoginMethodRow } from '@/components/passenger/LoginMethodRow'
 import { RoundButton } from '@/components/passenger/layout'
 import { ListRow, Skeleton } from '@/components/ui-kit'
 import { useMyProfile } from '@/hooks/use-profile'
@@ -39,7 +40,7 @@ export function ProfilePage() {
         <div className="flex w-full flex-col">
           <ListRow icon={User} title="Имя" subtitle={data.display_name || 'Не указано'} />
           <ListRow icon={Phone} title="Телефон" subtitle={data.phone || 'Не указан'} />
-          <ListRow icon={KeyRound} title="Вход" subtitle={`Логин и пароль · @${data.username}`} />
+          <LoginMethodRow profile={data} showUsername />
         </div>
       )}
       <button

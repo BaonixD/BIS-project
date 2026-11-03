@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { User, X } from 'lucide-react'
 import { errorMessage } from '@/api'
-import type { NextRide } from '@/api/next-contract-driver'
+import type { NextRide } from '@/api/driver-types'
 import { BottomSheet, Button, Chip, showToast, StatusIcon, Stepper } from '@/components/ui-kit'
 import { useDriverRideCommand, useReleaseRide, type DriverRideCommand } from '@/hooks/use-rides'
 import { paymentSummary, RIDE_STEPS, rideStep } from './driver-screen'

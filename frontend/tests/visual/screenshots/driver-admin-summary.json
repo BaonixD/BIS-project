@@ -2,17 +2,17 @@
   {
     "frame": "26-764",
     "name": "admin-driver-card",
-    "mismatch": 2.5
+    "mismatch": 2.8
   },
   {
     "frame": "6-444",
     "name": "admin-drivers",
-    "mismatch": 2.5
+    "mismatch": 2.4
   },
   {
     "frame": "6-534",
     "name": "admin-rides",
-    "mismatch": 3.8
+    "mismatch": 3.7
   },
   {
     "frame": "7-111",
@@ -62,27 +62,27 @@
   {
     "frame": "6-125",
     "name": "driver-offer",
-    "mismatch": 7.4
+    "mismatch": 7.2
   },
   {
     "frame": "6-2",
     "name": "driver-offline",
-    "mismatch": 5.7
+    "mismatch": 5.6
   },
   {
     "frame": "25-149",
     "name": "driver-online",
-    "mismatch": 5.3
+    "mismatch": 5.4
   },
   {
     "frame": "25-2",
     "name": "driver-pending",
-    "mismatch": 5.1
+    "mismatch": 5.2
   },
   {
     "frame": "6-348",
     "name": "driver-profile",
-    "mismatch": 2.6
+    "mismatch": 2.8
   },
   {
     "frame": "25-497",

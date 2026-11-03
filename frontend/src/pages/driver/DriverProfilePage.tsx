@@ -1,6 +1,7 @@
+import { APPROVAL_STATUS_LABELS } from '@/lib/labels'
 import { Link } from 'react-router'
 import { Car, CreditCard, LogOut, Phone, Settings, ShieldCheck, Timer } from 'lucide-react'
-import { formatRating, TARIFF_LABELS, type NextDriver } from '@/api/next-contract-driver'
+import { formatRating, TARIFF_LABELS, type NextDriver } from '@/api/driver-types'
 import { useSession } from '@/auth/use-session'
 import { ErrorAlert } from '@/components/common/ErrorAlert'
 import { Avatar } from '@/components/driver/Avatar'
@@ -28,7 +29,7 @@ function ApprovalCard({ driver }: { driver: NextDriver }) {
         icon={ShieldCheck}
         title="Допуск получен"
         text="Можно выходить на линию и принимать заказы."
-        trailing={<StatusPill tone="success">approved</StatusPill>}
+        trailing={<StatusPill tone="success">{APPROVAL_STATUS_LABELS.approved}</StatusPill>}
       />
     )
   }
@@ -37,7 +38,7 @@ function ApprovalCard({ driver }: { driver: NextDriver }) {
       icon={Timer}
       title="Ждёт проверки"
       text="Администратор проверит данные. После одобрения можно выйти на линию."
-      trailing={<StatusPill tone="warning">pending</StatusPill>}
+      trailing={<StatusPill tone="warning">{APPROVAL_STATUS_LABELS.pending}</StatusPill>}
     />
   )
 }

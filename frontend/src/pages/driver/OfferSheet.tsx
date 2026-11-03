@@ -1,6 +1,6 @@
-import { Banknote, Car, CircleDot, CreditCard, MapPin } from 'lucide-react'
+import { Banknote, CircleDot, CreditCard, MapPin } from 'lucide-react'
 import { errorMessage, type Coordinates } from '@/api'
-import { formatRating, TARIFF_LABELS, type NextOffer } from '@/api/next-contract-driver'
+import { formatRating, TARIFF_LABELS, type NextOffer } from '@/api/driver-types'
 import { Button, CountdownRing, ListRow, showToast, StatusPill } from '@/components/ui-kit'
 import { useCountdown } from '@/hooks/use-countdown'
 import { useAcceptOffer, useRejectOffer } from '@/hooks/use-driver'
@@ -10,16 +10,11 @@ import { pickupLine } from './pickup-eta'
 
 export const OFFER_TTL_S = 30
 
-/** Figma Pay row (6:232). The offer has no payment method yet, so until it does the row shows the tariff. */
+/** Figma Pay row (6:232). */
 function PaymentLine({ offer }: { offer: NextOffer }) {
-  const method = offer.payment_method
-  const Icon = method === 'kaspi_link' ? CreditCard : method === 'cash' ? Banknote : Car
-  const text =
-    method === 'kaspi_link'
-      ? 'Kaspi · оплачено при назначении'
-      : method === 'cash'
-        ? 'Оплата наличными'
-        : `Тариф ${TARIFF_LABELS[offer.tariff ?? 'economy']}`
+  const kaspi = offer.payment_method === 'kaspi_link'
+  const Icon = kaspi ? CreditCard : Banknote
+  const text = kaspi ? 'Kaspi · спишется, когда вы примете заказ' : 'Оплата наличными'
   return (
     <div className="flex w-full items-center gap-2">
       <Icon className="size-6 shrink-0 text-text-primary" strokeWidth={2} aria-hidden />
@@ -55,7 +50,7 @@ export function OfferSheet({
         <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
           <div className="flex items-center gap-1.5">
             <StatusPill tone="inverse">Новый заказ</StatusPill>
-            {offer.payment_method && offer.tariff && offer.tariff !== 'economy' && (
+            {offer.tariff !== 'economy' && (
               <StatusPill>{TARIFF_LABELS[offer.tariff]}</StatusPill>
             )}
           </div>

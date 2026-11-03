@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, unwrap, type Coordinates, type DriverProfileUpdate, type Page } from '@/api'
-import type { NextDriver, NextOffer } from '@/api/next-contract-driver'
+import type { NextDriver, NextOffer } from '@/api/driver-types'
 import { DRIVER_PENDING_POLL_MS, OFFERS_POLL_MS } from './polling'
 import { queryKeys } from './query-keys'
 

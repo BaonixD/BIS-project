@@ -5,7 +5,7 @@ import {
   RATING_ALREADY_EXISTS,
   type PassengerRatingRequest,
   type PassengerTag,
-} from '@/api/next-contract-driver'
+} from '@/api/driver-types'
 
 /** Rating body: 1–5 stars, unique tags in a stable order, a trimmed comment or null. */
 export function buildRatingBody(stars: number, tags: Iterable<PassengerTag>, comment = ''): PassengerRatingRequest {

@@ -1,5 +1,5 @@
 import type { RideStatus, RideSummary, UserRole } from '@/api'
-import type { NextAdminDriver } from '@/api/next-contract-driver'
+import type { NextAdminDriver } from '@/api/driver-types'
 import type { StatusTone } from '@/components/ui-kit'
 import { formatMoney } from '@/lib/format'
 

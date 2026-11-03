@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { Outlet } from 'react-router'
 import { useSession } from '@/auth/use-session'
 import { FullScreenLoader } from '@/components/common/FullScreenLoader'
+import { useMyProfile } from '@/hooks/use-profile'
 import { BottomNav } from './BottomNav'
 import { TopBar } from './TopBar'
 
@@ -11,9 +12,11 @@ import { TopBar } from './TopBar'
  */
 export function AppShell() {
   const { user } = useSession()
+  const profile = useMyProfile(Boolean(user))
+  const displayName = profile.data?.display_name || user?.username || ''
   return (
     <div className="min-h-dvh bg-bg-canvas text-text-primary [--sheet-offset:calc(var(--nav-height)-12px)] lg:[--sheet-offset:0px]">
-      {user && <TopBar role={user.role} displayName={user.username} />}
+      {user && <TopBar role={user.role} displayName={displayName} />}
       <main className="pb-(--nav-height) lg:pt-(--top-bar-height) lg:pb-0">
         <Suspense fallback={<FullScreenLoader />}>
           <Outlet />

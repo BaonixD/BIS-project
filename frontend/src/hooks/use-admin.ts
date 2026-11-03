@@ -5,7 +5,7 @@ import {
   postApproveDriver,
   type NextAdminDriver,
   type Tariff,
-} from '@/api/next-contract-driver'
+} from '@/api/driver-types'
 import { queryKeys, type AdminRideFilters } from './query-keys'
 
 export function useAdminDrivers(approvalStatus: ApprovalStatus | undefined, page: PageParams = {}) {

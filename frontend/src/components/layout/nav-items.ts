@@ -5,6 +5,8 @@ import type { UserRole } from '@/api'
 export interface NavItem {
   to: string
   label: string
+  /** Desktop top bar wording when it differs from the bottom nav. */
+  topLabel?: string
   icon: LucideIcon
   /** Match only `to` itself, not its sub-paths. */
   end?: boolean
@@ -27,7 +29,7 @@ export const NAV_ITEMS: Record<UserRole, NavItem[]> = {
   admin: [
     { to: '/admin', label: 'Водители', icon: ShieldCheck, end: true },
     { to: '/admin/rides', label: 'Поездки', icon: List },
-    { to: '/admin/users', label: 'Люди', icon: Users },
+    { to: '/admin/users', label: 'Люди', topLabel: 'Пользователи', icon: Users },
   ],
 }
 

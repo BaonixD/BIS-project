@@ -1,7 +1,7 @@
 import { Link } from 'react-router'
 import { useState } from 'react'
 import type { ApprovalStatus } from '@/api'
-import type { NextAdminDriver } from '@/api/next-contract-driver'
+import type { NextAdminDriver } from '@/api/driver-types'
 import { ErrorAlert } from '@/components/common/ErrorAlert'
 import { Avatar } from '@/components/driver/Avatar'
 import { Screen, ScreenColumn } from '@/components/driver/Screen'

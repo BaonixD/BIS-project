@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { errorMessage, missingFields } from '@/api'
-import type { NextAdminDriver, Tariff } from '@/api/next-contract-driver'
+import type { NextAdminDriver, Tariff } from '@/api/driver-types'
 import { showToast } from '@/components/ui-kit'
 import { useApproveDriver, useSetCarClass } from '@/hooks/use-admin'
 import { DRIVER_FIELD_LABELS } from '@/lib/labels'
