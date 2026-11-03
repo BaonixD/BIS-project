@@ -6,8 +6,8 @@ import httpx
 import pytest
 
 SAFE_METHODS = {"get", "head", "options"}
-SESSION_ONLY = [{"SessionCookie": []}]
-SESSION_AND_CSRF = [{"SessionCookie": [], "CsrfToken": []}]
+SESSION_ONLY: list[dict[str, list[str]]] = [{"SessionCookie": []}]
+SESSION_AND_CSRF: list[dict[str, list[str]]] = [{"SessionCookie": [], "CsrfToken": []}]
 
 
 @pytest.fixture

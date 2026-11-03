@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from taxi_service.api.exception_handlers import register_exception_handlers
+from taxi_service.api.openapi import install_openapi
 from taxi_service.api.router import api_router
 from taxi_service.core.clock import Clock, SystemClock
 from taxi_service.core.config import Settings
@@ -72,4 +73,5 @@ def create_app(
     app.add_middleware(RequestIdMiddleware)
     register_exception_handlers(app)
     app.include_router(api_router)
+    install_openapi(app)
     return app

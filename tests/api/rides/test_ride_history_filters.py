@@ -189,6 +189,6 @@ async def test_history_documents_its_query_parameters(client: httpx.AsyncClient)
     assert set(parameters) == {"limit", "offset", "status", "created_from", "created_to"}
     assert all(item["in"] == "query" for item in parameters.values())
     assert {"200", "401", "403", "422"} <= set(operation["responses"])
-    assert {"SessionCookie": []} in operation["security"]
+    assert any("SessionCookie" in requirement for requirement in operation["security"])
     assert "inclusive" in parameters["created_from"]["description"]
     assert "exclusive" in parameters["created_to"]["description"]

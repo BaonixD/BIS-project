@@ -48,7 +48,7 @@ def test_session_cookie_and_csrf_header_are_security_schemes(schema: dict[str, A
 def test_protected_operations_declare_the_session_scheme(schema: dict[str, Any]) -> None:
     for method, path in [("get", "/auth/session"), ("post", "/auth/logout")]:
         security = operation(schema, method, path)["security"]
-        assert {"SessionCookie": []} in security
+        assert any("SessionCookie" in requirement for requirement in security)
 
 
 def test_public_operations_need_no_session(schema: dict[str, Any]) -> None:

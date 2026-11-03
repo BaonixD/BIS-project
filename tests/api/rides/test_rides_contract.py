@@ -46,7 +46,7 @@ def test_ride_operations_document_their_responses(
 
     assert success in operation["responses"]
     assert errors <= error_statuses(operation)
-    assert {"SessionCookie": []} in operation["security"]
+    assert any("SessionCookie" in requirement for requirement in operation["security"])
 
 
 def test_ride_creation_documents_the_idempotency_key(schema: dict[str, Any]) -> None:

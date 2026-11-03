@@ -187,7 +187,7 @@ async def test_openapi_documents_the_route_and_its_errors(client: httpx.AsyncCli
     schema = (await client.get("/openapi.json")).json()
     operation = schema["paths"][ROUTE_URL]["post"]
 
-    assert {"SessionCookie": []} in operation["security"]
+    assert any("SessionCookie" in requirement for requirement in operation["security"])
     assert operation["requestBody"]["content"]["application/json"]["schema"] == {
         "$ref": "#/components/schemas/RouteRequest"
     }
