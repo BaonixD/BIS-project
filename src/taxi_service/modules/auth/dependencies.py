@@ -9,6 +9,7 @@ from taxi_service.core.clock import ClockDep
 from taxi_service.core.config import SettingsDep
 from taxi_service.core.origins import normalize_origin
 from taxi_service.database.session import DbSession
+from taxi_service.modules.auth import service
 from taxi_service.modules.auth.cookies import SESSION_COOKIE_NAME
 from taxi_service.modules.auth.exceptions import (
     CsrfFailedError,
@@ -18,7 +19,7 @@ from taxi_service.modules.auth.exceptions import (
 )
 from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.auth.rate_limit import LoginAttemptLimiter
-from taxi_service.modules.auth.service import AuthenticatedUser, AuthService
+from taxi_service.modules.auth.service import AuthenticatedUser
 from taxi_service.modules.users.models import UserRole
 from taxi_service.modules.users.service import UserService
 
@@ -64,20 +65,12 @@ def get_user_service(session: DbSession, clock: ClockDep, hasher: PasswordHasher
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]
 
 
-def get_auth_service(
-    session: DbSession, clock: ClockDep, hasher: PasswordHasherDep, limiter: LoginLimiterDep
-) -> AuthService:
-    return AuthService(session, clock, hasher, limiter)
-
-
-AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
-
-
 async def get_current_user(
     request: Request,
     token: Annotated[str | None, Depends(session_cookie)],
     csrf_token: Annotated[str | None, Depends(csrf_header)],
-    auth: AuthServiceDep,
+    db: DbSession,
+    clock: ClockDep,
 ) -> AuthenticatedUser:
     """The session's user; 401 ``not_authenticated`` without a valid session.
 
@@ -88,7 +81,7 @@ async def get_current_user(
     """
     if not token:
         raise NotAuthenticatedError
-    user = await auth.authenticate(token)
+    user = await service.authenticate(db, token, clock=clock)
     if request.method not in SAFE_METHODS and not _same_token(csrf_token, user.csrf_token):
         raise CsrfFailedError
     return user
