@@ -18,6 +18,7 @@ from taxi_service.modules.drivers.schemas import (
     DriverResponse,
     LocationUpdate,
 )
+from taxi_service.modules.ratings import service as ratings_service
 from taxi_service.modules.users.models import UserRole
 from taxi_service.schemas.errors import error_responses
 from taxi_service.schemas.pagination import Page, PageParamsDep
@@ -30,7 +31,8 @@ DriverUser = Annotated[AuthenticatedUser, Depends(require_roles(UserRole.DRIVER)
 
 @router.get("/me", responses=error_responses(401, 403))
 async def read_my_driver_profile(user: DriverUser, db: DbSession) -> DriverResponse:
-    return DriverResponse.build(user.id, await service.read_driver_profile(db, user.id))
+    profile = await service.read_driver_profile(db, user.id)
+    return DriverResponse.build(user.id, profile, await ratings_service.rating_of(db, user.id))
 
 
 @router.patch("/me", responses=error_responses(401, 403, 409))
@@ -38,7 +40,7 @@ async def update_my_driver_profile(
     body: DriverProfileUpdate, user: DriverUser, db: DbSession, clock: ClockDep
 ) -> DriverResponse:
     profile = await service.update_profile(db, user.id, body, clock=clock)
-    return DriverResponse.build(user.id, profile)
+    return DriverResponse.build(user.id, profile, await ratings_service.rating_of(db, user.id))
 
 
 @router.put("/me/availability", responses=error_responses(401, 403, 409))
@@ -46,7 +48,7 @@ async def set_my_availability(
     body: AvailabilityUpdate, user: DriverUser, db: DbSession, clock: ClockDep
 ) -> DriverResponse:
     profile = await service.set_availability(db, user.id, body.online, clock=clock)
-    return DriverResponse.build(user.id, profile)
+    return DriverResponse.build(user.id, profile, await ratings_service.rating_of(db, user.id))
 
 
 @router.put("/me/location", responses=error_responses(401, 403))
@@ -54,7 +56,7 @@ async def update_my_location(
     body: LocationUpdate, user: DriverUser, db: DbSession, clock: ClockDep
 ) -> DriverResponse:
     profile = await service.update_location(db, user.id, body, clock=clock)
-    return DriverResponse.build(user.id, profile)
+    return DriverResponse.build(user.id, profile, await ratings_service.rating_of(db, user.id))
 
 
 @admin_router.get("", responses=error_responses(401, 403))
@@ -68,7 +70,10 @@ async def list_drivers(
 ) -> Page[AdminDriverResponse]:
     result = await service.list_drivers(db, approval_status, limit=page.limit, offset=page.offset)
     return Page(
-        items=[AdminDriverResponse.from_rows(user, profile) for user, profile in result.rows],
+        items=[
+            AdminDriverResponse.from_rows(user, profile, result.ratings[user.id])
+            for user, profile in result.rows
+        ],
         limit=page.limit,
         offset=page.offset,
         total=result.total,
@@ -87,7 +92,9 @@ async def approve_driver(
     user, profile = await service.approve_driver(
         db, driver_id, admin.id, car_class=car_class, clock=clock
     )
-    return AdminDriverResponse.from_rows(user, profile)
+    return AdminDriverResponse.from_rows(
+        user, profile, await ratings_service.rating_of(db, user.id)
+    )
 
 
 @admin_router.patch("/{driver_id}", responses=error_responses(401, 403, 404, 409))
@@ -95,4 +102,6 @@ async def set_car_class(
     driver_id: uuid.UUID, body: CarClassUpdate, _admin: AdminUser, db: DbSession, clock: ClockDep
 ) -> AdminDriverResponse:
     user, profile = await service.set_car_class(db, driver_id, body.car_class, clock=clock)
-    return AdminDriverResponse.from_rows(user, profile)
+    return AdminDriverResponse.from_rows(
+        user, profile, await ratings_service.rating_of(db, user.id)
+    )

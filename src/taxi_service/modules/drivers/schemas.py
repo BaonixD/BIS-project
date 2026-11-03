@@ -18,6 +18,8 @@ from taxi_service.modules.drivers.models import (
     missing_fields,
 )
 from taxi_service.modules.geo.schemas import Coordinates
+from taxi_service.modules.ratings.records import RatingSummary
+from taxi_service.modules.ratings.schemas import RatingSummaryResponse
 from taxi_service.modules.rides.tariffs import Tariff
 from taxi_service.modules.users.models import User
 from taxi_service.modules.users.schemas import Phone
@@ -135,10 +137,13 @@ class DriverResponse(BaseModel):
     missing_fields: list[str] = Field(
         description="Fields still needed before approval; empty when complete."
     )
+    rating: RatingSummaryResponse = Field(description="Stars the driver received from passengers.")
 
     @classmethod
-    def build(cls, user_id: uuid.UUID, profile: DriverProfile | None) -> "DriverResponse":
-        return cls(**_driver_fields(user_id, profile))
+    def build(
+        cls, user_id: uuid.UUID, profile: DriverProfile | None, rating: RatingSummary
+    ) -> "DriverResponse":
+        return cls(**_driver_fields(user_id, profile), rating=RatingSummaryResponse.build(rating))
 
 
 class AdminDriverResponse(DriverResponse):
@@ -147,9 +152,12 @@ class AdminDriverResponse(DriverResponse):
     approved_by: uuid.UUID | None
 
     @classmethod
-    def from_rows(cls, user: User, profile: DriverProfile | None) -> "AdminDriverResponse":
+    def from_rows(
+        cls, user: User, profile: DriverProfile | None, rating: RatingSummary
+    ) -> "AdminDriverResponse":
         return cls(
             **_driver_fields(user.id, profile),
+            rating=RatingSummaryResponse.build(rating),
             username=user.username,
             created_at=user.created_at,
             approved_by=profile.approved_by if profile else None,

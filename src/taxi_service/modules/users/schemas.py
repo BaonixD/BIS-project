@@ -5,6 +5,7 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, SecretStr, StringConstraints
 
+from taxi_service.modules.ratings.schemas import RatingSummaryResponse
 from taxi_service.modules.users.models import DISPLAY_NAME_MAX_LENGTH, UserRole
 from taxi_service.schemas.patch import PatchRequest
 
@@ -68,6 +69,9 @@ class MyProfileResponse(UserResponse):
 
     display_name: str | None
     phone: str | None
+    rating: RatingSummaryResponse = Field(
+        description="Stars received from the other side of rides (count 0 for an admin)."
+    )
 
 
 class MyProfileUpdate(PatchRequest):

@@ -2,7 +2,7 @@
 
 import logging
 import uuid
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, cast
@@ -16,6 +16,8 @@ from taxi_service.database.errors import violates_unique
 from taxi_service.database.session import read_transaction
 from taxi_service.modules.drivers.candidates import SearchScope, find_nearby_candidates
 from taxi_service.modules.payments import records as payment_records
+from taxi_service.modules.ratings import records as rating_records
+from taxi_service.modules.ratings.records import RatingSummary
 from taxi_service.modules.rides.exceptions import (
     DriverBusyError,
     InvalidOfferTransitionError,
@@ -63,6 +65,7 @@ _REVOKED = next_offer_status(OfferStatus.PENDING, OfferCommand.REVOKE)
 class OfferPage:
     rows: list[tuple[RideOffer, Ride]]
     total: int
+    passenger_ratings: Mapping[uuid.UUID, RatingSummary]
 
 
 async def process_ride(
@@ -189,7 +192,9 @@ async def list_pending_offers(
             .offset(offset)
         )
         total = await db.scalar(select(func.count()).select_from(open_offers.subquery()))
-        return OfferPage(rows=[(offer, ride) for offer, ride in rows], total=total or 0)
+        page = [(offer, ride) for offer, ride in rows]
+        ratings = await rating_records.summaries(db, [ride.passenger_id for _, ride in page])
+        return OfferPage(rows=page, total=total or 0, passenger_ratings=ratings)
 
 
 async def revoke_pending_offers(db: AsyncSession, ride_id: uuid.UUID, now: datetime) -> int:

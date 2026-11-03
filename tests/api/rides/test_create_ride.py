@@ -96,6 +96,7 @@ async def test_passenger_creates_a_searching_ride_from_the_quote(
         "payment_method",
         "payment_status",
     }
+    assert "my_rating" not in ride
     assert {name: ride[name] for name in LIFECYCLE_FIELDS} == dict.fromkeys(LIFECYCLE_FIELDS)
     assert ride["status"] == "searching"
     assert ride["driver_id"] is None

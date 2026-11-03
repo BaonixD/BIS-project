@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -26,6 +27,8 @@ from taxi_service.modules.drivers.models import (
 )
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate, VehicleInput
 from taxi_service.modules.geo.schemas import Coordinates
+from taxi_service.modules.ratings import records as rating_records
+from taxi_service.modules.ratings.records import RatingSummary
 from taxi_service.modules.rides import service as rides_service
 from taxi_service.modules.rides.dispatch import revoke_driver_offers
 from taxi_service.modules.rides.tariffs import Tariff, tariffs_above
@@ -161,6 +164,7 @@ def _apply_vehicle(profile: DriverProfile, data: VehicleInput, now: datetime) ->
 class DriverPage:
     rows: list[tuple[User, DriverProfile | None]]
     total: int
+    ratings: Mapping[uuid.UUID, RatingSummary]
 
 
 async def list_drivers(
@@ -169,7 +173,8 @@ async def list_drivers(
     async with read_transaction(db):
         rows = await _driver_rows(db, status, limit=limit, offset=offset)
         total = await _count_drivers(db, status)
-    return DriverPage(rows=rows, total=total)
+        ratings = await rating_records.summaries(db, [user.id for user, _ in rows])
+    return DriverPage(rows=rows, total=total, ratings=ratings)
 
 
 async def approve_driver(

@@ -47,6 +47,7 @@ async def test_new_driver_has_an_empty_pending_profile(client: httpx.AsyncClient
         "location": None,
         "location_updated_at": None,
         "missing_fields": ALL_MISSING,
+        "rating": {"average": None, "count": 0},
     }
 
 

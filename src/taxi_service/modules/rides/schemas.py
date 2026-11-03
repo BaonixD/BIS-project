@@ -8,6 +8,9 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstra
 from taxi_service.modules.drivers.models import DriverProfile
 from taxi_service.modules.geo.schemas import Coordinates, RouteResult
 from taxi_service.modules.payments.models import PaymentMethod, PaymentStatus
+from taxi_service.modules.ratings.models import RideRating
+from taxi_service.modules.ratings.records import NO_RATINGS, RatingSummary
+from taxi_service.modules.ratings.schemas import MyRating, RatingSummaryResponse
 from taxi_service.modules.rides.history import RidePage, RideRow
 from taxi_service.modules.rides.models import (
     REASON_MAX_LENGTH,
@@ -182,9 +185,10 @@ class DriverCard(BaseModel):
     vehicle: VehicleCard | None
     location: Coordinates | None
     location_updated_at: datetime | None
+    rating: RatingSummaryResponse = Field(description="Stars the driver received.")
 
     @classmethod
-    def build(cls, profile: DriverProfile) -> "DriverCard":
+    def build(cls, profile: DriverProfile, rating: RatingSummary) -> "DriverCard":
         vehicle = profile.vehicle
         location = None
         if profile.longitude is not None and profile.latitude is not None:
@@ -203,6 +207,7 @@ class DriverCard(BaseModel):
             ),
             location=location,
             location_updated_at=profile.location_updated_at,
+            rating=RatingSummaryResponse.build(rating),
         )
 
 
@@ -211,11 +216,27 @@ class RideDetailsResponse(RideResponse):
         description="Only for the passenger and the driver while the ride is assigned, "
         "arrived or in_progress; otherwise null."
     )
+    my_rating: MyRating | None = Field(
+        description="The rating the caller gave this ride; null until they rate it "
+        "(always null for an admin)."
+    )
 
     @classmethod
-    def with_driver(cls, ride: Ride, driver: DriverProfile | None) -> "RideDetailsResponse":
-        card = None if driver is None else DriverCard.build(driver)
-        return cls(**RideResponse.build(ride).model_dump(), driver=card)
+    def build_details(
+        cls,
+        ride: Ride,
+        driver: DriverProfile | None,
+        driver_rating: RatingSummary | None,
+        my_rating: RideRating | None,
+    ) -> "RideDetailsResponse":
+        card = None
+        if driver is not None:
+            card = DriverCard.build(driver, driver_rating or NO_RATINGS)
+        return cls(
+            **RideResponse.build(ride).model_dump(),
+            driver=card,
+            my_rating=None if my_rating is None else MyRating.build(my_rating),
+        )
 
 
 class OfferResponse(BaseModel):
@@ -229,11 +250,14 @@ class OfferResponse(BaseModel):
     amount_kzt: int
     currency: Literal["KZT"]
     tariff: Tariff
+    passenger_rating: RatingSummaryResponse = Field(description="Stars the passenger received.")
     created_at: datetime
     expires_at: datetime
 
     @classmethod
-    def build(cls, offer: RideOffer, ride: Ride) -> "OfferResponse":
+    def build(
+        cls, offer: RideOffer, ride: Ride, passenger_rating: RatingSummary
+    ) -> "OfferResponse":
         return cls(
             id=offer.id,
             ride_id=ride.id,
@@ -245,6 +269,7 @@ class OfferResponse(BaseModel):
             amount_kzt=ride.amount_kzt,
             currency="KZT",
             tariff=ride.tariff,
+            passenger_rating=RatingSummaryResponse.build(passenger_rating),
             created_at=offer.created_at,
             expires_at=offer.expires_at,
         )

@@ -35,6 +35,7 @@ src/taxi_service/
 │   ├── geo/           Coordinates, RouteResult, клиент openrouteservice, /geo/route
 │   ├── rides/         quote, поездка, идемпотентность, тариф, состояния, dispatch, жизненный цикл, история
 │   ├── payments/      правила оплаты, Kaspi-ссылка, payments, API оплаты
+│   ├── ratings/       оценки после поездки, теги, средний рейтинг
 │   └── admin/         только чтение: /admin/rides, /admin/users
 ├── schemas/           общие контракты: ErrorResponse, Page, patch-поля
 └── seeds/demo.py      демонстрационные данные (вызывается только из scripts/seed.py)
@@ -167,6 +168,9 @@ erDiagram
     users |o--o{ ride_events : "actor_id"
     users ||--o{ idempotency_records : "user_id"
     rides ||--o| payments : "ride_id"
+    rides ||--o{ ride_ratings : "ride_id, одна на сторону"
+    users ||--o{ ride_ratings : "rater_id, ratee_id"
+    ride_ratings ||--o{ ride_rating_tags : "rating_id"
 
     users {
         uuid id PK
@@ -308,6 +312,20 @@ erDiagram
         datetime refunded_at "только у refunded"
         datetime created_at
         datetime updated_at
+    }
+    ride_ratings {
+        uuid id PK
+        uuid ride_id FK
+        uuid rater_id FK
+        varchar rater_role "passenger, driver"
+        uuid ratee_id FK
+        int stars "1-5"
+        varchar comment "до 500, nullable"
+        datetime created_at
+    }
+    ride_rating_tags {
+        uuid rating_id PK, FK "ON DELETE CASCADE"
+        varchar tag PK "перечень тегов"
     }
 ```
 
@@ -481,6 +499,7 @@ economy 500/120/20/800, comfort 700/160/25/1100, comfort_plus 900/200/30/1500, b
 | [0009](decisions/0009-simple-payments.md) | поток заменён ADR 0010; правила ссылки Kaspi | `modules/payments/config.py` |
 | [0010](decisions/0010-pay-before-order.md) | способ оплаты при заказе, Kaspi `paid` при назначении водителя, `refunded` при отмене или `no_driver` после списания, наличные подтверждает водитель | `modules/payments/`, `rides/service.py`, `rides/dispatch.py` |
 | [0012](decisions/0012-tariffs-and-car-classes.md) | четыре тарифа `edu-v2`, `tariff` поездки, класс машины от admin, кандидат класса не ниже тарифа | `rides/tariffs.py`, `rides/pricing.py`, `drivers/candidates.py`, `drivers/service.py` |
+| [0013](decisions/0013-ride-ratings.md) | оценки после поездки, теги в отдельной таблице, средний рейтинг одним сгруппированным запросом | `modules/ratings/` |
 
 ## Ограничения
 
@@ -491,5 +510,5 @@ economy 500/120/20/800, comfort 700/160/25/1100, comfort_plus 900/200/30/1500, b
 - **Polling без WebSocket/SSE.** Клиент опрашивает `GET /rides/{id}` и `GET /drivers/me/offers`; движение водителя видно по последней координате и её времени.
 - **Нет фоновой очистки** истёкших сессий, quote, записей идемпотентности, старых предложений и событий.
 - **Ближайший водитель — по прямой**, не по времени подачи по дорогам.
-- Нет аварийного закрытия `in_progress`, споров, штрафов, рейтингов, заказов ко времени и нескольких остановок. Вход через Google — только для пассажиров, без связывания с существующими аккаунтами; реальный вход `external_pending` ([ADR 0011](decisions/0011-google-login.md)).
+- Нет аварийного закрытия `in_progress`, споров, штрафов, заказов ко времени и нескольких остановок. Вход через Google — только для пассажиров, без связывания с существующими аккаунтами; реальный вход `external_pending` ([ADR 0011](decisions/0011-google-login.md)).
 - Путь к `alembic.ini` вычисляется от исходников: запуск только из репозитория (editable-установка `uv sync`).

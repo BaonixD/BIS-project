@@ -36,6 +36,7 @@ async def test_new_account_has_an_empty_profile(client: httpx.AsyncClient, role:
         "created_at": "2026-11-03T09:00:00Z",
         "display_name": None,
         "phone": None,
+        "rating": {"average": None, "count": 0},
     }
 
 

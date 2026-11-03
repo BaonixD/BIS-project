@@ -17,6 +17,9 @@ from taxi_service.modules.geo.service import plan_road_route
 from taxi_service.modules.payments import records as payment_records
 from taxi_service.modules.payments.exceptions import KaspiUnavailableError
 from taxi_service.modules.payments.models import PaymentMethod
+from taxi_service.modules.ratings import records as rating_records
+from taxi_service.modules.ratings.models import RideRating
+from taxi_service.modules.ratings.records import RatingSummary
 from taxi_service.modules.rides import dispatch
 from taxi_service.modules.rides.exceptions import (
     ActiveRideExistsError,
@@ -46,8 +49,12 @@ CREATE_RIDE_OPERATION: Final = "create_ride"
 
 @dataclass(frozen=True, slots=True)
 class RideDetails:
+    """``driver_rating`` is set with ``driver``; ``my_rating`` is the viewer's own."""
+
     ride: Ride
     driver: DriverProfile | None
+    driver_rating: RatingSummary | None
+    my_rating: RideRating | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,10 +157,12 @@ async def get_ride(
         ride = await db.get(Ride, ride_id)
         if ride is None or not can_view_ride(ride, viewer_id, viewer_role):
             raise RideNotFoundError
-        driver = None
+        driver = driver_rating = None
         if ride.driver_id is not None and shows_driver(ride, viewer_id):
             driver = await drivers_service.get_driver_profile(db, ride.driver_id)
-    return RideDetails(ride, driver)
+            driver_rating = await rating_records.summary(db, ride.driver_id)
+        my_rating = await rating_records.rating_by(db, ride.id, viewer_id)
+    return RideDetails(ride, driver, driver_rating, my_rating)
 
 
 async def driver_has_active_ride(db: AsyncSession, driver_id: uuid.UUID) -> bool:

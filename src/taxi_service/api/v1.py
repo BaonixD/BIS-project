@@ -6,6 +6,7 @@ from taxi_service.modules.drivers.router import admin_router as admin_drivers_ro
 from taxi_service.modules.drivers.router import router as drivers_router
 from taxi_service.modules.geo.router import router as geo_router
 from taxi_service.modules.payments.router import router as payments_router
+from taxi_service.modules.ratings.router import router as ratings_router
 from taxi_service.modules.rides.router import offers_router
 from taxi_service.modules.rides.router import router as rides_router
 from taxi_service.modules.users.router import router as users_router
@@ -22,5 +23,6 @@ v1_router.include_router(drivers_router)
 v1_router.include_router(admin_drivers_router)
 v1_router.include_router(rides_router)
 v1_router.include_router(payments_router)
+v1_router.include_router(ratings_router)
 v1_router.include_router(admin_reads_router)
 v1_router.include_router(offers_router)

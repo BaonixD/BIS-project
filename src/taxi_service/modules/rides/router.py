@@ -7,6 +7,7 @@ from taxi_service.database.session import DbSession
 from taxi_service.modules.auth.dependencies import CurrentUser
 from taxi_service.modules.geo.dependencies import RoutingProviderDep
 from taxi_service.modules.payments.dependencies import PaymentSettingsDep
+from taxi_service.modules.ratings import service as ratings_service
 from taxi_service.modules.rides import dispatch, history, lifecycle, service
 from taxi_service.modules.rides.dependencies import (
     CompletionHookDep,
@@ -88,7 +89,9 @@ async def list_my_rides(
 @router.get("/{ride_id}", responses=error_responses(401, 404))
 async def read_ride(ride_id: uuid.UUID, user: CurrentUser, db: DbSession) -> RideDetailsResponse:
     details = await service.get_ride(db, ride_id, viewer_id=user.id, viewer_role=user.role)
-    return RideDetailsResponse.with_driver(details.ride, details.driver)
+    return RideDetailsResponse.build_details(
+        details.ride, details.driver, details.driver_rating, details.my_rating
+    )
 
 
 @router.post("/{ride_id}/arrive", responses=COMMAND_ERRORS)
@@ -181,7 +184,10 @@ async def list_my_offers(
         db, user.id, clock=clock, limit=page.limit, offset=page.offset
     )
     return Page(
-        items=[OfferResponse.build(offer, ride) for offer, ride in result.rows],
+        items=[
+            OfferResponse.build(offer, ride, result.passenger_ratings[ride.passenger_id])
+            for offer, ride in result.rows
+        ],
         limit=page.limit,
         offset=page.offset,
         total=result.total,
@@ -201,4 +207,4 @@ async def reject_offer(
     offer_id: uuid.UUID, user: DriverUser, db: DbSession, clock: ClockDep, policy: DispatchPolicyDep
 ) -> OfferResponse:
     offer, ride = await dispatch.reject_offer(db, offer_id, user.id, clock=clock, policy=policy)
-    return OfferResponse.build(offer, ride)
+    return OfferResponse.build(offer, ride, await ratings_service.rating_of(db, ride.passenger_id))

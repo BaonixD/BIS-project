@@ -13,7 +13,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from support.drivers import DriverFactory, login_as
+from support.drivers import ADMIN_DRIVERS_URL, DriverFactory, login_as
 from support.history import (
     ADMIN_RIDES_URL,
     ADMIN_USERS_URL,
@@ -108,3 +108,26 @@ async def test_admin_users(
             await ride_factory.passenger()
 
     await assert_constant_statements(app, client, ADMIN_USERS_URL, seed, already=1)
+
+
+async def test_admin_drivers_with_their_ratings(
+    app: FastAPI, client: httpx.AsyncClient, driver_factory: DriverFactory, admin_id: uuid.UUID
+) -> None:
+    await login_as(client, "admin")
+    created = 0
+
+    async def seed(count: int) -> None:
+        nonlocal created
+        for _ in range(count):
+            created += 1
+            await driver_factory.driver(f"driver_{created}")
+
+    await seed(10)
+    small = await statements_for_page(app, client, ADMIN_DRIVERS_URL, 10)
+    await seed(20)
+    large = await statements_for_page(app, client, ADMIN_DRIVERS_URL, 30)
+
+    assert len(small) == len(large)
+    # The ratings of the whole page come from one grouped query.
+    assert large.queries <= MAX_QUERIES + 1
+    assert any("ride_ratings" in statement for statement in large.statements)

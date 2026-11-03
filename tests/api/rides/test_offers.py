@@ -173,6 +173,7 @@ async def test_driver_sees_the_open_offer_with_the_ride(
         "amount_kzt",
         "currency",
         "tariff",
+        "passenger_rating",
         "created_at",
         "expires_at",
     }

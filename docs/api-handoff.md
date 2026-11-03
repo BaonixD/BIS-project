@@ -162,7 +162,7 @@ export async function loginWithGoogle(credential: string) {
 | POST | `/api/v1/auth/google` | без сессии | `{credential}` (Google ID token) → `SessionResponse` + cookie |
 | GET | `/api/v1/auth/session` | вошедший | → `SessionResponse {user, csrf_token, expires_at}` |
 | POST | `/api/v1/auth/logout` | вошедший | → `204` |
-| GET | `/api/v1/users/me` | вошедший | → `{id, username, role, created_at, display_name, phone}` |
+| GET | `/api/v1/users/me` | вошедший | → `{id, username, role, created_at, display_name, phone, rating}` |
 | PATCH | `/api/v1/users/me` | вошедший | `{display_name?, phone?}` → то же (роль и username не меняются) |
 | GET | `/api/v1/drivers/me` | driver | → `DriverResponse` |
 | PATCH | `/api/v1/drivers/me` | driver | `{full_name?, phone?, license_number?, vehicle?: {make, model, color, plate_number, year}}` → `DriverResponse` (класс машины водитель не задаёт) |
@@ -183,6 +183,7 @@ export async function loginWithGoogle(credential: string) {
 | POST | `/api/v1/rides/{ride_id}/release` | назначенный водитель | `{reason}` (обязательно) → `RideResponse` |
 | GET | `/api/v1/rides/{ride_id}/payment` | пассажир, назначенный водитель, admin | → `PaymentResponse` |
 | POST | `/api/v1/rides/{ride_id}/payment/cash-received` | назначенный водитель | без тела → `PaymentResponse` |
+| POST | `/api/v1/rides/{ride_id}/rating` | пассажир поездки, назначенный водитель | `{stars, tags?, comment?}` → `201 RatingResponse` (после `completed`) |
 | GET | `/api/v1/admin/drivers` | admin | `?approval_status=pending\|approved&limit&offset` → `Page<AdminDriverResponse>` |
 | POST | `/api/v1/admin/drivers/{driver_id}/approve` | admin | без тела или `{car_class?}` → `AdminDriverResponse` |
 | PATCH | `/api/v1/admin/drivers/{driver_id}` | admin | `{car_class}` → `AdminDriverResponse` |
@@ -192,12 +193,14 @@ export async function loginWithGoogle(credential: string) {
 Основные схемы ответа (поля — как в OpenAPI):
 
 - `RideResponse`: `id`, `status`, `passenger_id`, `driver_id`, `quote_id`, `pickup`, `dropoff`, `route` (`RouteResult`), `tariff`, `amount_kzt` (цена выбранного тарифа), `currency`, `tariff_version`, `created_at`, `updated_at`, `assigned_at`, `arrived_at`, `started_at`, `completed_at`, `cancelled_at`, `cancel_reason`, `payment_method`, `payment_status`.
-- `RideDetailsResponse` = `RideResponse` + `driver`: для пассажира и назначенного водителя при `assigned`/`arrived`/`in_progress` — `{full_name, phone, vehicle: {make, model, color, plate_number, car_class}, location, location_updated_at}`; иначе `null`.
+- `RideDetailsResponse` = `RideResponse` + `my_rating` (`{stars, tags, comment}` — своя оценка, `null` до неё и у admin) + `driver`: для пассажира и назначенного водителя при `assigned`/`arrived`/`in_progress` — `{full_name, phone, vehicle: {make, model, color, plate_number, car_class}, location, location_updated_at, rating}`; иначе `null`.
 - `RouteResult`: `distance_m`, `duration_s`, `route_geometry` (GeoJSON `LineString`), `provider`.
 - `QuoteResponse`: `quote_id`, `pickup`, `dropoff`, `route`, `options` (ровно четыре `{tariff, amount_kzt}`: `economy`, `comfort`, `comfort_plus`, `business`), `currency`, `tariff_version` (`edu-v2`), `kaspi_payment_url` (ссылка Kaspi или `null`), `created_at`, `expires_at`. Общей `amount_kzt` нет.
-- `OfferResponse`: `id`, `ride_id`, `status`, `pickup`, `dropoff`, `distance_m`, `duration_s`, `amount_kzt`, `currency`, `tariff`, `created_at`, `expires_at`.
+- `OfferResponse`: `id`, `ride_id`, `status`, `pickup`, `dropoff`, `distance_m`, `duration_s`, `amount_kzt`, `currency`, `tariff`, `passenger_rating`, `created_at`, `expires_at`.
+- `RatingSummary` (`rating`, `passenger_rating`): `{average: float | null, count: int}` — среднее полученных звёзд (два знака), без оценок `null`/`0`.
+- `RatingResponse`: `ride_id`, `rater_role` (`passenger|driver`), `stars`, `tags`, `comment`, `created_at`.
 - `RideSummary` (элемент истории): `id`, `status`, `passenger_id`, `driver_id`, `pickup`, `dropoff`, `distance_m`, `duration_s`, `amount_kzt`, `currency`, `tariff`, `created_at`, `updated_at`, `payment_status`, `payment_method` (есть с момента заказа). Геометрии нет — за ней `GET /rides/{ride_id}`.
-- `DriverResponse`: `id`, `full_name`, `phone`, `license_number`, `vehicle` (`{make, model, color, plate_number, year, car_class}` или `null`), `approval_status`, `approved_at`, `online`, `location`, `location_updated_at`, `missing_fields`. `AdminDriverResponse` дополнительно: `username`, `created_at`, `approved_by`.
+- `DriverResponse`: `id`, `full_name`, `phone`, `license_number`, `vehicle` (`{make, model, color, plate_number, year, car_class}` или `null`), `approval_status`, `approved_at`, `online`, `location`, `location_updated_at`, `missing_fields`, `rating`. `AdminDriverResponse` дополнительно: `username`, `created_at`, `approved_by`.
 - `PaymentResponse`: `ride_id`, `amount_kzt`, `currency`, `method`, `status`, `paid_at`, `refunded_at`, `payment_url` (ссылка Kaspi только при `kaspi_link`, иначе `null`).
 
 Тариф поездки и класс машины — `economy` < `comfort` < `comfort_plus` < `business` ([ADR 0012](decisions/0012-tariffs-and-car-classes.md)). Статусы: поездка — `searching`, `assigned`, `arrived`, `in_progress`, `completed`, `cancelled`, `no_driver`; предложение — `pending`, `accepted`, `rejected`, `expired`, `revoked`; оплата — `unpaid`, `paid`, `refunded`; метод — `cash`, `kaspi_link`. Диаграммы — в [architecture.md](architecture.md#состояния).
@@ -214,6 +217,7 @@ export async function loginWithGoogle(credential: string) {
 8. **Release водителем**: поездка возвращается из `assigned`/`arrived` в `searching`, `driver` пропадает — показать «ищем другого водителя», продолжать опрос.
 9. **Оплата**: Kaspi списывается при назначении водителя (`payment_status: "paid"` в ответе после `assigned`); наличные отдать водителю после `completed`, он подтверждает. Раздел [Оплата](#оплата).
 10. **История**: `GET /rides?limit=20&offset=0`, фильтр `status`; детали — `GET /rides/{ride_id}`.
+11. **Оценка водителя** после `completed`: `POST /rides/{ride_id}/rating {"stars": 5, "tags": ["polite", "clean_car"], "comment": "..."}` → `201`. Теги пассажира: `polite`, `clean_car`, `smooth_driving`, `knows_route`. Показывать форму, пока `my_rating` в `GET /rides/{ride_id}` равен `null`. Раздел [Оценки](#оценки).
 
 ## Поток водителя
 
@@ -227,6 +231,7 @@ export async function loginWithGoogle(credential: string) {
 8. **Оплата**: `GET /rides/{ride_id}/payment` (сумма, способ, статус). Если `method: "cash"`, после `completed` получить деньги и нажать «Наличные получены»: `POST /rides/{ride_id}/payment/cash-received`.
 9. **Активная поездка после перезагрузки**: `GET /rides?status=assigned&status=arrived&status=in_progress&limit=1`. История — `GET /rides`: поездки, где он сейчас водитель (освобождённая уходит из истории).
 10. **Конец смены**: `PUT /drivers/me/availability {"online": false}` — открытое предложение отзывается.
+11. **Оценка пассажира** после `completed`: `POST /rides/{ride_id}/rating {"stars": 5, "tags": ["on_time"]}`; теги водителя: `on_time`, `polite`, `clean`. В предложении виден `passenger_rating`, в `GET /drivers/me` — свой `rating`.
 
 ## Администратор
 
@@ -236,6 +241,14 @@ Admin создаётся только локальной командой (`scri
 - Класс машины: `PATCH /admin/drivers/{driver_id} {"car_class": "business"}` (`404 driver_not_found`, без машины — `409 driver_profile_incomplete`). Понижение класса отзывает открытые предложения водителя по более высоким тарифам. У новой машины — `economy`. Неполный профиль — `409 driver_profile_incomplete` с `details.missing_fields`; повторный допуск возвращает первый.
 - Чтение: `GET /admin/rides` (фильтры истории, `passenger_id`, `driver_id`; неизвестный id — пустая страница), `GET /admin/users?role=driver`, любая поездка `GET /rides/{ride_id}` (без карточки водителя) и её оплата.
 - Командами поездки и оплаты admin не управляет (`403 ride_command_forbidden`, `403 payment_action_forbidden`); `GET /rides` для admin — `403 forbidden`.
+
+## Оценки
+
+[ADR 0013](decisions/0013-ride-ratings.md). Только после `completed`, по одной оценке на сторону, изменить нельзя.
+
+- Тело: `stars` — целое 1–5; `tags` — массив (по умолчанию `[]`, повторы отбрасываются, ответ в фиксированном порядке); `comment` — до 500 символов после обрезки, пустой — `null`.
+- Ошибки по порядку: `404 ride_not_found` (нет поездки или чужая), `403 rating_forbidden` (admin), `422 validation_error` (тег другой стороны — `details.errors[].loc = ["body", "tags", i]`; звёзды вне 1–5, неизвестный тег, лишнее поле), `409 ride_not_completed`, `409 rating_already_exists`. Требует `X-CSRF-Token`.
+- Своя оценка — `my_rating` в `GET /rides/{ride_id}`. Средние (`{average, count}`): водителя — `driver.rating` в деталях поездки и `rating` в `/drivers/me`, пассажира — `passenger_rating` в предложении; свой — `rating` в `/users/me`.
 
 ## Опрос (polling)
 

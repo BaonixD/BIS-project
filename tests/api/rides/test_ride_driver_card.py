@@ -38,6 +38,7 @@ def card(location: Coordinates = NEAR_PICKUP, at: datetime = DEFAULT_START) -> d
         },
         "location": location.model_dump(),
         "location_updated_at": at.isoformat().replace("+00:00", "Z"),
+        "rating": {"average": None, "count": 0},
     }
 
 
