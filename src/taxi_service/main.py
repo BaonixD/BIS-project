@@ -13,8 +13,8 @@ from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.auth.rate_limit import LoginAttemptLimiter
 from taxi_service.modules.geo.client import RoutingProvider
 from taxi_service.modules.payments.config import PaymentSettings
-from taxi_service.modules.rides.completion import on_ride_completed
 from taxi_service.modules.rides.idempotency import IDEMPOTENCY_HEADER, REPLAYED_HEADER
+from taxi_service.modules.rides.lifecycle import on_ride_completed
 from taxi_service.modules.rides.policy import DispatchPolicy
 
 API_DESCRIPTION = """\
