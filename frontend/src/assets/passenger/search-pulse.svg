@@ -1,0 +1,13 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Pulse" clip-path="url(#clip0_0_103)">
+<path id="Vector" opacity="0.06" d="M100 200C155.228 200 200 155.228 200 100C200 44.7715 155.228 0 100 0C44.7715 0 0 44.7715 0 100C0 155.228 44.7715 200 100 200Z" fill="black"/>
+<path id="Vector_2" opacity="0.1" d="M100 162C134.242 162 162 134.242 162 100C162 65.7583 134.242 38 100 38C65.7583 38 38 65.7583 38 100C38 134.242 65.7583 162 100 162Z" fill="black"/>
+<path id="Vector_3" d="M100 114C107.732 114 114 107.732 114 100C114 92.268 107.732 86 100 86C92.268 86 86 92.268 86 100C86 107.732 92.268 114 100 114Z" fill="black"/>
+<path id="Vector_4" d="M100 105C102.761 105 105 102.761 105 100C105 97.2386 102.761 95 100 95C97.2386 95 95 97.2386 95 100C95 102.761 97.2386 105 100 105Z" fill="white"/>
+</g>
+<defs>
+<clipPath id="clip0_0_103">
+<rect width="200" height="200" fill="white"/>
+</clipPath>
+</defs>
+</svg>

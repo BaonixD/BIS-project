@@ -1,0 +1,7 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="12" height="40" viewBox="0 0 12 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Rail">
+<path id="Vector" d="M11 6C11 8.76142 8.76142 11 6 11C3.23858 11 1 8.76142 1 6C1 3.23858 3.23858 1 6 1C8.76142 1 11 3.23858 11 6Z" stroke-width="2" stroke="black"/>
+<path id="Vector_2" d="M6 13V13.9333M6 27V26.0667M6 16.7333V18.6M6 21.4V23.2667" stroke-width="2" stroke="#8E8E8E"/>
+<path id="Vector_3" d="M11 29H1V39H11V29Z" fill="black"/>
+</g>
+</svg>

@@ -9,6 +9,8 @@ import {
   type PaymentMethod,
   type RideStatus,
 } from '@/api'
+import type { RatingRequest, Tariff } from '@/api/passenger-types'
+import { needsPolling } from '@/pages/passenger/model/ride-screen'
 import { RIDE_POLL_MS } from './polling'
 import { queryKeys, type RideHistoryFilters } from './query-keys'
 
@@ -17,10 +19,21 @@ export interface RoutePoints {
   dropoff: Coordinates
 }
 
-export function useQuote() {
-  return useMutation({
-    mutationFn: ({ pickup, dropoff }: RoutePoints) =>
-      unwrap(api.POST('/api/v1/rides/quotes', { body: { pickup, dropoff } })),
+/** Prices of all four tariffs for a route (next contract: `options`, `kaspi_payment_url`). */
+export function useRouteQuote(points: RoutePoints | null) {
+  const key = points
+    ? [points.pickup.latitude, points.pickup.longitude, points.dropoff.latitude, points.dropoff.longitude]
+    : []
+  return useQuery({
+    queryKey: ['rides', 'quote', ...key],
+    queryFn: () => {
+      const { pickup, dropoff } = points as RoutePoints
+      return unwrap(api.POST('/api/v1/rides/quotes', { body: { pickup, dropoff } }))
+    },
+    enabled: points !== null,
+    staleTime: Infinity,
+    gcTime: 0,
+    retry: false,
   })
 }
 
@@ -34,6 +47,7 @@ export function useRoutePreview() {
 export interface CreateRideVariables {
   quoteId: string
   paymentMethod: PaymentMethod
+  tariff: Tariff
   idempotencyKey: string
 }
 
@@ -45,11 +59,11 @@ export function newIdempotencyKey(): string {
 export function useCreateRide() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ quoteId, paymentMethod, idempotencyKey }: CreateRideVariables) =>
+    mutationFn: ({ quoteId, paymentMethod, tariff, idempotencyKey }: CreateRideVariables) =>
       unwrap(
         api.POST('/api/v1/rides', {
           params: { header: { 'Idempotency-Key': idempotencyKey } },
-          body: { quote_id: quoteId, payment_method: paymentMethod },
+          body: { quote_id: quoteId, payment_method: paymentMethod, tariff },
         }),
       ),
     retry: (failureCount, error) => isApiError(error, NETWORK_ERROR_CODE) && failureCount < 2,
@@ -148,6 +162,30 @@ export function useReleaseRide(rideId: string) {
           body: { reason },
         }),
       ),
+    onSettled: invalidate,
+  })
+}
+
+/** Passenger ride screen data: polled while active and while a finished cash ride is unpaid. */
+export function usePassengerRide(rideId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.rides.detail(rideId ?? ''),
+    queryFn: () =>
+      unwrap(api.GET('/api/v1/rides/{ride_id}', { params: { path: { ride_id: rideId ?? '' } } })),
+    enabled: Boolean(rideId),
+    refetchInterval: (query) => {
+      const ride = query.state.data
+      if (query.state.error || !ride) return false
+      return needsPolling(ride) ? RIDE_POLL_MS : false
+    },
+  })
+}
+
+export function useRateRide(rideId: string) {
+  const invalidate = useInvalidateRide(rideId)
+  return useMutation({
+    mutationFn: (rating: RatingRequest) =>
+      unwrap(api.POST('/api/v1/rides/{ride_id}/rating', { params: { path: { ride_id: rideId } }, body: rating })),
     onSettled: invalidate,
   })
 }

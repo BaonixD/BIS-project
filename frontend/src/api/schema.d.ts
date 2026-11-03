@@ -261,6 +261,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/drivers/{driver_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Set Car Class */
+        patch: operations["set_car_class_api_v1_admin_drivers__driver_id__patch"];
+        trace?: never;
+    };
     "/api/v1/rides/quotes": {
         parameters: {
             query?: never;
@@ -432,6 +449,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/rides/{ride_id}/rating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rate Ride */
+        post: operations["rate_ride_api_v1_rides__ride_id__rating_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/rides": {
         parameters: {
             query?: never;
@@ -551,6 +585,8 @@ export interface components {
              * @description Fields still needed before approval; empty when complete.
              */
             missing_fields: string[];
+            /** @description Stars the driver received from passengers. */
+            rating: components["schemas"]["RatingSummaryResponse"];
             /** Username */
             username: string;
             /**
@@ -584,6 +620,13 @@ export interface components {
             display_name: string | null;
         };
         /**
+         * ApprovalRequest
+         * @description Optional body of an approval; without ``car_class`` the class stays as it is.
+         */
+        ApprovalRequest: {
+            car_class?: components["schemas"]["Tariff"] | null;
+        };
+        /**
          * ApprovalStatus
          * @enum {string}
          */
@@ -605,6 +648,10 @@ export interface components {
         CancelRequest: {
             /** Reason */
             reason?: string | null;
+        };
+        /** CarClassUpdate */
+        CarClassUpdate: {
+            car_class: components["schemas"]["Tariff"];
         };
         /**
          * Coordinates
@@ -635,6 +682,8 @@ export interface components {
             location: components["schemas"]["Coordinates"] | null;
             /** Location Updated At */
             location_updated_at: string | null;
+            /** @description Stars the driver received. */
+            rating: components["schemas"]["RatingSummaryResponse"];
         };
         /**
          * DriverProfileUpdate
@@ -682,6 +731,8 @@ export interface components {
              * @description Fields still needed before approval; empty when complete.
              */
             missing_fields: string[];
+            /** @description Stars the driver received from passengers. */
+            rating: components["schemas"]["RatingSummaryResponse"];
         };
         /** ErrorBody */
         ErrorBody: {
@@ -780,6 +831,8 @@ export interface components {
             display_name: string | null;
             /** Phone */
             phone: string | null;
+            /** @description Stars received from the other side of rides (count 0 for an admin). */
+            rating: components["schemas"]["RatingSummaryResponse"];
         };
         /**
          * MyProfileUpdate
@@ -790,6 +843,15 @@ export interface components {
             display_name?: string | null;
             /** Phone */
             phone?: string | null;
+        };
+        /** MyRating */
+        MyRating: {
+            /** Stars */
+            stars: number;
+            /** Tags */
+            tags: components["schemas"]["RatingTag"][];
+            /** Comment */
+            comment: string | null;
         };
         /** OfferResponse */
         OfferResponse: {
@@ -817,6 +879,9 @@ export interface components {
              * @constant
              */
             currency: "KZT";
+            tariff: components["schemas"]["Tariff"];
+            /** @description Stars the passenger received. */
+            passenger_rating: components["schemas"]["RatingSummaryResponse"];
             /**
              * Created At
              * Format: date-time
@@ -930,8 +995,11 @@ export interface components {
             pickup: components["schemas"]["Coordinates"];
             dropoff: components["schemas"]["Coordinates"];
             route: components["schemas"]["RouteResult"];
-            /** Amount Kzt */
-            amount_kzt: number;
+            /**
+             * Options
+             * @description Every tariff, cheapest first: economy, comfort, comfort_plus, business.
+             */
+            options: components["schemas"]["TariffOption"][];
             /**
              * Currency
              * @constant
@@ -939,6 +1007,11 @@ export interface components {
             currency: "KZT";
             /** Tariff Version */
             tariff_version: string;
+            /**
+             * Kaspi Payment Url
+             * @description The configured Kaspi link (pay.kaspi.kz) or null when Kaspi is off. Opening it charges nothing: a Kaspi ride counts as paid once a driver accepts it.
+             */
+            kaspi_payment_url: string | null;
             /**
              * Created At
              * Format: date-time
@@ -950,6 +1023,65 @@ export interface components {
              */
             expires_at: string;
         };
+        /**
+         * RaterRole
+         * @enum {string}
+         */
+        RaterRole: "passenger" | "driver";
+        /** RatingRequest */
+        RatingRequest: {
+            /**
+             * Stars
+             * @example 5
+             */
+            stars: number;
+            /**
+             * Tags
+             * @description The passenger about the driver: polite, clean_car, smooth_driving, knows_route; the driver about the passenger: on_time, polite, clean. Repeats are dropped.
+             */
+            tags?: components["schemas"]["RatingTag"][];
+            /**
+             * Comment
+             * @description Up to 500 characters after trimming; blank is null.
+             * @example Thank you!
+             */
+            comment?: string | null;
+        };
+        /** RatingResponse */
+        RatingResponse: {
+            /** Stars */
+            stars: number;
+            /** Tags */
+            tags: components["schemas"]["RatingTag"][];
+            /** Comment */
+            comment: string | null;
+            /**
+             * Ride Id
+             * Format: uuid
+             */
+            ride_id: string;
+            rater_role: components["schemas"]["RaterRole"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * RatingSummaryResponse
+         * @description Average stars received (two decimals), null without ratings.
+         */
+        RatingSummaryResponse: {
+            /** Average */
+            average: number | null;
+            /** Count */
+            count: number;
+        };
+        /**
+         * RatingTag
+         * @enum {string}
+         */
+        RatingTag: "polite" | "clean_car" | "smooth_driving" | "knows_route" | "on_time" | "clean";
         /** ReadyStatus */
         ReadyStatus: {
             /**
@@ -997,10 +1129,15 @@ export interface components {
              */
             quote_id: string;
             /**
-             * @description Chosen with the order. kaspi_link counts as paid at once (a simulated charge, no money is checked) and needs KASPI_PAYMENT_URL; its link is the payment_url of GET /rides/{ride_id}/payment.
+             * @description Chosen with the order. kaspi_link needs KASPI_PAYMENT_URL and counts as paid when a driver accepts the ride (a simulated charge, no money is checked); its link is kaspi_payment_url of the quote and payment_url of GET /rides/{ride_id}/payment.
              * @default cash
              */
             payment_method: components["schemas"]["PaymentMethod"];
+            /**
+             * @description The ride costs this tariff's amount from the quote; only cars of this class or higher are offered the ride.
+             * @default economy
+             */
+            tariff: components["schemas"]["Tariff"];
         };
         /** RideDetailsResponse */
         RideDetailsResponse: {
@@ -1025,6 +1162,7 @@ export interface components {
             pickup: components["schemas"]["Coordinates"];
             dropoff: components["schemas"]["Coordinates"];
             route: components["schemas"]["RouteResult"];
+            tariff: components["schemas"]["Tariff"];
             /** Amount Kzt */
             amount_kzt: number;
             /**
@@ -1060,6 +1198,8 @@ export interface components {
             payment_status: components["schemas"]["PaymentStatus"] | null;
             /** @description Only for the passenger and the driver while the ride is assigned, arrived or in_progress; otherwise null. */
             driver: components["schemas"]["DriverCard"] | null;
+            /** @description The rating the caller gave this ride; null until they rate it (always null for an admin). */
+            my_rating: components["schemas"]["MyRating"] | null;
         };
         /** RideResponse */
         RideResponse: {
@@ -1084,6 +1224,7 @@ export interface components {
             pickup: components["schemas"]["Coordinates"];
             dropoff: components["schemas"]["Coordinates"];
             route: components["schemas"]["RouteResult"];
+            tariff: components["schemas"]["Tariff"];
             /** Amount Kzt */
             amount_kzt: number;
             /**
@@ -1154,6 +1295,7 @@ export interface components {
              * @constant
              */
             currency: "KZT";
+            tariff: components["schemas"]["Tariff"];
             /**
              * Created At
              * Format: date-time
@@ -1219,6 +1361,17 @@ export interface components {
              */
             expires_at: string;
         };
+        /**
+         * Tariff
+         * @enum {string}
+         */
+        Tariff: "economy" | "comfort" | "comfort_plus" | "business";
+        /** TariffOption */
+        TariffOption: {
+            tariff: components["schemas"]["Tariff"];
+            /** Amount Kzt */
+            amount_kzt: number;
+        };
         /** UserResponse */
         UserResponse: {
             /**
@@ -1253,6 +1406,7 @@ export interface components {
             color: string;
             /** Plate Number */
             plate_number: string;
+            car_class: components["schemas"]["Tariff"];
         };
         /**
          * VehicleInput
@@ -1299,6 +1453,8 @@ export interface components {
             plate_number: string;
             /** Year */
             year: number;
+            /** @description Set by an admin; serves its tariff and lower ones. */
+            car_class: components["schemas"]["Tariff"];
         };
     };
     responses: never;
@@ -2206,7 +2362,91 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ApprovalRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminDriverResponse"];
+                };
+            };
+            /** @description Not authenticated (no or expired session) or invalid credentials */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden: role, CSRF token or request origin not allowed */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found or not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict with the current state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    set_car_class_api_v1_admin_drivers__driver_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                driver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CarClassUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -3021,6 +3261,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaymentResponse"];
+                };
+            };
+            /** @description Not authenticated (no or expired session) or invalid credentials */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden: role, CSRF token or request origin not allowed */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found or not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict with the current state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    rate_ride_api_v1_rides__ride_id__rating_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ride_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RatingRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RatingResponse"];
                 };
             };
             /** @description Not authenticated (no or expired session) or invalid credentials */
