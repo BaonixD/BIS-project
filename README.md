@@ -2,13 +2,14 @@
 
 Учебный проект по Basics of Information Systems: backend MVP сервиса такси в Алматы (KZT). Реализованы вход по username/password с серверными сессиями и CSRF, вход пассажиров через Google, профили пассажиров и водителей, допуск водителей, дорожный маршрут и учебный тариф, идемпотентный заказ, назначение ближайшего водителя с 30-секундными предложениями, жизненный цикл поездки, учебная оплата «как в такси»: наличные или ссылка Kaspi выбираются при заказе, история и административное чтение, демонстрационный seed.
 
-Стек: Python 3.12, FastAPI, SQLAlchemy 2 async, Alembic, SQLite без Docker ([ADR 0001](docs/decisions/0001-sqlite-without-docker.md)). Локальный модульный монолит, без CI и микросервисов. React-интерфейс — следующий этап.
+Стек: Python 3.12, FastAPI, SQLAlchemy 2 async, Alembic, SQLite без Docker ([ADR 0001](docs/decisions/0001-sqlite-without-docker.md)). Локальный модульный монолит, без CI и микросервисов. Веб-клиент на React — в `frontend/` (раздел [Фронтенд](#фронтенд)).
 
 ## Содержание
 
 - [Документы](#документы)
 - [Быстрый старт](#быстрый-старт)
 - [Локальная разработка](#локальная-разработка): [установка](#установка), [переменные окружения](#переменные-окружения), [БД и миграции](#база-данных-и-миграции), [резервная копия](#резервная-копия-и-восстановление-локальной-бд), [запуск API](#запуск-api), [аутентификация](#аутентификация), [ошибки](#ошибки-request_id-и-логи), [проверки](#проверки)
+- [Фронтенд](#фронтенд)
 - [Продукт](#продукт) и [ограничения локального MVP](#ограничения-локального-mvp)
 - [Маршруты](#маршруты), [водители и профили](#водители-и-профили), [quote и создание поездки](#поездки-quote-и-создание), [история](#история-и-администрирование), [seed](#демонстрационные-данные-seed), [назначение водителя](#назначение-водителя), [жизненный цикл](#жизненный-цикл-поездки), [оплата](#оплата), [оценки](#оценки)
 - [Демонстрационный сценарий](#демонстрационный-сценарий)
@@ -255,6 +256,34 @@ uv run ruff format .
 ```
 
 CI и Git hooks не настраиваются; проверки запускаются локально.
+
+## Фронтенд
+
+Веб-клиент в `frontend/`: Vite + React + TypeScript (strict), Tailwind CSS v4, shadcn/ui (стиль `radix-vega`, base color neutral, CSS variables), react-router 7, TanStack Query, openapi-fetch, react-leaflet с подложкой CARTO Positron (без ключей). Экраны пока каркасные — визуальный дизайн заменит их по макету. Нужен Node.js 20+ и npm.
+
+1. Бэкенд на `http://127.0.0.1:8000` с `SESSION_COOKIE_SECURE=false` (иначе браузер не вернёт cookie по `http://`):
+
+   ```bash
+   uv run alembic upgrade head
+   SESSION_COOKIE_SECURE=false uv run uvicorn --factory taxi_service.main:create_app --port 8000
+   ```
+
+2. Фронтенд на `http://localhost:5173`:
+
+   ```bash
+   cd frontend
+   npm ci
+   npm run dev
+   ```
+
+Dev-сервер Vite проксирует `/api` и `/health` на `http://127.0.0.1:8000`: запросы идут с того же origin, cookie сессии `SameSite=Lax` работает без CORS. Открывайте именно `http://localhost:5173`. Проверки: `npm run lint`, `npm run typecheck`, `npm run build`.
+
+Типы API (`src/api/schema.d.ts`) генерируются из `frontend/openapi.json`. После изменения API обновите схему из корня репозитория и перегенерируйте типы:
+
+```bash
+uv run python -c "import json;from taxi_service.core.config import Settings;from taxi_service.main import create_app;print(json.dumps(create_app(Settings(database_url='sqlite+aiosqlite:///x.db')).openapi(), indent=2))" > frontend/openapi.json
+cd frontend && npm run gen:api
+```
 
 ## Продукт
 
