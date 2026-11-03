@@ -1,11 +1,4 @@
-"""Demonstration data: an admin, two passengers and three approved, online drivers.
-
-Run it with ``uv run python scripts/seed.py``; nothing in the application
-imports this module. Usernames are the stable keys: an account that already
-exists is reported and left as it is, so repeated runs create nothing new and
-keep changes made through the API. Only ``refresh_locations`` touches existing
-demo drivers, and then only their location and availability.
-"""
+"""Demo accounts keyed by username: existing ones are left as they are (``scripts/seed.py``)."""
 
 import uuid
 from collections.abc import Mapping
@@ -167,11 +160,7 @@ async def apply_demo_seed(
     password: str | None,
     refresh_locations: bool = False,
 ) -> SeedReport:
-    """Create the accounts the plan lists as missing; skip (or refresh) the others.
-
-    ``password`` is needed only when something is missing; every created
-    account gets it. Each step runs through the services in its own transaction.
-    """
+    """``password`` is needed only when the plan lists missing accounts."""
     if plan.missing and password is None:
         raise ValueError("a password is required to create the missing demo accounts")
     accounts = _Accounts(session_factory, clock, hasher, password)
@@ -197,7 +186,6 @@ async def seed_demo(
     password: str,
     refresh_locations: bool = False,
 ) -> SeedReport:
-    """:func:`plan_demo_seed` followed by :func:`apply_demo_seed`."""
     plan = await plan_demo_seed(session_factory)
     return await apply_demo_seed(
         session_factory,
