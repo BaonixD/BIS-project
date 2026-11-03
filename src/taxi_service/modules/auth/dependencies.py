@@ -28,15 +28,13 @@ SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 session_cookie = APIKeyCookie(
     name=SESSION_COOKIE_NAME,
     scheme_name="SessionCookie",
-    description="HttpOnly session cookie set by POST /api/v1/auth/login. "
-    "In Swagger UI log in with that endpoint; the browser then sends the cookie itself.",
+    description="HttpOnly session cookie set by POST /api/v1/auth/login.",
     auto_error=False,
 )
 csrf_header = APIKeyHeader(
     name=CSRF_HEADER_NAME,
     scheme_name="CsrfToken",
-    description="csrf_token from GET /api/v1/auth/session (or the login response). "
-    "Required on POST/PUT/PATCH/DELETE made with the session cookie.",
+    description="csrf_token from GET /api/v1/auth/session; required on unsafe methods.",
     auto_error=False,
 )
 
@@ -64,13 +62,7 @@ async def get_current_user(
     db: DbSession,
     clock: ClockDep,
 ) -> AuthenticatedUser:
-    """The session's user; 401 ``not_authenticated`` without a valid session.
-
-    Every state-changing method also needs the session's own CSRF token in
-    ``X-CSRF-Token`` (403 ``csrf_failed``), so routes using ``CurrentUser``
-    are protected without extra code. The lookup runs in its own short read
-    transaction, finished before the route or service begins a write.
-    """
+    """Unsafe methods also need the session's CSRF token: every ``CurrentUser`` route has it."""
     if not token:
         raise NotAuthenticatedError
     user = await service.authenticate(db, token, clock=clock)
@@ -83,12 +75,6 @@ CurrentUser = Annotated[AuthenticatedUser, Depends(get_current_user)]
 
 
 def require_roles(*roles: UserRole) -> Callable[..., Awaitable[AuthenticatedUser]]:
-    """Dependency: ``CurrentUser`` whose role is one of ``roles``, else 403 ``forbidden``.
-
-    Usage: ``Annotated[AuthenticatedUser, Depends(require_roles(UserRole.ADMIN))]``.
-    It checks the role only; access to a particular ride or profile is the
-    service's job.
-    """
     if not roles:
         raise ValueError("require_roles needs at least one role")
     allowed = frozenset(roles)
@@ -102,12 +88,7 @@ def require_roles(*roles: UserRole) -> Callable[..., Awaitable[AuthenticatedUser
 
 
 def require_allowed_origin(request: Request, settings: SettingsDep) -> None:
-    """Refuse a browser ``Origin`` that is neither allowlisted nor the API's own.
-
-    For login and register, which have no session and so no CSRF token yet.
-    A request without ``Origin`` is not from a cross-site browser form or
-    script (browsers send it with every cross-origin POST) and is allowed.
-    """
+    """Login and register have no CSRF token yet; browsers send ``Origin`` cross-site."""
     origin = request.headers.get("origin")
     if origin is None:
         return

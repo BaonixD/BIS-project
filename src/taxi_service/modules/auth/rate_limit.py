@@ -8,14 +8,7 @@ from taxi_service.modules.auth.exceptions import TooManyLoginAttemptsError
 
 
 class LoginAttemptLimiter:
-    """At most ``max_attempts`` attempts per key within a sliding ``window``.
-
-    In-memory and per process: the state is lost on restart and not shared
-    between processes (ADR 0003). Memory is bounded: at most ``max_keys`` keys,
-    each with at most ``max_attempts`` timestamps. When full, keys with no
-    attempt left in the window are dropped first, then the least recently used.
-    Single event loop only: there is no locking.
-    """
+    """Sliding-window limit per key in one process and event loop, lost on restart (ADR 0003)."""
 
     def __init__(
         self, *, clock: Clock, max_attempts: int, window: timedelta, max_keys: int
@@ -36,7 +29,6 @@ class LoginAttemptLimiter:
         )
 
     def acquire(self, key: str) -> None:
-        """Record an attempt, or raise ``TooManyLoginAttemptsError`` without recording."""
         now = self._clock.now()
         attempts = self._attempts.get(key)
         if attempts is not None:

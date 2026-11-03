@@ -10,14 +10,7 @@ SHA256_HEX_LENGTH = 64
 
 
 class AuthSession(Base):
-    """Server-side login session.
-
-    The cookie carries a random token; only its SHA-256 (``token_hash``) is
-    stored, so a copy of the database does not let anyone log in. The CSRF
-    token is stored as is: it is returned to the authenticated client and is
-    useless without the session cookie. A session is valid while
-    ``revoked_at`` is empty and ``expires_at`` is in the future.
-    """
+    """Only the token's SHA-256 is stored, so a database copy does not let anyone log in."""
 
     __tablename__ = "auth_sessions"
     __table_args__ = (CheckConstraint("expires_at > created_at", name="expires_after_created"),)

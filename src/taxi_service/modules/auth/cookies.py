@@ -1,5 +1,3 @@
-"""The session cookie: one place for its name and attributes."""
-
 from fastapi import Response
 
 from taxi_service.core.config import Settings
@@ -9,7 +7,6 @@ SESSION_COOKIE_NAME = "taxi_session"
 
 
 def set_session_cookie(response: Response, token: str, settings: Settings) -> None:
-    """HttpOnly (no script access), SameSite=Lax, Secure unless disabled for local HTTP."""
     response.set_cookie(
         SESSION_COOKIE_NAME,
         token,
