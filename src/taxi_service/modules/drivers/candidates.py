@@ -1,17 +1,4 @@
-"""Nearest available drivers for a pickup point: the contract used by dispatch (T06).
-
-A candidate is an approved, online driver with a vehicle whose last location
-is at most ``max_location_age_s`` old and within ``radius_m`` of the pickup
-(MVP_SPEC section 6). SQL selects rows inside the bounding box of the circle
-using the (longitude, latitude) index; Python computes the haversine distance,
-drops points outside the circle and orders by distance, then driver id.
-
-Drivers who are busy (an accepted active ride: assigned, arrived,
-in_progress) or reserved (a pending offer for any ride) are excluded in SQL,
-inside the caller's transaction. With ``in_search`` a driver who already had
-an offer in that search of the ride, or who once accepted the ride (and
-released it), is excluded too (MVP_SPEC §6, ADR 0006).
-"""
+"""Nearest available drivers: bounding box in SQL, haversine in Python (MVP_SPEC §6, ADR 0001)."""
 
 import uuid
 from collections.abc import Collection
@@ -34,8 +21,6 @@ DEFAULT_LIMIT = 10
 
 @dataclass(frozen=True, slots=True)
 class SearchScope:
-    """The current driver search of a ride: it started at ``started_at``."""
-
     ride_id: uuid.UUID
     started_at: datetime
 
@@ -43,9 +28,7 @@ class SearchScope:
 @dataclass(frozen=True, slots=True)
 class Candidate:
     driver_id: uuid.UUID
-    """User id of the driver (``driver_profiles.user_id``)."""
-    distance_m: float
-    """Great-circle distance to the pickup in metres, not rounded."""
+    distance_m: float  # great-circle, not rounded
 
 
 async def find_nearby_candidates(
@@ -59,13 +42,7 @@ async def find_nearby_candidates(
     in_search: SearchScope | None = None,
     limit: int = DEFAULT_LIMIT,
 ) -> list[Candidate]:
-    """At most ``limit`` candidates, nearest first; equal distances by ascending driver id.
-
-    Both boundaries are inclusive: distance ``== radius_m`` and location age
-    ``== max_location_age_s`` qualify. ``now`` is the caller's server time
-    (``Clock``). Runs in the caller's transaction (``read_transaction`` or the
-    dispatch service's ``session.begin()``); it neither begins nor commits.
-    """
+    """Nearest first, then by driver id; both boundaries inclusive; the caller's transaction."""
     if radius_m <= 0 or max_location_age_s < 0 or limit < 1:
         raise ValueError("radius_m must be > 0, max_location_age_s >= 0 and limit >= 1")
     fresh_since = now - timedelta(seconds=max_location_age_s)
@@ -86,10 +63,7 @@ async def find_nearby_candidates(
 
 
 def eligible_drivers(fresh_since: datetime) -> Select[uuid.UUID, float | None, float | None]:
-    """Approved, online, not busy or reserved drivers with a vehicle and a fresh location.
-
-    The location must not be older than ``fresh_since``.
-    """
+    """Approved, online, free drivers with a vehicle and a location since ``fresh_since``."""
     return (
         select(DriverProfile.user_id, DriverProfile.longitude, DriverProfile.latitude)
         .join(Vehicle, Vehicle.driver_id == DriverProfile.user_id)

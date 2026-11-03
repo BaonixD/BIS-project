@@ -75,11 +75,7 @@ class VehicleInput(BaseModel):
 
 
 class DriverProfileUpdate(PatchRequest):
-    """Writable driver fields. Approval, availability and location have their own commands.
-
-    Changing ``full_name``, ``license_number`` or the vehicle of an approved
-    driver returns the driver to ``pending`` and offline until approved again.
-    """
+    """Changing the name, licence or vehicle of an approved driver returns them to pending."""
 
     full_name: FullName | None = None
     phone: Phone | None = None

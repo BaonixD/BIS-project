@@ -24,15 +24,7 @@ class ApprovalStatus(StrEnum):
 
 
 class DriverProfile(Base):
-    """Driver data of a ``users`` row with role ``driver``; the primary key is the user id.
-
-    The row appears on the driver's first write (profile, location, availability);
-    until then the driver is an empty pending profile. Constraints keep the
-    states consistent: approved rows name the admin and time, only approved
-    drivers can be online, a location is either complete and in range or absent.
-    The (longitude, latitude) index serves the bounding-box prefilter of the
-    nearest-driver search (ADR 0001).
-    """
+    """Created on the driver's first write; until then the driver is an empty pending profile."""
 
     __tablename__ = "driver_profiles"
     __table_args__ = (
