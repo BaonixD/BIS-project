@@ -5,8 +5,15 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, SecretStr, StringConstraints
 
+from taxi_service.modules.ratings.records import RatingSummary
 from taxi_service.modules.ratings.schemas import RatingSummaryResponse
-from taxi_service.modules.users.models import DISPLAY_NAME_MAX_LENGTH, UserRole
+from taxi_service.modules.users.models import (
+    DISPLAY_NAME_MAX_LENGTH,
+    LoginMethod,
+    User,
+    UserProfile,
+    UserRole,
+)
 from taxi_service.schemas.patch import PatchRequest
 
 USERNAME_PATTERN = r"^[A-Za-z0-9_]{3,32}$"
@@ -72,6 +79,24 @@ class MyProfileResponse(UserResponse):
     rating: RatingSummaryResponse = Field(
         description="Stars received from the other side of rides (count 0 for an admin)."
     )
+    login_method: LoginMethod = Field(description="google for an account made by Google sign-in.")
+    email: str | None = Field(description="The Google account's email; null for a password login.")
+
+    @classmethod
+    def build(
+        cls, user: User, profile: UserProfile | None, rating: RatingSummary
+    ) -> "MyProfileResponse":
+        return cls(
+            id=user.id,
+            username=user.username,
+            role=user.role,
+            created_at=user.created_at,
+            display_name=profile.display_name if profile else None,
+            phone=profile.phone if profile else None,
+            rating=RatingSummaryResponse.build(rating),
+            login_method=user.login_method,
+            email=user.email,
+        )
 
 
 class MyProfileUpdate(PatchRequest):

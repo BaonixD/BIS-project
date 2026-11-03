@@ -40,21 +40,26 @@ from taxi_service.modules.rides.models import (
 from taxi_service.modules.rides.policy import DEFAULT_DISPATCH_POLICY, DispatchPolicy
 from taxi_service.modules.rides.pricing import Fares, calculate_fares
 from taxi_service.modules.rides.schemas import QuoteRequest, RideCreateRequest
-from taxi_service.modules.rides.states import ACTIVE_RIDE_STATUSES
+from taxi_service.modules.rides.states import ACTIVE_RIDE_STATUSES, RideStatus
 from taxi_service.modules.users.models import UserRole
 
 QUOTE_TTL: Final = timedelta(minutes=5)
+DRIVER_CARD_STATUSES: Final = ACCEPTED_ACTIVE_RIDE_STATUSES | {RideStatus.COMPLETED}
 CREATE_RIDE_OPERATION: Final = "create_ride"
 
 
 @dataclass(frozen=True, slots=True)
 class RideDetails:
-    """``driver_rating`` is set with ``driver``; ``my_rating`` is the viewer's own."""
+    """``driver_rating`` is set with ``driver``; ``my_rating`` is the viewer's own.
+
+    ``driver_location``: the card shows the driver's location (only while the ride is active).
+    """
 
     ride: Ride
     driver: DriverProfile | None
     driver_rating: RatingSummary | None
     my_rating: RideRating | None
+    driver_location: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,7 +167,8 @@ async def get_ride(
             driver = await drivers_service.get_driver_profile(db, ride.driver_id)
             driver_rating = await rating_records.summary(db, ride.driver_id)
         my_rating = await rating_records.rating_by(db, ride.id, viewer_id)
-    return RideDetails(ride, driver, driver_rating, my_rating)
+    driver_location = ride.status in ACCEPTED_ACTIVE_RIDE_STATUSES
+    return RideDetails(ride, driver, driver_rating, my_rating, driver_location)
 
 
 async def driver_has_active_ride(db: AsyncSession, driver_id: uuid.UUID) -> bool:
@@ -181,8 +187,9 @@ def can_view_ride(ride: Ride, viewer_id: uuid.UUID, viewer_role: UserRole) -> bo
 
 
 def shows_driver(ride: Ride, viewer_id: uuid.UUID) -> bool:
+    """To the participants of an active ride and, for the receipt, of a completed one."""
     participant = viewer_id in (ride.passenger_id, ride.driver_id)
-    return participant and ride.status in ACCEPTED_ACTIVE_RIDE_STATUSES
+    return participant and ride.status in DRIVER_CARD_STATUSES
 
 
 def route_snapshot(

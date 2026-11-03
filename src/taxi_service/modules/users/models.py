@@ -20,6 +20,11 @@ class UserRole(StrEnum):
     ADMIN = "admin"
 
 
+class LoginMethod(StrEnum):
+    PASSWORD = "password"
+    GOOGLE = "google"
+
+
 class User(Base):
     """Case-insensitive uniqueness through ``username_normalized``, enforced by the database."""
 
@@ -49,6 +54,10 @@ class User(Base):
         )
     )
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+    @property
+    def login_method(self) -> LoginMethod:
+        return LoginMethod.PASSWORD if self.google_sub is None else LoginMethod.GOOGLE
 
 
 class UserProfile(Base):

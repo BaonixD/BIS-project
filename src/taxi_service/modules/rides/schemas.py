@@ -178,7 +178,10 @@ class VehicleCard(BaseModel):
 
 
 class DriverCard(BaseModel):
-    """``location`` is the last one sent; a stale one never ends the ride."""
+    """``location`` is the last one sent; a stale one never ends the ride.
+
+    After completion both location fields are null (ADR 0007).
+    """
 
     full_name: str | None
     phone: str | None
@@ -188,10 +191,12 @@ class DriverCard(BaseModel):
     rating: RatingSummaryResponse = Field(description="Stars the driver received.")
 
     @classmethod
-    def build(cls, profile: DriverProfile, rating: RatingSummary) -> "DriverCard":
+    def build(
+        cls, profile: DriverProfile, rating: RatingSummary, *, with_location: bool
+    ) -> "DriverCard":
         vehicle = profile.vehicle
         location = None
-        if profile.longitude is not None and profile.latitude is not None:
+        if with_location and profile.longitude is not None and profile.latitude is not None:
             location = Coordinates(longitude=profile.longitude, latitude=profile.latitude)
         return cls(
             full_name=profile.full_name,
@@ -206,7 +211,7 @@ class DriverCard(BaseModel):
                 car_class=vehicle.car_class,
             ),
             location=location,
-            location_updated_at=profile.location_updated_at,
+            location_updated_at=profile.location_updated_at if with_location else None,
             rating=RatingSummaryResponse.build(rating),
         )
 
@@ -214,7 +219,7 @@ class DriverCard(BaseModel):
 class RideDetailsResponse(RideResponse):
     driver: DriverCard | None = Field(
         description="Only for the passenger and the driver while the ride is assigned, "
-        "arrived or in_progress; otherwise null."
+        "arrived, in_progress or completed (then without location); otherwise null."
     )
     my_rating: MyRating | None = Field(
         description="The rating the caller gave this ride; null until they rate it "
@@ -228,10 +233,13 @@ class RideDetailsResponse(RideResponse):
         driver: DriverProfile | None,
         driver_rating: RatingSummary | None,
         my_rating: RideRating | None,
+        *,
+        driver_location: bool,
     ) -> "RideDetailsResponse":
         card = None
         if driver is not None:
-            card = DriverCard.build(driver, driver_rating or NO_RATINGS)
+            rating = driver_rating or NO_RATINGS
+            card = DriverCard.build(driver, rating, with_location=driver_location)
         return cls(
             **RideResponse.build(ride).model_dump(),
             driver=card,
@@ -250,6 +258,7 @@ class OfferResponse(BaseModel):
     amount_kzt: int
     currency: Literal["KZT"]
     tariff: Tariff
+    payment_method: PaymentMethod = Field(description="How the passenger pays for the ride.")
     passenger_rating: RatingSummaryResponse = Field(description="Stars the passenger received.")
     created_at: datetime
     expires_at: datetime
@@ -258,6 +267,8 @@ class OfferResponse(BaseModel):
     def build(
         cls, offer: RideOffer, ride: Ride, passenger_rating: RatingSummary
     ) -> "OfferResponse":
+        # Every ride gets its payment with the order; older ones were backfilled as cash.
+        payment = ride.payment
         return cls(
             id=offer.id,
             ride_id=ride.id,
@@ -269,6 +280,7 @@ class OfferResponse(BaseModel):
             amount_kzt=ride.amount_kzt,
             currency="KZT",
             tariff=ride.tariff,
+            payment_method=PaymentMethod.CASH if payment is None else payment.method,
             passenger_rating=RatingSummaryResponse.build(passenger_rating),
             created_at=offer.created_at,
             expires_at=offer.expires_at,

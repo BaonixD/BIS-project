@@ -4,6 +4,8 @@ While the ride is assigned, arrived or in_progress its passenger and its
 driver see the driver's name, phone, car and last location with the server
 time of that location; nobody else does, and no location history is kept. A
 location that stopped updating is shown as it is: it never ends the ride.
+After completion the participants still see the card for the receipt, but
+without any location (ADR 0007).
 """
 
 from datetime import datetime, timedelta
@@ -24,7 +26,9 @@ ACTIVE = ("assigned", "arrived", "in_progress")
 MOVED = Coordinates(longitude=76.9575, latitude=43.2391)
 
 
-def card(location: Coordinates = NEAR_PICKUP, at: datetime = DEFAULT_START) -> dict[str, Any]:
+def card(
+    location: Coordinates | None = NEAR_PICKUP, at: datetime | None = DEFAULT_START
+) -> dict[str, Any]:
     """Dana's card as ``support.drivers.complete_profile`` and ``DriverFactory`` made her."""
     return {
         "full_name": "Dana Driver",
@@ -36,8 +40,8 @@ def card(location: Coordinates = NEAR_PICKUP, at: datetime = DEFAULT_START) -> d
             "plate_number": "001TST02",
             "car_class": "economy",
         },
-        "location": location.model_dump(),
-        "location_updated_at": at.isoformat().replace("+00:00", "Z"),
+        "location": None if location is None else location.model_dump(),
+        "location_updated_at": None if at is None else at.isoformat().replace("+00:00", "Z"),
         "rating": {"average": None, "count": 0},
     }
 
@@ -53,11 +57,14 @@ async def read_as(client: httpx.AsyncClient, ride_id: object, username: str) -> 
 def same_card(shown: dict[str, Any] | None, expected: dict[str, Any]) -> bool:
     if shown is None:
         return False
-    when = shown["location_updated_at"]
-    return {**shown, "location_updated_at": datetime.fromisoformat(when)} == {
+    return {**shown, "location_updated_at": _moment(shown["location_updated_at"])} == {
         **expected,
-        "location_updated_at": datetime.fromisoformat(expected["location_updated_at"]),
+        "location_updated_at": _moment(expected["location_updated_at"]),
     }
+
+
+def _moment(value: str | None) -> datetime | None:
+    return None if value is None else datetime.fromisoformat(value)
 
 
 @pytest.mark.parametrize("status", ACTIVE)
@@ -72,8 +79,24 @@ async def test_participants_see_the_driver_of_an_active_ride(
         assert same_card(ride["driver"], card()), ride["driver"]
 
 
-@pytest.mark.parametrize("status", ["searching", "completed", "cancelled", "no_driver"])
-async def test_no_driver_card_outside_an_active_ride(
+async def test_participants_see_the_driver_of_a_completed_ride_without_location(
+    client: httpx.AsyncClient,
+    driver_factory: DriverFactory,
+    dispatcher: Dispatcher,
+    clock: ManualClock,
+) -> None:
+    trip = await trip_in("completed", client, driver_factory, dispatcher)
+    clock.advance(timedelta(seconds=20))
+    await driver_factory.move(trip.driver_id, MOVED)
+
+    for username in (trip.passenger, trip.driver):
+        ride = await read_as(client, trip.ride_id, username)
+        assert ride["status"] == "completed"
+        assert same_card(ride["driver"], card(location=None, at=None)), ride["driver"]
+
+
+@pytest.mark.parametrize("status", ["searching", "cancelled", "no_driver"])
+async def test_no_driver_card_outside_an_active_or_completed_ride(
     client: httpx.AsyncClient, driver_factory: DriverFactory, dispatcher: Dispatcher, status: str
 ) -> None:
     trip = await trip_in(status, client, driver_factory, dispatcher)
@@ -84,21 +107,23 @@ async def test_no_driver_card_outside_an_active_ride(
     assert ride["driver"] is None
 
 
+@pytest.mark.parametrize("status", ["assigned", "completed"])
 async def test_admin_reads_the_ride_without_the_driver_card(
-    client: httpx.AsyncClient, driver_factory: DriverFactory, dispatcher: Dispatcher
+    client: httpx.AsyncClient, driver_factory: DriverFactory, dispatcher: Dispatcher, status: str
 ) -> None:
-    trip = await trip_in("assigned", client, driver_factory, dispatcher)
+    trip = await trip_in(status, client, driver_factory, dispatcher)
 
     ride = await read_as(client, trip.ride_id, "admin")
 
-    assert ride["status"] == "assigned"
+    assert ride["status"] == status
     assert ride["driver"] is None
 
 
+@pytest.mark.parametrize("status", ["assigned", "completed"])
 async def test_other_users_see_neither_the_ride_nor_the_driver(
-    client: httpx.AsyncClient, driver_factory: DriverFactory, dispatcher: Dispatcher
+    client: httpx.AsyncClient, driver_factory: DriverFactory, dispatcher: Dispatcher, status: str
 ) -> None:
-    trip = await trip_in("assigned", client, driver_factory, dispatcher)
+    trip = await trip_in(status, client, driver_factory, dispatcher)
     await driver_factory.driver("other_driver", location=MOVED)
     await register_and_login(client, "other_passenger")
 

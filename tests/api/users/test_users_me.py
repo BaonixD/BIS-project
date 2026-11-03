@@ -37,6 +37,8 @@ async def test_new_account_has_an_empty_profile(client: httpx.AsyncClient, role:
         "display_name": None,
         "phone": None,
         "rating": {"average": None, "count": 0},
+        "login_method": "password",
+        "email": None,
     }
 
 
@@ -56,6 +58,7 @@ async def test_update_changes_only_the_sent_fields(client: httpx.AsyncClient) ->
     assert second.status_code == 200
     assert (second.json()["display_name"], second.json()["phone"]) == ("Alice", "+77011234567")
     assert (await client.get(ME_URL)).json() == second.json()
+    assert (second.json()["login_method"], second.json()["email"]) == ("password", None)
 
 
 async def test_update_needs_the_csrf_token(client: httpx.AsyncClient) -> None:

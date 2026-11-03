@@ -162,7 +162,7 @@ export async function loginWithGoogle(credential: string) {
 | POST | `/api/v1/auth/google` | без сессии | `{credential}` (Google ID token) → `SessionResponse` + cookie |
 | GET | `/api/v1/auth/session` | вошедший | → `SessionResponse {user, csrf_token, expires_at}` |
 | POST | `/api/v1/auth/logout` | вошедший | → `204` |
-| GET | `/api/v1/users/me` | вошедший | → `{id, username, role, created_at, display_name, phone, rating}` |
+| GET | `/api/v1/users/me` | вошедший | → `{id, username, role, created_at, display_name, phone, rating, login_method, email}` |
 | PATCH | `/api/v1/users/me` | вошедший | `{display_name?, phone?}` → то же (роль и username не меняются) |
 | GET | `/api/v1/drivers/me` | driver | → `DriverResponse` |
 | PATCH | `/api/v1/drivers/me` | driver | `{full_name?, phone?, license_number?, vehicle?: {make, model, color, plate_number, year}}` → `DriverResponse` (класс машины водитель не задаёт) |
@@ -193,10 +193,11 @@ export async function loginWithGoogle(credential: string) {
 Основные схемы ответа (поля — как в OpenAPI):
 
 - `RideResponse`: `id`, `status`, `passenger_id`, `driver_id`, `quote_id`, `pickup`, `dropoff`, `route` (`RouteResult`), `tariff`, `amount_kzt` (цена выбранного тарифа), `currency`, `tariff_version`, `created_at`, `updated_at`, `assigned_at`, `arrived_at`, `started_at`, `completed_at`, `cancelled_at`, `cancel_reason`, `payment_method`, `payment_status`.
-- `RideDetailsResponse` = `RideResponse` + `my_rating` (`{stars, tags, comment}` — своя оценка, `null` до неё и у admin) + `driver`: для пассажира и назначенного водителя при `assigned`/`arrived`/`in_progress` — `{full_name, phone, vehicle: {make, model, color, plate_number, car_class}, location, location_updated_at, rating}`; иначе `null`.
+- `RideDetailsResponse` = `RideResponse` + `my_rating` (`{stars, tags, comment}` — своя оценка, `null` до неё и у admin) + `driver`: для пассажира и назначенного водителя при `assigned`/`arrived`/`in_progress` — `{full_name, phone, vehicle: {make, model, color, plate_number, car_class}, location, location_updated_at, rating}`; при `completed` — та же карточка для чека, но `location` и `location_updated_at` = `null`; иначе `null`.
 - `RouteResult`: `distance_m`, `duration_s`, `route_geometry` (GeoJSON `LineString`), `provider`.
 - `QuoteResponse`: `quote_id`, `pickup`, `dropoff`, `route`, `options` (ровно четыре `{tariff, amount_kzt}`: `economy`, `comfort`, `comfort_plus`, `business`), `currency`, `tariff_version` (`edu-v2`), `kaspi_payment_url` (ссылка Kaspi или `null`), `created_at`, `expires_at`. Общей `amount_kzt` нет.
-- `OfferResponse`: `id`, `ride_id`, `status`, `pickup`, `dropoff`, `distance_m`, `duration_s`, `amount_kzt`, `currency`, `tariff`, `passenger_rating`, `created_at`, `expires_at`.
+- `OfferResponse`: `id`, `ride_id`, `status`, `pickup`, `dropoff`, `distance_m`, `duration_s`, `amount_kzt`, `currency`, `tariff`, `payment_method` (`cash` | `kaspi_link`), `passenger_rating`, `created_at`, `expires_at`.
+- `MyProfileResponse` (`/users/me`): `id`, `username`, `role`, `created_at`, `display_name`, `phone`, `rating`, `login_method` (`password` | `google` — у аккаунта, созданного входом через Google), `email` (email Google-аккаунта; у входа по паролю `null`).
 - `RatingSummary` (`rating`, `passenger_rating`): `{average: float | null, count: int}` — среднее полученных звёзд (два знака), без оценок `null`/`0`.
 - `RatingResponse`: `ride_id`, `rater_role` (`passenger|driver`), `stars`, `tags`, `comment`, `created_at`.
 - `RideSummary` (элемент истории): `id`, `status`, `passenger_id`, `driver_id`, `pickup`, `dropoff`, `distance_m`, `duration_s`, `amount_kzt`, `currency`, `tariff`, `created_at`, `updated_at`, `payment_status`, `payment_method` (есть с момента заказа). Геометрии нет — за ней `GET /rides/{ride_id}`.

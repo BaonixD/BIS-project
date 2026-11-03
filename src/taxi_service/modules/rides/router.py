@@ -90,7 +90,11 @@ async def list_my_rides(
 async def read_ride(ride_id: uuid.UUID, user: CurrentUser, db: DbSession) -> RideDetailsResponse:
     details = await service.get_ride(db, ride_id, viewer_id=user.id, viewer_role=user.role)
     return RideDetailsResponse.build_details(
-        details.ride, details.driver, details.driver_rating, details.my_rating
+        details.ride,
+        details.driver,
+        details.driver_rating,
+        details.my_rating,
+        driver_location=details.driver_location,
     )
 
 

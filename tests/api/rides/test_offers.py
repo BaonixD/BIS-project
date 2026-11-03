@@ -16,6 +16,7 @@ from support.auth import CSRF_HEADER, LoggedInUser, register_and_login
 from support.clock import ManualClock
 from support.dispatch import OFFERS_URL, Dispatcher, accept_url, reject_url
 from support.drivers import DriverFactory, login_as
+from support.payments import kaspi_on
 from support.rides import (
     ABAY_DOSTYK,
     AL_FARABI,
@@ -173,6 +174,7 @@ async def test_driver_sees_the_open_offer_with_the_ride(
         "amount_kzt",
         "currency",
         "tariff",
+        "payment_method",
         "passenger_rating",
         "created_at",
         "expires_at",
@@ -181,7 +183,26 @@ async def test_driver_sees_the_open_offer_with_the_ride(
     assert (offer["pickup"], offer["dropoff"]) == (ABAY_DOSTYK, AL_FARABI)
     assert (offer["distance_m"], offer["duration_s"]) == (10_000, 1_500)
     assert (offer["amount_kzt"], offer["currency"], offer["tariff"]) == (2200, "KZT", "economy")
+    assert offer["payment_method"] == "cash"
     assert datetime.fromisoformat(offer["expires_at"]) == clock.now() + TTL
+
+
+@pytest.mark.parametrize("payment_settings", [kaspi_on()])
+@pytest.mark.parametrize("method", ["cash", "kaspi_link"])
+async def test_offer_shows_the_payment_method_of_the_ride(
+    client: httpx.AsyncClient, driver_factory: DriverFactory, method: str
+) -> None:
+    await driver_factory.driver("near", location=NEAR_PICKUP)
+    await driver_factory.driver("farther", location=FARTHER)
+    passenger = await register_and_login(client, "pat")
+    await order_ride(client, passenger, payment_method=method)
+
+    [offer] = await open_offers(client, "near")
+    rejected = await answer(client, reject_url(offer["id"]), "near")
+
+    assert offer["payment_method"] == method
+    assert rejected.status_code == 200, rejected.text
+    assert rejected.json()["payment_method"] == method
 
 
 async def test_other_drivers_do_not_see_the_offer(

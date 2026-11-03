@@ -13,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from taxi_service.core.clock import Clock
 from taxi_service.database.session import read_transaction
 from taxi_service.modules.auth.passwords import PasswordHasher
+from taxi_service.modules.ratings import records as rating_records
+from taxi_service.modules.ratings.records import RatingSummary
 from taxi_service.modules.users.exceptions import UsernameTakenError
 from taxi_service.modules.users.models import (
     DISPLAY_NAME_MAX_LENGTH,
@@ -36,6 +38,13 @@ class UserListRow:
     role: UserRole
     created_at: datetime
     display_name: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class MyProfile:
+    user: User
+    profile: UserProfile | None
+    rating: RatingSummary
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,6 +120,22 @@ async def create_user(
 async def get_profile(db: AsyncSession, user_id: uuid.UUID) -> UserProfile | None:
     async with read_transaction(db):
         return await _get_profile(db, user_id)
+
+
+async def get_my_profile(db: AsyncSession, user_id: uuid.UUID) -> MyProfile:
+    """The account, its profile and the rating it received, for ``/users/me``."""
+    async with read_transaction(db):
+        user = await db.get_one(User, user_id)
+        profile = await _get_profile(db, user_id)
+        rating = await rating_records.summary(db, user_id)
+    return MyProfile(user, profile, rating)
+
+
+async def update_my_profile(
+    db: AsyncSession, user_id: uuid.UUID, update: MyProfileUpdate, *, clock: Clock
+) -> MyProfile:
+    await update_profile(db, user_id, update, clock=clock)
+    return await get_my_profile(db, user_id)
 
 
 async def update_profile(

@@ -147,6 +147,25 @@ async def test_first_sign_in_takes_the_display_name_from_google(
     assert updated.json()["display_name"] == "Alice Smith"
 
 
+async def test_profile_reports_the_google_login_and_its_email(
+    client: httpx.AsyncClient, google: FakeGoogleVerifier
+) -> None:
+    await sign_in(client, google.issue("10001", "Alice.Smith@gmail.com"))
+    csrf = (await client.get(SESSION_URL)).json()["csrf_token"]
+
+    read = (await client.get(ME_URL)).json()
+    updated = await client.patch(
+        ME_URL, json={"display_name": "Alice"}, headers={CSRF_HEADER: csrf}
+    )
+
+    assert (read["login_method"], read["email"]) == ("google", "Alice.Smith@gmail.com")
+    assert updated.status_code == 200, updated.text
+    assert (updated.json()["login_method"], updated.json()["email"]) == (
+        "google",
+        "Alice.Smith@gmail.com",
+    )
+
+
 async def test_sign_in_without_name_leaves_no_profile(
     client: httpx.AsyncClient, session_factory: SessionFactory, google: FakeGoogleVerifier
 ) -> None:
