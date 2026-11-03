@@ -10,8 +10,6 @@ class ErrorBody(BaseModel):
 
 
 class ErrorResponse(BaseModel):
-    """Unified error envelope returned by every non-2xx API response."""
-
     error: ErrorBody
     request_id: str
 
@@ -29,7 +27,6 @@ _ERROR_DESCRIPTIONS = {
 
 
 def error_responses(*statuses: int) -> dict[int | str, dict[str, Any]]:
-    """OpenAPI ``responses`` entries with the unified error envelope."""
     return {
         status: {"model": ErrorResponse, "description": _ERROR_DESCRIPTIONS[status]}
         for status in statuses

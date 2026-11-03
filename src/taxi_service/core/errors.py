@@ -4,10 +4,7 @@ from pydantic import JsonValue
 
 
 class AppError(Exception):
-    """Expected application error rendered as the unified API error response.
-
-    ``details`` is sent to the client and must never contain secrets.
-    """
+    # details goes to the client: never put secrets there.
 
     def __init__(
         self,

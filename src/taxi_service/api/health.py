@@ -18,7 +18,6 @@ class ReadyStatus(BaseModel):
     status: Literal["ready"] = "ready"
 
 
-# Error code and message per state; the database URL is never part of the response.
 _NOT_READY: dict[DatabaseReadiness, tuple[str, str]] = {
     DatabaseReadiness.UNAVAILABLE: ("database_unavailable", "Database is not reachable."),
     DatabaseReadiness.NOT_MIGRATED: (
