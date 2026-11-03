@@ -19,7 +19,7 @@
 ## Подключение
 
 - Базовый URL API: `http://localhost:8000/api/v1` (локальный запуск по README). Health-маршруты — без префикса: `/health/live`, `/health/ready`.
-- Swagger UI: `http://localhost:8000/docs`, схема: `http://localhost:8000/openapi.json`. Из схемы можно сгенерировать типы (например, `openapi-typescript`).
+- Swagger UI: `http://localhost:8000/docs`, схема: `http://localhost:8000/openapi.json`. Из схемы можно сгенерировать типы (например, `openapi-typescript`). OpenAPI перечисляет только HTTP-статусы ошибок маршрута; коды `error.code` и правила — в этом документе.
 - Origin фронтенда должен быть в `CORS_ALLOWED_ORIGINS` в `.env` сервера (через запятую, без `*`; в `.env.example` уже `http://localhost:5173` — dev-сервер Vite). CORS работает с credentials; разрешены методы `GET, POST, PUT, PATCH, DELETE`, заголовки `Content-Type`, `X-CSRF-Token`, `X-Request-ID`, `Idempotency-Key`; клиенту доступны ответные заголовки `X-Request-ID` и `Idempotent-Replayed`.
 - Cookie сессии `SameSite=Lax`: браузер отправит её в `fetch` только между адресами одного сайта. Открывайте фронтенд и API на одном хосте — оба `localhost` (порты могут различаться), не смешивайте `localhost` и `127.0.0.1`. Для локального `http://` сервер запускается с `SESSION_COOKIE_SECURE=false` (так в `.env.example`), иначе браузер не вернёт cookie.
 - Альтернатива — прокси dev-сервера (`/api` → `http://localhost:8000`): тогда запросы same-origin и CORS не нужен.
@@ -134,7 +134,7 @@ export async function restoreSession() {
 | GET | `/api/v1/auth/session` | вошедший | → `SessionResponse {user, csrf_token, expires_at}` |
 | POST | `/api/v1/auth/logout` | вошедший | → `204` |
 | GET | `/api/v1/users/me` | вошедший | → `{id, username, role, created_at, display_name, phone}` |
-| PATCH | `/api/v1/users/me` | вошедший | `{display_name?, phone?}` → то же |
+| PATCH | `/api/v1/users/me` | вошедший | `{display_name?, phone?}` → то же (роль и username не меняются) |
 | GET | `/api/v1/drivers/me` | driver | → `DriverResponse` |
 | PATCH | `/api/v1/drivers/me` | driver | `{full_name?, phone?, license_number?, vehicle?: {make, model, color, plate_number, year}}` → `DriverResponse` |
 | PUT | `/api/v1/drivers/me/availability` | driver | `{online: bool}` → `DriverResponse` |
@@ -192,7 +192,7 @@ export async function restoreSession() {
 1. **Регистрация и вход** с `role: "driver"`.
 2. **Профиль**: `GET /drivers/me` → `missing_fields` показывает, чего не хватает. `PATCH /drivers/me {full_name, phone, license_number, vehicle: {make, model, color, plate_number, year}}`. Телефон нормализуется в `+цифры`, номер прав и госномер — заглавными без пробелов и `-`; госномер уникален (`409 plate_number_taken`); год — от 1980 до следующего года. `vehicle` заменяет машину целиком.
 3. **Ожидание допуска**: `approval_status: "pending"` до решения admin; опрашивать `GET /drivers/me` редко (раз в 10–30 с) или по кнопке. Изменение ФИО, прав или машины у допущенного водителя возвращает его в `pending` и offline; телефон меняется без этого.
-4. **На линии**: `PUT /drivers/me/availability {"online": true}` (только допущенному: иначе `409 driver_not_approved` / `driver_profile_incomplete`). Пока online — отправлять `PUT /drivers/me/location {longitude, latitude}` примерно раз в 10 с: водитель без координаты свежее 60 с предложений не получает.
+4. **На линии**: `PUT /drivers/me/availability {"online": true}` (только допущенному: иначе `409 driver_not_approved` / `driver_profile_incomplete`). Пока online — отправлять `PUT /drivers/me/location {longitude, latitude}` примерно раз в 10 с: водитель без координаты свежее 60 с предложений не получает. `location_updated_at` ставит сервер.
 5. **Предложения**: опрашивать `GET /drivers/me/offers`; в `items` не больше одного предложения с `expires_at` (30 с) — показать отсчёт по серверному `expires_at`. `POST /ride-offers/{offer_id}/accept` → `RideResponse` (`assigned`), сохранить `id` поездки. `POST /ride-offers/{offer_id}/reject` → предложение уходит следующему водителю. Ошибки: `409 offer_expired` (не успел — убрать карточку), `409 driver_busy`, `409 invalid_offer_transition`, `409 invalid_ride_transition` (пассажир уже отменил), `404 offer_not_found`. Повтор accept — тот же ответ.
 6. **Поездка**: `POST /rides/{ride_id}/arrive` → `/start` → `/complete`. Состояние и данные пассажира берутся из `GET /rides/{ride_id}`; опрашивать его, чтобы увидеть отмену пассажиром (`cancelled`). Во время поездки нельзя уйти offline и менять профиль (`409 driver_on_active_ride`).
 7. **Освободить заказ** до начала: `POST /rides/{ride_id}/release {"reason": "..."}` (причина обязательна). После этого поездка водителю недоступна (`404`).
@@ -204,7 +204,7 @@ export async function restoreSession() {
 
 Admin создаётся только локальной командой (`scripts/create_admin.py`, README), публичной регистрации нет.
 
-- Допуск водителей: `GET /admin/drivers?approval_status=pending` → `POST /admin/drivers/{driver_id}/approve` (`driver_id` — id пользователя). Неполный профиль — `409 driver_profile_incomplete` с `details.missing_fields`; повторный допуск возвращает первый.
+- Допуск водителей: `GET /admin/drivers?approval_status=pending` (новые регистрации сначала; водитель без профиля — тоже `pending`) → `POST /admin/drivers/{driver_id}/approve` (`driver_id` — id пользователя). Неполный профиль — `409 driver_profile_incomplete` с `details.missing_fields`; повторный допуск возвращает первый.
 - Чтение: `GET /admin/rides` (фильтры истории, `passenger_id`, `driver_id`), `GET /admin/users?role=driver`, любая поездка `GET /rides/{ride_id}` (без карточки водителя) и её оплата.
 - Сверка Kaspi: `POST /rides/{ride_id}/payment/confirm {"reference": "POS receipt 0042"}` — заметка обязательна. Командами поездки admin не управляет (`403 ride_command_forbidden`); `GET /rides` для admin — `403 forbidden`.
 
@@ -242,7 +242,7 @@ WebSocket и SSE нет. Сервер обрабатывает истечени�
 
 - `route.route_geometry` в quote и поездке — GeoJSON `{"type": "LineString", "coordinates": [[lon, lat], ...]}`. MapLibre/OpenLayers принимают его как есть; **Leaflet ждёт `[lat, lon]`** — используйте `L.geoJSON(...)` или переставьте пары.
 - Точки посадки и высадки — `pickup`, `dropoff` (`{longitude, latitude}`); позиция водителя — `driver.location` из `GET /rides/{ride_id}`.
-- `POST /geo/route` строит маршрут без цены (например, для предпросмотра); для заказа используйте `POST /rides/quotes` — там маршрут и цена.
+- `POST /geo/route` строит маршрут без цены (например, для предпросмотра); для заказа используйте `POST /rides/quotes` — там маршрут и цена. Ошибки — как у quote; при совпадающих точках провайдер не вызывается (`422 route_points_identical`).
 - Маршруты строит openrouteservice на данных OpenStreetMap: интерфейс с маршрутом должен показывать атрибуцию, например «© openrouteservice.org by HeiGIT | Map data © OpenStreetMap contributors» (точный текст — по условиям HeiGIT). Подложку карты (тайлы) фронтенд выбирает сам и выводит её атрибуцию; публичные тайлы OSM имеют свою политику использования.
 - Ключ маршрутизации есть только на сервере; на клиенте он не нужен и не используется.
 - Пока у сервера нет `ROUTING_API_KEY`, quote отвечает `503 routing_unavailable` — это ожидаемое состояние локального стенда (реальная маршрутизация `external_pending`).
