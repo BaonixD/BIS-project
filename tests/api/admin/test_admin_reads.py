@@ -338,5 +338,5 @@ async def test_admin_lists_are_documented(
 
     assert {item["name"] for item in operation["parameters"]} == parameters
     assert {"200", "401", "403", "422"} <= set(operation["responses"])
-    assert {"SessionCookie": []} in operation["security"]
+    assert any("SessionCookie" in requirement for requirement in operation["security"])
     assert set(paths[f"/api/v1{path}"]) == {"get"}

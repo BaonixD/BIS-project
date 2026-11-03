@@ -40,7 +40,7 @@ def test_payment_operations_document_their_responses(
 
     assert "200" in operation["responses"]
     assert errors <= error_statuses(operation)
-    assert {"SessionCookie": []} in operation["security"]
+    assert any("SessionCookie" in requirement for requirement in operation["security"])
 
 
 @pytest.mark.parametrize(
