@@ -27,7 +27,7 @@ export function DriverMapLayout({
     >
       <div className="absolute inset-0 z-0">{map}</div>
       {top && (
-        <div className="pointer-events-none absolute inset-x-4 top-[calc(9px+env(safe-area-inset-top))] z-10 *:pointer-events-auto lg:top-8 lg:right-8 lg:left-auto lg:w-[358px]">
+        <div className="pointer-events-none absolute inset-x-4 top-[calc(56px+env(safe-area-inset-top))] z-10 *:pointer-events-auto lg:top-8 lg:right-8 lg:left-auto lg:w-[358px]">
           {top}
         </div>
       )}

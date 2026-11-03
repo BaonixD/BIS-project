@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useHideBottomNav } from '@/components/layout/nav-visibility'
 import { Navigate, useLocation, useNavigate } from 'react-router'
 import { ArrowLeft, Menu } from 'lucide-react'
 import { ACTIVE_RIDE_STATUSES, isApiError, type Coordinates, type PaymentMethod } from '@/api'
@@ -65,6 +66,7 @@ export function HomePage() {
   const me = useMyLocation()
 
   const [step, setStep] = useState<Step>(() => initialStep(reorder))
+  useHideBottomNav(step.name !== 'home')
   const [pickup, setPickup] = useState<ChosenPoint | null>(reorder ? { point: reorder.pickup } : null)
   const [dropoff, setDropoff] = useState<ChosenPoint | null>(reorder ? { point: reorder.dropoff } : null)
   const [tariff, setTariff] = useState<Tariff>(reorder?.tariff ?? 'economy')
@@ -85,7 +87,8 @@ export function HomePage() {
   const createRide = useCreateRide()
   const pinPlace = useReverseGeocode(useDebouncedValue(step.name === 'map' ? pinPoint : null, 400)).data
 
-  if (activeRide.data) return <Navigate to={`/ride/${activeRide.data.id}`} replace />
+  // Not while refetching: the cached ride may have finished since (back home after the receipt).
+  if (activeRide.data && !activeRide.isFetching) return <Navigate to={`/ride/${activeRide.data.id}`} replace />
 
   const choose = (target: Target, place: ChosenPoint) => {
     setLocalError(null)

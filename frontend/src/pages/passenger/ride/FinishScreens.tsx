@@ -66,7 +66,7 @@ export function PayCashScreen({ ride, driver, onDone }: { ride: RideDetails; dri
   const driverRow: [string, ReactNode][] = driver ? [['Водитель', driverLine(driver)]] : []
   return (
     <ResultPage
-      top="pt-[49px] pb-[34px]"
+      top="pt-[96px] pb-[34px]"
       footer={
         <Button variant="secondary" className="w-full" onClick={onDone}>
           Готово
@@ -182,7 +182,7 @@ export function CompletedScreen({
 
   return (
     <ResultPage
-      top="pt-[61px] pb-10"
+      top="pt-[108px] pb-10"
       footer={
         ride.my_rating ? (
           <Button className="w-full" onClick={() => onDone()}>
@@ -244,7 +244,7 @@ export function CancelledScreen({ ride, onReorder }: { ride: RideDetails; onReor
   const routeText = from && to ? `${from} → ${to}` : '…'
   return (
     <ResultPage
-      top="pt-[49px] pb-[34px]"
+      top="pt-[96px] pb-[34px]"
       footer={
         <Button className="w-full" onClick={onReorder}>
           Заказать снова

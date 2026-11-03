@@ -1,9 +1,11 @@
 import { Suspense } from 'react'
-import { Outlet } from 'react-router'
+import { Outlet, useLocation } from 'react-router'
+import { cn } from '@/lib/utils'
 import { useSession } from '@/auth/use-session'
 import { FullScreenLoader } from '@/components/common/FullScreenLoader'
 import { useMyProfile } from '@/hooks/use-profile'
 import { BottomNav } from './BottomNav'
+import { useBottomNavHidden } from './nav-visibility'
 import { TopBar } from './TopBar'
 
 /**
@@ -12,17 +14,26 @@ import { TopBar } from './TopBar'
  */
 export function AppShell() {
   const { user } = useSession()
+  const { pathname } = useLocation()
+  const navHidden = useBottomNavHidden()
   const profile = useMyProfile(Boolean(user))
   const displayName = profile.data?.display_name || user?.username || ''
   return (
-    <div className="min-h-dvh bg-bg-canvas text-text-primary [--sheet-offset:calc(var(--nav-height)-12px)] lg:[--sheet-offset:0px]">
+    <div
+      className={cn(
+        "min-h-dvh bg-bg-canvas text-text-primary lg:[--sheet-offset:0px]",
+        navHidden ? "[--sheet-offset:0px]" : "[--sheet-offset:calc(var(--nav-height)-12px)]",
+      )}
+    >
       {user && <TopBar role={user.role} displayName={displayName} />}
-      <main className="pb-(--nav-height) lg:pt-(--top-bar-height) lg:pb-0">
-        <Suspense fallback={<FullScreenLoader />}>
-          <Outlet />
-        </Suspense>
+      <main className={cn("lg:pt-(--top-bar-height) lg:pb-0", !navHidden && "pb-(--nav-height)")}>
+        <div key={pathname} className="animate-page-in">
+          <Suspense fallback={<FullScreenLoader />}>
+            <Outlet />
+          </Suspense>
+        </div>
       </main>
-      {user && <BottomNav role={user.role} />}
+      {user && !navHidden && <BottomNav role={user.role} />}
     </div>
   )
 }

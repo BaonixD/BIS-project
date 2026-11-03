@@ -50,7 +50,7 @@ describe('geocoder.search', () => {
     expect(url.searchParams.get('format')).toBe('jsonv2')
     expect(url.searchParams.get('bounded')).toBe('1')
     expect(url.searchParams.get('accept-language')).toBe('ru')
-    expect(url.searchParams.get('viewbox')).toBe('76.75,43.41,77.15,43.12')
+    expect(url.searchParams.get('viewbox')).toBe('76.55,43.45,77.3,43.05')
     expect(places).toEqual([
       {
         id: '1',
@@ -66,6 +66,13 @@ describe('geocoder.search', () => {
     const [place] = await geocoder.search('абая 52')
     expect(place?.title).toBe('проспект Абая, 52')
     expect(place?.subtitle).toBe('Алмалинский район')
+  })
+
+  it('shows one row for a place mapped twice in OpenStreetMap (a node and its building)', async () => {
+    const building = { ...ESENTAI, place_id: 3, lat: '43.2183', lon: '76.9280' }
+    const { geocoder } = setup(() => json([ESENTAI, building, ABAYA]))
+    const places = await geocoder.search('esentai')
+    expect(places.map((place) => place.id)).toEqual(['1', '2'])
   })
 
   it('serves a repeated query from the cache', async () => {

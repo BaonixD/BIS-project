@@ -110,7 +110,7 @@ export function AdminRidesPage() {
 
   return (
     <Screen tone="subtle">
-      <div className="mx-auto flex w-full max-w-[390px] flex-col gap-4 px-4 pt-[calc(17px+env(safe-area-inset-top))] pb-6 lg:max-w-none lg:gap-5 lg:px-8 lg:pt-8">
+      <div className="mx-auto flex w-full max-w-[390px] flex-col gap-4 px-4 pt-[calc(64px+env(safe-area-inset-top))] pb-6 lg:max-w-none lg:gap-5 lg:px-8 lg:pt-8">
         <div className="flex w-full items-center gap-4">
           <h1 className="min-w-0 flex-1 text-display text-text-primary">Все поездки</h1>
           <Filters value={filter} onChange={setFilter} desktop />

@@ -83,7 +83,7 @@ export function DriverSettingsPage() {
   if (driver.isPending) return <FullScreenLoader />
   return (
     <Screen overNav>
-      <ScreenColumn className="gap-4 pt-[calc(9px+env(safe-area-inset-top))] pb-32">
+      <ScreenColumn className="gap-4 pt-[calc(56px+env(safe-area-inset-top))] pb-32">
         <BackHeader title="Настройки" fallback="/driver/profile" />
         <ErrorAlert error={driver.error} />
         {driver.data && <SettingsFormView driver={driver.data} />}

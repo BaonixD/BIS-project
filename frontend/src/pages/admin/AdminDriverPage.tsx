@@ -83,7 +83,7 @@ export function AdminDriverPage() {
 
   return (
     <Screen overNav>
-      <ScreenColumn className="gap-4 pt-[calc(9px+env(safe-area-inset-top))] pb-32">
+      <ScreenColumn className="gap-4 pt-[calc(56px+env(safe-area-inset-top))] pb-32">
         <BackHeader
           title="Заявка водителя"
           fallback="/admin"

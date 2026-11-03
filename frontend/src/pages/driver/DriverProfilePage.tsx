@@ -1,119 +1,82 @@
-import { APPROVAL_STATUS_LABELS } from '@/lib/labels'
-import { Link } from 'react-router'
-import { Car, CreditCard, LogOut, Phone, Settings, ShieldCheck, Timer } from 'lucide-react'
-import { formatRating, TARIFF_LABELS, type NextDriver } from '@/api/driver-types'
+import { Car, CreditCard, Hash, LogOut, Phone, Settings, ShieldCheck, Star, Timer } from 'lucide-react'
+import { formatRating, TARIFF_LABELS } from '@/api/driver-types'
 import { useSession } from '@/auth/use-session'
 import { ErrorAlert } from '@/components/common/ErrorAlert'
+import { GroupedRow, GroupedSection, ProfileHeaderCard } from '@/components/common/GroupedList'
 import { Avatar } from '@/components/driver/Avatar'
-import { Screen, ScreenColumn } from '@/components/driver/Screen'
-import { ListRow, Skeleton, StatusPill } from '@/components/ui-kit'
+import { Skeleton, StatusPill } from '@/components/ui-kit'
 import { useDriverProfile } from '@/hooks/use-driver'
+import { APPROVAL_STATUS_LABELS } from '@/lib/labels'
 
-function InfoCard({ icon: Icon, title, text, trailing }: { icon: typeof Car; title: string; text: string; trailing?: React.ReactNode }) {
-  return (
-    <div className="flex w-full items-center gap-3 overflow-hidden rounded-lg bg-bg-subtle p-4">
-      <Icon className="size-6 shrink-0 text-text-primary" strokeWidth={2} aria-hidden />
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <p className="text-body-medium text-text-primary">{title}</p>
-        <p className="text-caption text-text-secondary">{text}</p>
-      </div>
-      {trailing}
-    </div>
-  )
-}
-
-function ApprovalCard({ driver }: { driver: NextDriver }) {
-  if (driver.approval_status === 'approved') {
-    return (
-      <InfoCard
-        icon={ShieldCheck}
-        title="Допуск получен"
-        text="Можно выходить на линию и принимать заказы."
-        trailing={<StatusPill tone="success">{APPROVAL_STATUS_LABELS.approved}</StatusPill>}
-      />
-    )
-  }
-  return (
-    <InfoCard
-      icon={Timer}
-      title="Ждёт проверки"
-      text="Администратор проверит данные. После одобрения можно выйти на линию."
-      trailing={<StatusPill tone="warning">{APPROVAL_STATUS_LABELS.pending}</StatusPill>}
-    />
-  )
-}
-
-function VehicleCard({ driver }: { driver: NextDriver }) {
-  const vehicle = driver.vehicle
-  if (!vehicle) return <InfoCard icon={Car} title="Машина не добавлена" text="Добавьте её в настройках" />
-  const carClass =
-    driver.approval_status === 'approved' && vehicle.car_class ? ` · ${TARIFF_LABELS[vehicle.car_class]}` : ''
-  return (
-    <InfoCard
-      icon={Car}
-      title={`${vehicle.make} ${vehicle.model} · ${vehicle.color}`}
-      text={`Госномер ${vehicle.plate_number}${carClass}`}
-    />
-  )
-}
-
-function ratingSuffix(driver: NextDriver): string {
-  const rating = formatRating(driver.rating)
-  return rating ? ` · ${rating}` : ''
-}
-
-/** Figma 6:348: profile, approval, vehicle and contacts. */
+/** Figma 6:348: grouped cards — approval, vehicle, contacts, settings and logout. */
 export function DriverProfilePage() {
   const { user, logout } = useSession()
   const driver = useDriverProfile()
   const data = driver.data
   const name = data?.full_name ?? user?.username ?? ''
+  const approved = data?.approval_status === 'approved'
+  const vehicle = data?.vehicle
 
   return (
-    <Screen>
-      <ScreenColumn className="gap-5 pt-[calc(17px+env(safe-area-inset-top))] pb-6">
-        <div className="flex w-full items-center gap-4">
-          <Avatar name={name} size={64} />
-          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <h1 className="truncate text-headline text-text-primary">{name}</h1>
-            <p className="truncate text-callout text-text-secondary">
-              @{user?.username} · водитель{data ? ratingSuffix(data) : ''}
-            </p>
-          </div>
-          <Link
-            to="/driver/settings"
-            aria-label="Настройки"
-            className="flex size-11 shrink-0 items-center justify-center rounded-full bg-bg-subtle text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-bg-inverse"
-          >
-            <Settings className="size-6" strokeWidth={2} aria-hidden />
-          </Link>
-        </div>
-        {driver.isPending && <Skeleton className="h-60 w-full rounded-lg" />}
+    <div className="min-h-dvh bg-bg-subtle">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 pt-[calc(64px+env(safe-area-inset-top))] pb-6 lg:pt-8">
+        <h1 className="px-1 text-display text-text-primary">Профиль</h1>
         <ErrorAlert error={driver.error} />
+        {data ? (
+          <ProfileHeaderCard
+            to="/driver/settings"
+            avatar={<Avatar name={name} size={64} />}
+            name={name}
+            subtitle={`@${user?.username ?? ''} · водитель`}
+          />
+        ) : (
+          <Skeleton className="h-24 w-full rounded-lg" />
+        )}
         {data && (
           <>
-            <ApprovalCard driver={data} />
-            <VehicleCard driver={data} />
-            <div className="flex w-full flex-col">
-              <ListRow icon={Phone} title="Телефон" subtitle={data.phone ?? 'Не указан'} />
-              <ListRow
-                icon={CreditCard}
-                title="Водительское удостоверение"
-                subtitle={data.license_number ?? 'Не указано'}
+            <GroupedSection title="Работа">
+              <GroupedRow
+                icon={approved ? ShieldCheck : Timer}
+                tone={approved ? 'bg-accent-success' : 'bg-accent-warning'}
+                title="Допуск"
+                value={
+                  <StatusPill tone={approved ? 'success' : 'warning'}>
+                    {APPROVAL_STATUS_LABELS[data.approval_status]}
+                  </StatusPill>
+                }
               />
-            </div>
+              <GroupedRow icon={Star} tone="bg-accent-warning" title="Рейтинг" value={formatRating(data.rating) ?? 'Пока нет оценок'} />
+            </GroupedSection>
+            <GroupedSection title="Автомобиль">
+              <GroupedRow
+                icon={Car}
+                tone="bg-accent-info"
+                title="Машина"
+                value={vehicle ? `${vehicle.make} ${vehicle.model} · ${vehicle.color}` : 'Не добавлена'}
+              />
+              {vehicle && <GroupedRow icon={Hash} tone="bg-text-tertiary" title="Госномер" value={vehicle.plate_number} />}
+              {vehicle && <GroupedRow icon={Car} tone="bg-bg-inverse" title="Класс" value={TARIFF_LABELS[vehicle.car_class]} />}
+            </GroupedSection>
+            <GroupedSection title="Контакты">
+              <GroupedRow icon={Phone} tone="bg-accent-success" title="Телефон" value={data.phone ?? 'Не указан'} />
+              <GroupedRow icon={CreditCard} tone="bg-text-tertiary" title="Удостоверение" value={data.license_number ?? 'Не указано'} />
+            </GroupedSection>
           </>
         )}
-        <button
-          type="button"
-          disabled={logout.isPending}
-          onClick={() => logout.mutate()}
-          className="flex w-full items-center gap-3 py-3 text-accent-danger outline-none focus-visible:underline disabled:opacity-40"
-        >
-          <LogOut className="size-6 shrink-0" strokeWidth={2} aria-hidden />
-          <span className="text-body-medium">Выйти из аккаунта</span>
-        </button>
-      </ScreenColumn>
-    </Screen>
+        <GroupedSection>
+          <GroupedRow icon={Settings} tone="bg-text-tertiary" title="Настройки" to="/driver/settings" />
+        </GroupedSection>
+        <GroupedSection>
+          <GroupedRow
+            icon={LogOut}
+            tone="bg-accent-danger"
+            title="Выйти из аккаунта"
+            onClick={() => logout.mutate()}
+            disabled={logout.isPending}
+            chevron={false}
+          />
+        </GroupedSection>
+      </div>
+    </div>
   )
 }

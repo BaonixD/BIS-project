@@ -20,7 +20,7 @@ async function mockBackend(page: Page) {
     route.fulfill({ contentType: 'application/json', body: JSON.stringify({ google_client_id: 'visual-test' }) }),
   )
   await page.route('https://accounts.google.com/**', (route) => route.abort())
-  await page.route('https://*.basemaps.cartocdn.com/**', (route) => route.abort())
+  await page.route('https://tiles.openfreemap.org/**', (route) => route.abort())
 }
 
 async function settle(page: Page) {

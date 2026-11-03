@@ -72,7 +72,7 @@ export function MapLayout({
 }
 
 /** Figma 56px from the frame top = 9px under the 47px status bar of the mockup. */
-export const OVERLAY_TOP = 'top-[max(9px,env(safe-area-inset-top))] lg:top-8'
+export const OVERLAY_TOP = 'top-[max(56px,env(safe-area-inset-top))] lg:top-8'
 
 export function MapOverlay({ className, children }: { className?: string; children: ReactNode }) {
   return (

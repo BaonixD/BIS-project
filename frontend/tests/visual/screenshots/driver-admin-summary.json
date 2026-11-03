@@ -22,27 +22,27 @@
   {
     "frame": "26-655",
     "name": "admin-users",
-    "mismatch": 5.1
+    "mismatch": 4.9
   },
   {
     "frame": "25-260",
     "name": "driver-arrived",
-    "mismatch": 12.7
+    "mismatch": 12.8
   },
   {
     "frame": "6-243",
     "name": "driver-assigned",
-    "mismatch": 13.4
+    "mismatch": 13.5
   },
   {
     "frame": "26-425",
     "name": "driver-cancelled",
-    "mismatch": 12.5
+    "mismatch": 12.4
   },
   {
     "frame": "13-442",
     "name": "driver-cash",
-    "mismatch": 1.8
+    "mismatch": 1.9
   },
   {
     "frame": "25-464",
@@ -57,41 +57,41 @@
   {
     "frame": "25-359",
     "name": "driver-in-progress",
-    "mismatch": 13.3
+    "mismatch": 13.5
   },
   {
     "frame": "6-125",
     "name": "driver-offer",
-    "mismatch": 7.2
+    "mismatch": 7.6
   },
   {
     "frame": "6-2",
     "name": "driver-offline",
-    "mismatch": 5.6
+    "mismatch": 8.5
   },
   {
     "frame": "25-149",
     "name": "driver-online",
-    "mismatch": 5.4
+    "mismatch": 12.2
   },
   {
     "frame": "25-2",
     "name": "driver-pending",
-    "mismatch": 5.2
+    "mismatch": 5.6
   },
   {
     "frame": "6-348",
     "name": "driver-profile",
-    "mismatch": 2.8
+    "mismatch": 9.5
   },
   {
     "frame": "25-497",
     "name": "driver-release",
-    "mismatch": 2.9
+    "mismatch": 3.5
   },
   {
     "frame": "26-500",
     "name": "driver-settings",
-    "mismatch": 1.9
+    "mismatch": 2
   }
 ]

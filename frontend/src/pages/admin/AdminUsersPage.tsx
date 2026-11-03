@@ -41,7 +41,7 @@ export function AdminUsersPage() {
 
   return (
     <Screen tone="subtle">
-      <ScreenColumn className="gap-4 pt-[calc(17px+env(safe-area-inset-top))] pb-6 lg:max-w-2xl lg:pt-8">
+      <ScreenColumn className="gap-4 pt-[calc(64px+env(safe-area-inset-top))] pb-6 lg:max-w-2xl lg:pt-8">
         <h1 className="w-full text-display text-text-primary">Люди</h1>
         <Input
           icon={Search}

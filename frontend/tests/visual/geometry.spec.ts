@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
-/** The mockup's iPhone status bar (Figma StatusBar 3:106) is not part of the web page. */
-const STATUS_BAR = 47
+/** The page reserves the mockup's 47px iPhone status bar (Figma StatusBar 3:106) itself: no offset. */
+const STATUS_BAR = 0
 
 test.use({ viewport: { width: 390, height: 844 } })
 

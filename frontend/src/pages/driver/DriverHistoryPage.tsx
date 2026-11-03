@@ -48,7 +48,7 @@ export function DriverHistoryPage() {
 
   return (
     <Screen tone="subtle">
-      <ScreenColumn className="gap-4 pt-[calc(17px+env(safe-area-inset-top))] pb-6">
+      <ScreenColumn className="gap-4 pt-[calc(64px+env(safe-area-inset-top))] pb-6">
         <h1 className="w-full text-display text-text-primary">История</h1>
         <div className="flex w-full flex-col gap-1 overflow-hidden rounded-[20px] bg-bg-inverse p-5 text-text-inverse">
           <p className="text-callout">{current?.earned}</p>

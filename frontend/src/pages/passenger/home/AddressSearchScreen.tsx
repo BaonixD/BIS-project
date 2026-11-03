@@ -88,7 +88,7 @@ export function AddressSearchScreen({
   )
   return (
     <FullScreen>
-      <div className="mx-auto flex w-full max-w-[420px] flex-col gap-4 px-4 pt-[9px] pb-6 lg:pt-8">
+      <div className="mx-auto flex w-full max-w-[420px] flex-col gap-4 px-4 pt-[56px] pb-6 lg:pt-8">
         <ScreenHeader title="Маршрут" back={{ onClick: onBack }} />
         <div className="flex w-full flex-col gap-2">
           {target === 'pickup' ? field : <StaticField icon={CircleDot} text={pickupText} onClick={() => onTargetChange('pickup')} />}

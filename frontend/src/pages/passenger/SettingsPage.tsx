@@ -31,7 +31,7 @@ function SettingsForm({ profile }: { profile: MyProfile }) {
   }
 
   return (
-    <form onSubmit={submit} className="mx-auto flex min-h-full w-full max-w-[420px] flex-col px-4 pt-[9px] pb-[34px] lg:pt-8">
+    <form onSubmit={submit} className="mx-auto flex min-h-full w-full max-w-[420px] flex-col px-4 pt-[56px] pb-[34px] lg:pt-8">
       <div className="flex w-full flex-col gap-5">
         <ScreenHeader title="Настройки" back={{ to: '/profile' }} />
         <SectionLabel>ПРОФИЛЬ</SectionLabel>
@@ -67,7 +67,7 @@ export function SettingsPage() {
       {profile.data ? (
         <SettingsForm profile={profile.data} />
       ) : (
-        <div className="mx-auto flex w-full max-w-[420px] flex-col gap-5 px-4 pt-[9px]">
+        <div className="mx-auto flex w-full max-w-[420px] flex-col gap-5 px-4 pt-[56px]">
           <ScreenHeader title="Настройки" back={{ to: '/profile' }} />
           <Skeleton className="h-32 w-full rounded-lg" />
         </div>

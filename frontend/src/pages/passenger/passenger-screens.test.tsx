@@ -98,6 +98,22 @@ describe('RidePage picks the screen from the ride status', () => {
   })
 })
 
+describe('HomePage and the active ride', () => {
+  it('stays home after a finished ride instead of following the cached active ride back', async () => {
+    let active = [makeRide({ status: 'in_progress', driver: DRIVER })]
+    server.routes.set('GET /api/v1/rides', () => ({ items: active, limit: 1, offset: 0, total: active.length }))
+    serveRide(makeRide({ status: 'completed', payment_status: 'paid', driver: DRIVER }))
+    renderRoutes([{ path: '/', element: <HomePage /> }, rideRoutes[0]!], '/')
+    expect(await screen.findByRole('heading', { name: 'Поездка завершена' })).toBeInTheDocument()
+
+    active = []
+    await userEvent.click(screen.getByRole('button', { name: 'Пропустить' }))
+
+    expect(await screen.findByRole('heading', { name: 'Куда едем?' })).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/))
+  })
+})
+
 describe('HomePage orders a ride', () => {
   it('quotes the route, offers four tariffs and orders with the chosen tariff and Kaspi', async () => {
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)

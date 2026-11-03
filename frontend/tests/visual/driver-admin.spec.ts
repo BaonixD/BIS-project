@@ -7,17 +7,17 @@ import { expect, test, type Browser, type Page, type Route } from '@playwright/t
  * Driver and admin screens against the Figma frames (tests/visual/figma/*.png).
  * The API and Nominatim are mocked, map tiles are blocked (the Figma «Map/Base» art is not a tile).
  * Each frame gets `screenshots/<name>.png` and `screenshots/compare-<name>.png` (Figma | app | diff).
- * Mobile frames include the phone's 47px status bar, so the page is rendered 390×797 and compared
- * with the frame below the status bar.
+ * Mobile frames include the phone's 47px status bar; the page reserves that space itself,
+ * so it is rendered 390×844 and compared with the whole frame.
  */
 
 const OUT = path.join(import.meta.dirname, 'screenshots')
 const FIGMA = path.join(import.meta.dirname, 'figma')
 mkdirSync(OUT, { recursive: true })
 
-const STATUS_BAR = 47
+const STATUS_BAR = 0
 const NOW = '2026-11-03T09:00:06Z'
-const MOBILE = { width: 390, height: 844 - STATUS_BAR }
+const MOBILE = { width: 390, height: 844 }
 const DESKTOP = { width: 1440, height: 900 }
 
 const P = {
@@ -161,7 +161,7 @@ const TODAY = [
 ]
 
 async function mockBackend(target: Page, role: 'driver' | 'admin', api: Api) {
-  await target.route('https://*.basemaps.cartocdn.com/**', (route) => route.abort())
+  await target.route('https://tiles.openfreemap.org/**', (route) => route.abort())
   await target.route('https://accounts.google.com/**', (route) => route.abort())
   await target.route('https://nominatim.openstreetmap.org/**', (route) => {
     const url = new URL(route.request().url())
@@ -452,7 +452,7 @@ test('6:348 profile', async ({ browser }) => {
   const target = await openApp(browser, MOBILE)
   await mockBackend(target, 'driver', shiftApi({ 'GET /api/v1/drivers/me': driver({ approval_status: 'pending' }) }))
   await target.goto('/driver/profile')
-  await expect(target.getByText('Ждёт проверки')).toBeVisible()
+  await expect(target.getByText('На проверке')).toBeVisible()
   await settle(target)
   await compare(browser, target, 'driver-profile', '6-348')
 })

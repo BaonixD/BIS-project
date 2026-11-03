@@ -25,7 +25,7 @@ export function RideDetailsPage() {
 
   return (
     <FullScreen>
-      <div className="mx-auto flex w-full max-w-[420px] flex-col gap-4 px-4 pt-[9px] pb-8 lg:pt-8">
+      <div className="mx-auto flex w-full max-w-[420px] flex-col gap-4 px-4 pt-[56px] pb-8 lg:pt-8">
         <ScreenHeader
           title="Поездка"
           subtitle={ride ? formatRideDate(ride.created_at) : undefined}

@@ -30,7 +30,7 @@ export function ListRow({ icon: Icon, leading, title, subtitle, trailing, onClic
       )}
     </>
   )
-  const base = 'flex h-16 w-full items-center gap-3 py-3'
+  const base = 'animate-fade-up flex h-16 w-full items-center gap-3 py-3'
   if (!onClick) {
     return (
       <div data-slot="list-row" className={cn(base, className)}>

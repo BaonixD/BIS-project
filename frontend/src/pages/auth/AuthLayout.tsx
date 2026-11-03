@@ -12,7 +12,7 @@ export function AuthLayout({ children, top }: { children: ReactNode; top: 'login
       <main
         className={cn(
           'mx-auto flex w-full max-w-[390px] flex-col gap-6 px-4 pb-10 lg:py-16',
-          top === 'login' ? 'pt-[calc(49px+env(safe-area-inset-top))]' : 'pt-[calc(17px+env(safe-area-inset-top))]',
+          top === 'login' ? 'pt-[calc(96px+env(safe-area-inset-top))]' : 'pt-[calc(64px+env(safe-area-inset-top))]',
         )}
       >
         {children}

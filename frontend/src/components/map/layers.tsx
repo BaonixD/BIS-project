@@ -32,13 +32,16 @@ export function PointMarker({ point, kind }: { point: Coordinates; kind: PointKi
   )
 }
 
-/** Figma route line: black, 5px, round caps. */
+/** Route lines use the brand green (accent/success). */
+export const ROUTE_COLOR = '#05A357'
+
+/** Figma route line: green, 5px, round caps. */
 export function RouteLine({ route }: { route: RouteResult | LatLngTuple[] }) {
   const positions = Array.isArray(route) ? route : routeToLatLngs(route)
   return (
     <Polyline
       positions={positions}
-      pathOptions={{ color: '#000000', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round' }}
+      pathOptions={{ color: ROUTE_COLOR, weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round' }}
       attribution={Array.isArray(route) ? undefined : ROUTE_ATTRIBUTION}
     />
   )

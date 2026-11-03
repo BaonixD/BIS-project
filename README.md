@@ -282,6 +282,14 @@ Dev-сервер Vite проксирует `/api` и `/health` на `http://127.
 
 Сверка с макетом: `npm run test:visual` (Playwright в установленном Google Chrome, свой порт 5199, API подменяется — бэкенд не нужен) проверяет геометрию входа и регистрации по Figma и сохраняет скриншоты `/login`, `/register`, `/dev/kit` при 390 и 1440 px в `frontend/tests/visual/screenshots/`; эталоны из Figma — в `frontend/tests/visual/figma/`.
 
+Сквозной прогон поездки в настоящем браузере на настоящем бэкенде: `npm run test:e2e` (Playwright, Google Chrome, один воркер, два контекста 390×844 — пассажир и водитель). Нужны `uv` и ключ маршрутов: `ROUTING_API_KEY` и `ROUTING_BASE_URL` в `.env` основного каталога репозитория (маршруты — настоящий openrouteservice; адреса — Nominatim, карта — настоящие, запросов немного), для сценария Kaspi — `KASPI_PAYMENT_URL`. Порты 8000 и 5173 должны быть свободны. Что делает прогон:
+
+- бэкенд запускается из основного каталога репозитория (родитель общего `.git`; из worktree тоже он, переопределяется `E2E_BACKEND_DIR`) с `SESSION_COOKIE_SECURE=false` на одноразовой SQLite-БД (`E2E_DB_FILE`); перед стартом прежняя БД удаляется, `globalSetup` выполняет `uv run alembic upgrade head`, `scripts/create_admin.py --username admin` и `scripts/seed.py` — демо-водители выходят на линию у демо-точки посадки;
+- `npm run dev` на 5173 с прокси на 8000;
+- `tests/e2e/full-ride.spec.ts`: наличные — водитель `demo_driver_1` выходит на линию, пассажир `demo_passenger_1` ищет «Esentai Mall», получает 4 тарифа, заказывает Эконом за наличные, водитель принимает предложение, проходит этапы поездки, подтверждает наличные, стороны оценивают друг друга; Kaspi — точка на карте, ссылка `pay.kaspi.kz` в новой вкладке, «Водитель найден — оплата прошла», отмена пассажиром и «Возвращено».
+
+Статусы ждутся через тексты UI (опрос каждые 3 с). Скриншоты шагов — `frontend/tests/e2e/screenshots/NN-<кадр Figma>.png`, пары «Figma | e2e» — `frontend/tests/e2e/compare/`. Прогон занимает около двух минут; оплата учебная, реальные деньги не списываются.
+
 Типы API (`src/api/schema.d.ts`) генерируются из `frontend/openapi.json`. После изменения API обновите схему из корня репозитория и перегенерируйте типы:
 
 ```bash

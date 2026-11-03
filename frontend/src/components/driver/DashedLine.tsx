@@ -1,3 +1,4 @@
+import { ROUTE_COLOR } from '@/components/map/layers'
 import { Polyline } from 'react-leaflet'
 import type { Coordinates } from '@/api'
 import { toLatLng } from '@/lib/geo'
@@ -7,7 +8,7 @@ export function DashedLine({ from, to }: { from: Coordinates; to: Coordinates })
   return (
     <Polyline
       positions={[toLatLng(from), toLatLng(to)]}
-      pathOptions={{ color: '#000000', weight: 4, opacity: 1, dashArray: '0 9', lineCap: 'round' }}
+      pathOptions={{ color: ROUTE_COLOR, weight: 4, opacity: 1, dashArray: '0 9', lineCap: 'round' }}
     />
   )
 }

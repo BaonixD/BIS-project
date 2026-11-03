@@ -6,8 +6,8 @@ import { test, type Page, type Route } from '@playwright/test'
  * Passenger screens next to the Figma frames (fileKey 6VHeDBRKk6RWdTYqH0r66K).
  * The API and Nominatim are mocked; map tiles are blocked, so the map is the plain land colour.
  * Output: screenshots/passenger-*.png (the page) and compare/passenger-*.png (Figma | page).
- * The mockups include a 47px iPhone status bar that the web page does not have:
- * the page is 390×797 and the Figma frame is cropped by 47px at the top.
+ * The mockups include a 47px iPhone status bar; the page reserves that space itself,
+ * so the page is 390×844 and compared with the whole Figma frame.
  */
 
 const HERE = import.meta.dirname
@@ -16,7 +16,7 @@ const COMPARE = path.join(HERE, 'compare')
 mkdirSync(SHOTS, { recursive: true })
 mkdirSync(COMPARE, { recursive: true })
 
-const STATUS_BAR = 47
+const STATUS_BAR = 0
 /** 14:20 in Almaty (UTC+5) on 3 November 2026. */
 const NOW = Date.parse('2026-11-03T09:20:00Z')
 const iso = (offsetS: number, base = NOW) => new Date(base + offsetS * 1000).toISOString()
@@ -199,7 +199,7 @@ async function mock(page: Page, scenario: Scenario) {
   let polls = 0
   // Time flows from NOW: a frozen clock (setFixedTime) would stall Leaflet's pan animations.
   await page.clock.setSystemTime(scenario.now ?? NOW)
-  await page.route('https://*.basemaps.cartocdn.com/**', (route) => route.abort())
+  await page.route('https://tiles.openfreemap.org/**', (route) => route.abort())
   await page.route('https://accounts.google.com/**', (route) => route.abort())
   await page.route('https://nominatim.openstreetmap.org/**', (route) => {
     const url = new URL(route.request().url())
@@ -259,7 +259,7 @@ async function settle(page: Page, ms = 900) {
 }
 
 async function shootAndCompare(page: Page, name: string, figma: string) {
-  const viewport = page.viewportSize() ?? { width: 390, height: 797 }
+  const viewport = page.viewportSize() ?? { width: 390, height: 844 }
   const shot = path.join(SHOTS, `passenger-${name}.png`)
   await page.screenshot({ path: shot })
   const app = readFileSync(shot).toString('base64')
@@ -281,7 +281,7 @@ async function shootAndCompare(page: Page, name: string, figma: string) {
 }
 
 test.describe('passenger 390px', () => {
-  test.use({ viewport: { width: 390, height: 797 }, geolocation: PICKUP, permissions: ['geolocation'] })
+  test.use({ viewport: { width: 390, height: 844 }, geolocation: PICKUP, permissions: ['geolocation'] })
 
   test('home 4:94', async ({ page }) => {
     await mock(page, {})
@@ -476,7 +476,7 @@ test.describe('passenger 390px', () => {
   test('profile 5:623', async ({ page }) => {
     await mock(page, {})
     await page.goto('/profile')
-    await page.getByRole('heading', { name: 'Айгерим' }).waitFor()
+    await page.getByRole('link', { name: /Айгерим Жумабаева/ }).waitFor()
     await settle(page)
     await shootAndCompare(page, 'profile-5-623', 'passenger-profile-5-623.png')
   })

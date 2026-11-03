@@ -11,8 +11,8 @@ export const NOMINATIM_URL = 'https://nominatim.openstreetmap.org'
 export const SEARCH_DEBOUNCE_MS = 600
 export const MIN_QUERY_LENGTH = 3
 export const FALLBACK_TITLE = 'Точка на карте'
-/** Almaty: left, top, right, bottom (lon, lat). */
-const ALMATY_VIEWBOX = '76.75,43.41,77.15,43.12'
+/** Almaty agglomeration, Kaskelen (SDU) to Talgar: left, top, right, bottom (lon, lat). */
+const ALMATY_VIEWBOX = '76.55,43.45,77.3,43.05'
 const MIN_INTERVAL_MS = 1000
 const RESULT_LIMIT = 6
 
@@ -80,6 +80,17 @@ function toPlace(raw: NominatimPlace): Place {
   }
 }
 
+/** OSM often maps a place twice (a point and its building): keep the first of the same title and subtitle. */
+function distinct(places: Place[]): Place[] {
+  const seen = new Set<string>()
+  return places.filter((place) => {
+    const key = `${place.title}\n${place.subtitle}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 function isNominatimPlace(value: unknown): value is NominatimPlace {
   return typeof value === 'object' && value !== null && 'lat' in value && 'lon' in value && 'place_id' in value
 }
@@ -132,7 +143,7 @@ export function createGeocoder({
       { q: query.trim(), viewbox: ALMATY_VIEWBOX, bounded: '1', countrycodes: 'kz', limit: String(RESULT_LIMIT) },
       signal,
     )
-    const places = Array.isArray(body) ? body.filter(isNominatimPlace).map(toPlace) : []
+    const places = Array.isArray(body) ? distinct(body.filter(isNominatimPlace).map(toPlace)) : []
     searches.set(key, places)
     return places
   }

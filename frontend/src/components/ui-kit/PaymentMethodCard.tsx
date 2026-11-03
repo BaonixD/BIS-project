@@ -15,7 +15,7 @@ interface PaymentMethodCardProps extends Omit<ComponentProps<'button'>, 'title'>
   subtitle?: string
 }
 
-/** Figma «PaymentSelector» 12:545 item: radius 14, 32px icon tile; selected — white with a 2px black border. */
+/** Figma «PaymentSelector» 12:545 item: 52px tall, radius 12, 28px icon tile; selected — white with a 1.5px black border. */
 export function PaymentMethodCard({
   method,
   selected = false,
@@ -33,19 +33,19 @@ export function PaymentMethodCard({
       aria-checked={selected}
       data-slot="payment-method-card"
       className={cn(
-        'flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden rounded-[14px] border-2 border-solid p-3 text-left',
+        'flex h-[52px] min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-md border-[1.5px] border-solid px-2.5 text-left',
         'outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-bg-inverse focus-visible:ring-offset-2',
         selected ? 'border-bg-inverse bg-bg-canvas' : 'border-bg-subtle bg-bg-subtle',
         className,
       )}
       {...props}
     >
-      <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-sm', iconBox)}>
-        <Icon className="size-[18px]" strokeWidth={2} aria-hidden />
+      <span className={cn('flex size-7 shrink-0 items-center justify-center rounded-[7px]', iconBox)}>
+        <Icon className="size-4" strokeWidth={2} aria-hidden />
       </span>
       <span className="flex min-w-0 flex-col">
-        <span className="truncate text-callout text-text-primary">{title ?? text.title}</span>
-        <span className="truncate text-caption text-text-secondary">{subtitle ?? text.subtitle}</span>
+        <span className="truncate text-[14px] leading-[18px] font-medium text-text-primary">{title ?? text.title}</span>
+        <span className="truncate text-[12px] leading-4 text-text-secondary">{subtitle ?? text.subtitle}</span>
       </span>
     </button>
   )

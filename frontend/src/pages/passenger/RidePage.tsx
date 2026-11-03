@@ -1,3 +1,4 @@
+import { ROUTE_COLOR } from '@/components/map/layers'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import type { LatLngTuple } from 'leaflet'
@@ -83,7 +84,7 @@ function RideMap({ ride, screen, insets, ready }: { ride: RideDetails; screen: R
 }
 
 /** Figma 5:434 «DriverApproach»: a dotted line from the car to the pickup. */
-const APPROACH_LINE = { color: '#000000', weight: 4, opacity: 1, dashArray: '0.1 8', lineCap: 'round' as const }
+const APPROACH_LINE = { color: ROUTE_COLOR, weight: 4, opacity: 1, dashArray: '0.1 8', lineCap: 'round' as const }
 
 function reorderState(ride: RideDetails, step: ReorderState['step']): ReorderState {
   return {

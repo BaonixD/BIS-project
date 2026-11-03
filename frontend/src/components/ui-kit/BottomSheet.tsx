@@ -15,7 +15,7 @@ interface BottomSheetProps extends Omit<ComponentProps<'section'>, 'children'> {
 /**
  * Figma BottomSheet (4:174): white, 24px top corners, Elevation/Sheet, grabber 36×5, 16px gaps.
  * At ≥1024px it becomes the floating left panel of Desktop 7:2 (400px, radius 20, Elevation/Card).
- * Place it inside a `relative` map container; `--sheet-offset` keeps it above the bottom nav.
+ * Place it inside a `relative` map container; it runs under the bottom nav and `--sheet-offset` pads its content above it.
  */
 export function BottomSheet({ children, centered, dimmed, onHeightChange, className, ...props }: BottomSheetProps) {
   const ref = useRef<HTMLElement>(null)
@@ -47,10 +47,10 @@ export function BottomSheet({ children, centered, dimmed, onHeightChange, classN
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 420, damping: 38, mass: 0.9 }}
         className={cn(
-          'absolute inset-x-0 bottom-(--sheet-offset) z-20 flex max-h-[calc(100%-var(--sheet-offset)-56px)] flex-col gap-4 overflow-y-auto',
-          'rounded-t-xl bg-bg-canvas px-4 pt-2 pb-5 shadow-sheet',
+          'absolute inset-x-0 bottom-0 z-20 flex max-h-[calc(100%-56px)] flex-col gap-4 overflow-y-auto',
+          'rounded-t-xl bg-bg-canvas px-4 pt-2 pb-[calc(var(--sheet-offset)+20px)] shadow-sheet',
           'lg:top-8 lg:right-auto lg:bottom-auto lg:left-8 lg:max-h-[calc(100%-64px)] lg:w-[400px] lg:rounded-[20px] lg:p-6 lg:shadow-card',
-          centered && 'items-center pb-7 text-center',
+          centered && 'items-center pb-[calc(var(--sheet-offset)+28px)] text-center',
           className,
         )}
         {...(props as ComponentProps<typeof motion.section>)}

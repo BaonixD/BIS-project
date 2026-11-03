@@ -40,8 +40,8 @@ export function SummaryRows({ rows, className }: { rows: [string, ReactNode][]; 
     <dl className={cn('flex w-full flex-col gap-3 text-left text-callout', className)}>
       {rows.map(([label, value]) => (
         <div key={label} className="flex w-full items-center gap-3">
-          <dt className="min-w-0 flex-1 text-text-secondary">{label}</dt>
-          <dd className="shrink-0 whitespace-nowrap text-text-primary">{value}</dd>
+          <dt className="shrink-0 whitespace-nowrap text-text-secondary">{label}</dt>
+          <dd className="min-w-0 flex-1 truncate text-right text-text-primary">{value}</dd>
         </div>
       ))}
     </dl>

@@ -53,7 +53,7 @@ export function HistoryPage() {
   const empty = page !== undefined && page.total === 0 && filter === 'all'
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 pt-[17px] pb-6 lg:pt-8">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 pt-[64px] pb-6 lg:pt-8">
       <h1 className="w-full text-display text-text-primary">{empty ? 'История' : 'Поездки'}</h1>
       {empty ? (
         <EmptyHistory />

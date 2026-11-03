@@ -50,7 +50,7 @@ export function AdminDriversPage() {
 
   return (
     <Screen tone="subtle">
-      <ScreenColumn className="gap-4 pt-[calc(17px+env(safe-area-inset-top))] pb-6 lg:max-w-2xl lg:pt-8">
+      <ScreenColumn className="gap-4 pt-[calc(64px+env(safe-area-inset-top))] pb-6 lg:max-w-2xl lg:pt-8">
         <div className="flex w-full items-center gap-3">
           <h1 className="min-w-0 flex-1 text-display text-text-primary">Водители</h1>
           {pendingCount > 0 && <StatusPill tone="warning">{pendingCount} ждут</StatusPill>}
