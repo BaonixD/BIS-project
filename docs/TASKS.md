@@ -18,7 +18,7 @@
 | [T07](tasks/T07-ride-lifecycle.md) | Жизненный цикл и отмена поездки | T06 | `task/t07-ride-lifecycle` | части A и B integrated (`f8686ab`, `7a53516` + `fix/t07b-review` `041c136`, [отчёт](reports/T07.md)) |
 | [T08](tasks/T08-payments.md) | Наличные и Kaspi-ссылка | T07 | `task/t08-payments` | части A и B integrated (`8a56b31`, `6b8dd5b` + `fix/t08b-review` `012fe8b`, [отчёт](reports/T08.md)) |
 | [T09](tasks/T09-history-admin.md) | История и административное чтение | T07 | `task/t09-history-admin` | integrated (`4381f72`, [отчёт](reports/T09.md)); payment-поля после T08 часть B |
-| [T10](tasks/T10-acceptance.md) | Seed, E2E, документация и передача | T08, T09 | `task/t10-acceptance` | часть A (seed) integrated (`3a40ba8`, [отчёт](reports/T10.md)); часть B in_progress (E2E и документация параллельно) |
+| [T10](tasks/T10-acceptance.md) | Seed, E2E, документация и передача | T08, T09 | `task/t10-acceptance` | integrated (`3a40ba8`, `4420d92`, `718ff1c`, [отчёт](reports/T10.md), [FINAL](reports/FINAL.md)) |
 | [T11](tasks/T11-google.md) | Google-вход | T10 + отдельный запуск | `task/t11-google` | deferred |
 
 ## Что может идти параллельно
