@@ -1,23 +1,26 @@
 import type { Coordinates, RouteResult } from '@/api'
-import { BaseMap } from './BaseMap'
-import { FitToPoints, PointMarker, RouteLine } from './layers'
+import type { MapInsets } from './layers'
+import { MapView } from './MapView'
 
 interface RideMapProps {
   pickup: Coordinates
   dropoff: Coordinates
   route?: RouteResult
   driverLocation?: Coordinates | null
+  insets?: MapInsets
   className?: string
 }
 
-export function RideMap({ pickup, dropoff, route, driverLocation, className }: RideMapProps) {
+export function RideMap({ pickup, dropoff, route, driverLocation, insets, className }: RideMapProps) {
   return (
-    <BaseMap className={className} center={pickup}>
-      <PointMarker point={pickup} kind="pickup" />
-      <PointMarker point={dropoff} kind="dropoff" />
-      {route && <RouteLine route={route} />}
-      {driverLocation && <PointMarker point={driverLocation} kind="driver" />}
-      <FitToPoints points={[pickup, dropoff]} />
-    </BaseMap>
+    <MapView
+      className={className}
+      center={pickup}
+      pickup={pickup}
+      dropoff={dropoff}
+      route={route}
+      driver={driverLocation}
+      insets={insets}
+    />
   )
 }

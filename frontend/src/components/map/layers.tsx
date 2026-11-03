@@ -1,57 +1,75 @@
 import { useEffect } from 'react'
-import { CircleMarker, Polyline, Tooltip, useMap } from 'react-leaflet'
-import { latLngBounds } from 'leaflet'
+import { Marker, Polyline, useMap } from 'react-leaflet'
+import { latLngBounds, type LatLngTuple } from 'leaflet'
 import type { Coordinates, RouteResult } from '@/api'
 import { routeToLatLngs, toLatLng } from '@/lib/geo'
+import { carIcon, dropoffIcon, myLocationIcon, pickupIcon } from './markers'
 
-export type PointKind = 'pickup' | 'dropoff' | 'driver'
+export type PointKind = 'pickup' | 'dropoff' | 'driver' | 'me'
 
-const POINT_STYLE: Record<PointKind, { color: string; label: string }> = {
-  pickup: { color: '#16a34a', label: 'Откуда' },
-  dropoff: { color: '#dc2626', label: 'Куда' },
-  driver: { color: '#2563eb', label: 'Водитель' },
-}
+const MARKERS = {
+  pickup: { icon: pickupIcon, label: 'Откуда' },
+  dropoff: { icon: dropoffIcon, label: 'Куда' },
+  driver: { icon: carIcon, label: 'Водитель' },
+  me: { icon: myLocationIcon, label: 'Вы здесь' },
+} as const
 
 const ROUTE_ATTRIBUTION =
   'Маршрут &copy; <a href="https://openrouteservice.org/">openrouteservice.org</a> by HeiGIT'
 
 export function PointMarker({ point, kind }: { point: Coordinates; kind: PointKind }) {
-  const { color, label } = POINT_STYLE[kind]
+  const { icon, label } = MARKERS[kind]
   return (
-    <CircleMarker
-      center={toLatLng(point)}
-      radius={kind === 'driver' ? 9 : 8}
-      pathOptions={{ color: '#ffffff', weight: 3, fillColor: color, fillOpacity: 1 }}
-    >
-      <Tooltip>{label}</Tooltip>
-    </CircleMarker>
-  )
-}
-
-export function RouteLine({ route }: { route: RouteResult }) {
-  return (
-    <Polyline
-      positions={routeToLatLngs(route)}
-      pathOptions={{ color: '#171717', weight: 5, opacity: 0.8 }}
-      attribution={ROUTE_ATTRIBUTION}
+    <Marker
+      position={toLatLng(point)}
+      icon={icon}
+      title={label}
+      alt={label}
+      keyboard={false}
+      interactive={false}
+      zIndexOffset={kind === 'driver' ? 1000 : 0}
     />
   )
 }
 
-/** Fits the view to the given points whenever their set changes. */
-export function FitToPoints({ points }: { points: Coordinates[] }) {
+/** Figma route line: black, 5px, round caps. */
+export function RouteLine({ route }: { route: RouteResult | LatLngTuple[] }) {
+  const positions = Array.isArray(route) ? route : routeToLatLngs(route)
+  return (
+    <Polyline
+      positions={positions}
+      pathOptions={{ color: '#000000', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round' }}
+      attribution={Array.isArray(route) ? undefined : ROUTE_ATTRIBUTION}
+    />
+  )
+}
+
+export interface MapInsets {
+  top?: number
+  right?: number
+  bottom?: number
+  left?: number
+}
+
+const FIT_PADDING = 48
+
+/** Fits the view to the points, keeping them clear of overlays (bottom sheet, desktop panel). */
+export function FitToPoints({ points: input, insets = {} }: { points: (Coordinates | LatLngTuple)[]; insets?: MapInsets }) {
   const map = useMap()
-  const key = points.map((p) => `${p.latitude},${p.longitude}`).join('|')
+  const { top = 0, right = 0, bottom = 0, left = 0 } = insets
+  const points = input.map((point) => (Array.isArray(point) ? point : toLatLng(point)))
+  const key = points.map(([lat, lng]) => `${lat.toFixed(5)},${lng.toFixed(5)}`).join('|')
 
   useEffect(() => {
     if (points.length === 0) return
-    if (points.length === 1 && points[0]) {
-      map.setView(toLatLng(points[0]), Math.max(map.getZoom(), 14))
-      return
-    }
-    map.fitBounds(latLngBounds(points.map(toLatLng)), { padding: [48, 48] })
+    map.fitBounds(latLngBounds(points), {
+      paddingTopLeft: [left + FIT_PADDING, top + FIT_PADDING],
+      paddingBottomRight: [right + FIT_PADDING, bottom + FIT_PADDING],
+      maxZoom: 16,
+      animate: true,
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` captures the points
-  }, [map, key])
+  }, [map, key, top, right, bottom, left])
 
   return null
 }
