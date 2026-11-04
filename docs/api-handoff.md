@@ -1,6 +1,6 @@
 # API для React-клиента
 
-Всё, что нужно фронтенду Mini Taxi Service, без чтения кода бэкенда. Фактическая схема — OpenAPI запущенного сервера (`/openapi.json`, Swagger UI — `/docs`); этот документ сверен с ней по списку маршрутов. Устройство сервера — [architecture.md](architecture.md), запуск — [README](../README.md).
+Всё, что нужно фронтенду Mini Taxi Service, без чтения кода бэкенда. Фактическая схема — OpenAPI запущенного сервера (`/openapi.json`, Swagger UI — `/docs`); этот документ сверен с ней по списку маршрутов. Устройство сервера — [architecture.md](architecture.md), запуск — [README](development.md).
 
 ## Содержание
 
@@ -18,7 +18,7 @@
 
 ## Подключение
 
-- Базовый URL API: `http://localhost:8000/api/v1` (локальный запуск по README). Health-маршруты — без префикса: `/health/live`, `/health/ready`.
+- Базовый URL API: `http://localhost:8000/api/v1` (локальный запуск по [руководству](development.md)). Health-маршруты — без префикса: `/health/live`, `/health/ready`.
 - Swagger UI: `http://localhost:8000/docs`, схема: `http://localhost:8000/openapi.json`. Из схемы можно сгенерировать типы (например, `openapi-typescript`). OpenAPI перечисляет только HTTP-статусы ошибок маршрута; коды `error.code` и правила — в этом документе.
 - Origin фронтенда должен быть в `CORS_ALLOWED_ORIGINS` в `.env` сервера (через запятую, без `*`; в `.env.example` уже `http://localhost:5173` — dev-сервер Vite). CORS работает с credentials; разрешены методы `GET, POST, PUT, PATCH, DELETE`, заголовки `Content-Type`, `X-CSRF-Token`, `X-Request-ID`, `Idempotency-Key`; клиенту доступны ответные заголовки `X-Request-ID` и `Idempotent-Replayed`.
 - Cookie сессии `SameSite=Lax`: браузер отправит её в `fetch` только между адресами одного сайта. Открывайте фронтенд и API на одном хосте — оба `localhost` (порты могут различаться), не смешивайте `localhost` и `127.0.0.1`. Для локального `http://` сервер запускается с `SESSION_COOKIE_SECURE=false` (так в `.env.example`), иначе браузер не вернёт cookie.
@@ -236,7 +236,7 @@ export async function loginWithGoogle(credential: string) {
 
 ## Администратор
 
-Admin создаётся только локальной командой (`scripts/create_admin.py`, README), публичной регистрации нет.
+Admin создаётся только локальной командой (`scripts/create_admin.py`, [руководство](development.md)), публичной регистрации нет.
 
 - Допуск водителей: `GET /admin/drivers?approval_status=pending` (новые регистрации сначала; водитель без профиля — тоже `pending`) → `POST /admin/drivers/{driver_id}/approve` (`driver_id` — id пользователя; необязательное тело `{"car_class": "comfort"}` сразу задаёт класс, без него класс не меняется).
 - Класс машины: `PATCH /admin/drivers/{driver_id} {"car_class": "business"}` (`404 driver_not_found`, без машины — `409 driver_profile_incomplete`). Понижение класса отзывает открытые предложения водителя по более высоким тарифам. У новой машины — `economy`. Неполный профиль — `409 driver_profile_incomplete` с `details.missing_fields`; повторный допуск возвращает первый.

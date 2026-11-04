@@ -1,6 +1,6 @@
 # Архитектура backend MVP
 
-Как устроено приложение Mini Taxi Service: слои, транзакции, модули и их зависимости, схема данных, состояния и единицы. Описано по коду ветки `integration/backend-mvp`. Контракт HTTP для клиента — в [api-handoff.md](api-handoff.md), команды запуска — в [README](../README.md), решения — в [ADR](decisions/README.md).
+Как устроено приложение Mini Taxi Service: слои, транзакции, модули и их зависимости, схема данных, состояния и единицы. Описано по коду ветки `integration/backend-mvp`. Контракт HTTP для клиента — в [api-handoff.md](api-handoff.md), команды запуска — в [README](development.md), решения — в [ADR](decisions/README.md).
 
 ## Содержание
 
