@@ -12,7 +12,7 @@ MVP_SPEC §5 требует реальный дорожный маршрут в 
 - Запрос: `POST {ROUTING_BASE_URL}/v2/directions/driving-car/geojson`, базовый URL по умолчанию `https://api.openrouteservice.org`, заголовок `Authorization: <ключ>`, тело `{"coordinates": [[lon, lat], [lon, lat]]}`.
 - Ответ: GeoJSON `FeatureCollection`; из `features[0]` берутся `properties.summary.distance` (м), `properties.summary.duration` (с) и `geometry` (`LineString`).
 - Нормализация в `RouteResult`: `distance_m`/`duration_s` — целые, округление `ROUND_HALF_UP`; `route_geometry` — GeoJSON `LineString` с позициями `[longitude, latitude]` (только 2D, высота не запрашивается); `provider = "openrouteservice"`.
-- Код: `src/taxi_service/modules/geo/` (`client.py`, `config.py`, `exceptions.py`, `schemas.py`). Настройки — `RoutingSettings` с префиксом `ROUTING_`; ключ хранится как `SecretStr` и не попадает в repr, логи и ошибки.
+- Код: `backend/taxi_service/modules/geo/` (`client.py`, `config.py`, `exceptions.py`, `schemas.py`). Настройки — `RoutingSettings` с префиксом `ROUTING_`; ключ хранится как `SecretStr` и не попадает в repr, логи и ошибки.
 - Платный тариф не подключается. Используется только персональный бесплатный Standard-ключ владельца, когда он появится.
 
 ## Контракт ошибок

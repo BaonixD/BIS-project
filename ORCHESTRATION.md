@@ -288,7 +288,7 @@ draft → ready → in_progress → review → accepted → integrated → done
 
 ```bash
 uv run python scripts/lint.py
-uv run mypy src/taxi_service
+uv run mypy backend/taxi_service
 uv run pytest <относящиеся-к-задаче-тесты>
 ```
 

@@ -23,7 +23,7 @@
 - **Время** — внедряемый `Clock`; **назначение водителя** — фоновый цикл внутри процесса, всё его состояние в БД ([ADR 0006](decisions/0006-dispatch.md)).
 
 ```text
-src/taxi_service/
+backend/taxi_service/
 ├── main.py            create_app(): middleware, обработчики ошибок, роутеры, app.state
 ├── api/               router.py (health + /api/v1), v1.py, health.py, exception_handlers.py
 ├── core/              config.py, clock.py, lifespan.py, logging.py, request_id.py, origins.py, errors.py
@@ -91,7 +91,7 @@ flowchart LR
 
 ## Модули и зависимости
 
-Граф построен по фактическим импортам (`grep -rn "from taxi_service.modules" src/taxi_service`); стрелка `A --> B` — модуль A импортирует B. Подпись — что именно используется.
+Граф построен по фактическим импортам (`grep -rn "from taxi_service.modules" backend/taxi_service`); стрелка `A --> B` — модуль A импортирует B. Подпись — что именно используется.
 
 ```mermaid
 flowchart TB

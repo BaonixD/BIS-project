@@ -23,6 +23,7 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-name = "taxi_service"
+module-root = "backend"
 
 [dependency-groups]
 dev = [
@@ -35,7 +36,7 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["src", "tests", "scripts"]
+src = ["backend", "tests", "scripts"]
 # Python only: Markdown documents are maintained outside the code checks.
 include = ["*.py", "*.pyi", "**/pyproject.toml"]
 

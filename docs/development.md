@@ -58,7 +58,7 @@ uv run python scripts/create_admin.py --username admin   # свой admin, по 
 uv run uvicorn --factory taxi_service.main:create_app --port 8000
 ```
 
-Проверка: `curl -s http://localhost:8000/health/ready` → `{"status":"ready"}`; Swagger UI — `http://localhost:8000/docs`. Проверки кода: `uv run python scripts/lint.py`, `uv run mypy src/taxi_service tests scripts`, `uv run pytest`.
+Проверка: `curl -s http://localhost:8000/health/ready` → `{"status":"ready"}`; Swagger UI — `http://localhost:8000/docs`. Проверки кода: `uv run python scripts/lint.py`, `uv run mypy backend/taxi_service tests scripts`, `uv run pytest`.
 
 ## Локальная разработка
 
@@ -112,7 +112,7 @@ uv run alembic current        # ревизия БД;  uv run alembic heads — �
 
 Alembic берёт URL из `DATABASE_URL` (окружение или `.env`); в `alembic.ini` URL не хранится. Чтобы проверить миграции на одноразовой БД, а не на рабочей, задайте URL явно: `DATABASE_URL=sqlite+aiosqlite:///./scratch-test.db uv run alembic upgrade head`.
 
-Соединения SQLite открываются с `foreign_keys=ON`, WAL и `busy_timeout=5000` (подробности — `src/taxi_service/database/sqlite.py`). У сессий отключён autobegin: запрос вне явной транзакции вызывает ошибку. Есть два пути:
+Соединения SQLite открываются с `foreign_keys=ON`, WAL и `busy_timeout=5000` (подробности — `backend/taxi_service/database/sqlite.py`). У сессий отключён autobegin: запрос вне явной транзакции вызывает ошибку. Есть два пути:
 
 | Путь | Код | SQLite |
 | --- | --- | --- |
@@ -123,7 +123,7 @@ Alembic берёт URL из `DATABASE_URL` (окружение или `.env`); �
 
 Миграции работают с отключённой на время проверкой внешних ключей (пересоздание таблицы в batch-режиме иначе каскадно удалило бы связанные строки) и перед commit выполняют `PRAGMA foreign_key_check`; при нарушении вся ревизия откатывается.
 
-Новая модель: класс от `taxi_service.database.base.Base` (время — `UtcDateTime`), импорт её модуля в `src/taxi_service/database/metadata.py`, затем `uv run alembic revision --autogenerate -m "..."`, ручная проверка ревизии, `upgrade head` и `check` на одноразовой БД. История ревизий линейная, с одной head; первая ревизия `baseline` пустая.
+Новая модель: класс от `taxi_service.database.base.Base` (время — `UtcDateTime`), импорт её модуля в `backend/taxi_service/database/metadata.py`, затем `uv run alembic revision --autogenerate -m "..."`, ручная проверка ревизии, `upgrade head` и `check` на одноразовой БД. История ревизий линейная, с одной head; первая ревизия `baseline` пустая.
 
 Ограничение: путь к `alembic.ini` и `alembic/` вычисляется от расположения исходников (`taxi_service/database/migrations.py`, `parents[3]` — корень репозитория). Это работает при запуске из репозитория (editable-установка `uv sync`); из собранного wheel без репозитория readiness и `alembic_config()` каталог миграций не найдут.
 
@@ -261,7 +261,7 @@ ADMIN_PASSWORD='...' uv run python scripts/create_admin.py --username admin   # 
 
 ```bash
 uv run python scripts/lint.py        # ruff check + ruff format --check, файлы не меняет
-uv run mypy src/taxi_service tests scripts   # strict
+uv run mypy backend/taxi_service tests scripts   # strict
 uv run pytest                        # unit, API, интеграция с БД и миграции; без внешних сервисов
 ```
 
@@ -515,7 +515,7 @@ uv run python scripts/seed.py --refresh-locations   # перед показом:
 - **Коды выхода:** `0` — готово (сводка `created / skipped / refreshed`); `1` — окружение или БД (не SQLite-файл, нет файла, не мигрирована, конфликт с существующими данными); `2` — ввод (пароль вне 10–128 символов, повтор не совпал, нет терминала для запроса).
 - Если запуск прервался посреди создания водителя, повторный запуск пропустит уже созданный аккаунт; проверьте его в `GET /api/v1/admin/drivers` и при необходимости завершите профиль и допуск через API.
 
-Код: `scripts/seed.py` (CLI) и `src/taxi_service/seeds/demo.py` (данные и логика через функции `users.service` и `drivers.service`: `create_user`, `update_profile`, `approve_driver`, `update_location`, `set_availability`). Пакет `seeds` лежит внутри `taxi_service`, а не в корне репозитория: так он импортируется из `scripts/` без правки `sys.path` и проверяется общей командой `uv run mypy src/taxi_service tests scripts`. Тесты — `tests/seeds/`; остальные тесты демо-seed не используют.
+Код: `scripts/seed.py` (CLI) и `backend/taxi_service/seeds/demo.py` (данные и логика через функции `users.service` и `drivers.service`: `create_user`, `update_profile`, `approve_driver`, `update_location`, `set_availability`). Пакет `seeds` лежит внутри `taxi_service`, а не в корне репозитория: так он импортируется из `scripts/` без правки `sys.path` и проверяется общей командой `uv run mypy backend/taxi_service tests scripts`. Тесты — `tests/seeds/`; остальные тесты демо-seed не используют.
 
 ## Назначение водителя
 
