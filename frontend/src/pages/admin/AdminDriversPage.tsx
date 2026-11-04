@@ -10,6 +10,7 @@ import { useAdminDrivers } from '@/hooks/use-admin'
 import { vehicleLine } from './admin-format'
 import { CarClassSheet } from './CarClassSheet'
 import { useApproveFlow } from './use-approve-flow'
+import { AdminLogoutButton } from './AdminLogoutButton'
 
 const FILTERS: { id: ApprovalStatus | 'all'; label: string }[] = [
   { id: 'pending', label: 'На проверке' },
@@ -54,6 +55,7 @@ export function AdminDriversPage() {
         <div className="flex w-full items-center gap-3">
           <h1 className="min-w-0 flex-1 text-display text-text-primary">Водители</h1>
           {pendingCount > 0 && <StatusPill tone="warning">{pendingCount} ждут</StatusPill>}
+          <AdminLogoutButton />
         </div>
         <div className="flex w-full items-center gap-2 overflow-x-auto scrollbar-none">
           {FILTERS.map((item) => (

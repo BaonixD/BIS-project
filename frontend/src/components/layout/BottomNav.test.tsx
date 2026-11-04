@@ -1,6 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { UserRole } from '@/api'
 import { BottomNav } from './BottomNav'
 import { TopBar } from './TopBar'
@@ -70,5 +71,26 @@ describe('TopBar', () => {
     expect(activeLabel(nav)).toEqual(['История'])
     expect(screen.getByText('BIS Taxi')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Айгерим/ })).toHaveAttribute('href', '/profile')
+  })
+})
+
+describe('TopBar logout', () => {
+  const renderBar = (role: UserRole, onLogout: () => void) =>
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <TopBar role={role} displayName="admin" onLogout={onLogout} />
+      </MemoryRouter>,
+    )
+
+  it('lets the admin, who has no profile page, log out', async () => {
+    const onLogout = vi.fn()
+    renderBar('admin', onLogout)
+    await userEvent.click(screen.getByRole('button', { name: 'Выйти' }))
+    expect(onLogout).toHaveBeenCalledOnce()
+  })
+
+  it('leaves logout to the profile page for other roles', () => {
+    renderBar('passenger', vi.fn())
+    expect(screen.queryByRole('button', { name: 'Выйти' })).not.toBeInTheDocument()
   })
 })

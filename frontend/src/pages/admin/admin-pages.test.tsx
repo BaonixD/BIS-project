@@ -15,10 +15,14 @@ vi.mock('@/api/client', async (importOriginal) => {
   fake.current = create()
   return { ...original, api: fake.current.api }
 })
+const logout = vi.hoisted(() => ({ mutate: vi.fn(), isPending: false }))
+vi.mock('@/auth/use-session', () => ({ useSession: () => ({ logout }) }))
 vi.mock('@/hooks/use-geocoding', () => ({ useReverseGeocode: () => ({ data: { title: 'Абая 52' } }) }))
 
 const { AdminDriversPage } = await import('./AdminDriversPage')
 const { AdminDriverPage } = await import('./AdminDriverPage')
+const { AdminRidesPage } = await import('./AdminRidesPage')
+const { AdminUsersPage } = await import('./AdminUsersPage')
 const api = fake.current as ReturnType<typeof createFakeApi>
 const page = (items: unknown[]) => ({ items, limit: 50, offset: 0, total: items.length })
 
@@ -80,6 +84,26 @@ describe('driver approval with the car class', () => {
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Одобрить' }))
     await waitFor(() => expect(api.calls.some((item) => item.path.endsWith('/approve'))).toBe(true))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+})
+
+describe('admin logout on mobile', () => {
+  it.each([
+    ['drivers', AdminDriversPage],
+    ['rides', AdminRidesPage],
+    ['people', AdminUsersPage],
+  ])('the %s page has a logout button', async (_name, Page) => {
+    logout.mutate.mockClear()
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <Page />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Выйти' }))
+    expect(logout.mutate).toHaveBeenCalledOnce()
   })
 })
 

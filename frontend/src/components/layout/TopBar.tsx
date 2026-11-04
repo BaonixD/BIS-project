@@ -1,3 +1,4 @@
+import { LogOut } from 'lucide-react'
 import { Link, useLocation } from 'react-router'
 import type { UserRole } from '@/api'
 import { ROLE_HOME } from '@/auth/role-home'
@@ -22,11 +23,14 @@ function Account({ displayName }: { displayName: string }) {
 export function TopBar({
   role,
   displayName,
+  onLogout,
   pathname: pathnameOverride,
   preview = false,
 }: {
   role: UserRole
   displayName: string
+  /** Shown for roles without a profile page (the admin). */
+  onLogout?: () => void
   pathname?: string
   /** Kit preview: render in the flow at every width. */
   preview?: boolean
@@ -69,6 +73,16 @@ export function TopBar({
       ) : (
         <div className="flex shrink-0 items-center gap-2.5">
           <Account displayName={displayName} />
+          {onLogout && (
+            <button
+              type="button"
+              aria-label="Выйти"
+              onClick={onLogout}
+              className="ml-2 flex size-8 items-center justify-center rounded-full text-text-inverse opacity-60 outline-none transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-bg-canvas"
+            >
+              <LogOut className="size-5" strokeWidth={2} aria-hidden />
+            </button>
+          )}
         </div>
       )}
     </header>

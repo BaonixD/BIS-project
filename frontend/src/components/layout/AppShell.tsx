@@ -13,7 +13,7 @@ import { TopBar } from './TopBar'
  * ≥1024px: the black top bar (Desktop 7:2) replaces the bottom nav.
  */
 export function AppShell() {
-  const { user } = useSession()
+  const { user, logout } = useSession()
   const { pathname } = useLocation()
   const navHidden = useBottomNavHidden()
   const profile = useMyProfile(Boolean(user))
@@ -25,7 +25,7 @@ export function AppShell() {
         navHidden ? "[--sheet-offset:0px]" : "[--sheet-offset:calc(var(--nav-height)-12px)]",
       )}
     >
-      {user && <TopBar role={user.role} displayName={displayName} />}
+      {user && <TopBar role={user.role} displayName={displayName} onLogout={() => logout.mutate()} />}
       <main className={cn("lg:pt-(--top-bar-height) lg:pb-0", !navHidden && "pb-(--nav-height)")}>
         <div key={pathname} className="animate-page-in">
           <Suspense fallback={<FullScreenLoader />}>

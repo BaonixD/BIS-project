@@ -7,6 +7,7 @@ import { Screen, ScreenColumn } from '@/components/driver/Screen'
 import { Chip, Input, Skeleton, StatusPill } from '@/components/ui-kit'
 import { useAdminUsers } from '@/hooks/use-admin'
 import { ROLE_PILL } from './admin-format'
+import { AdminLogoutButton } from './AdminLogoutButton'
 
 const FILTERS: { id: UserRole | 'all'; label: string }[] = [
   { id: 'all', label: 'Все' },
@@ -42,7 +43,10 @@ export function AdminUsersPage() {
   return (
     <Screen tone="subtle">
       <ScreenColumn className="gap-4 pt-[calc(64px+env(safe-area-inset-top))] pb-6 lg:max-w-2xl lg:pt-8">
-        <h1 className="w-full text-display text-text-primary">Люди</h1>
+        <div className="flex w-full items-center gap-3">
+          <h1 className="min-w-0 flex-1 text-display text-text-primary">Люди</h1>
+          <AdminLogoutButton />
+        </div>
         <Input
           icon={Search}
           placeholder="Поиск по имени"
