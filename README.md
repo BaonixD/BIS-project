@@ -1,5 +1,12 @@
 # BIS Taxi
 
+
+A taxi app for Almaty, built by our team as a course project for Basics of Information Systems.
+
+Passengers choose where to go, compare prices across four tariffs, and pay in cash or through Kaspi. The nearest free driver gets the order and has 30 seconds to accept it. After the ride, both sides rate each other. An admin approves new drivers and can see all rides.
+
+This is a student project, so the Kaspi payment is only simulated: no real money moves.
+
 ## Team
 
 | Name | Student ID |
@@ -9,12 +16,6 @@
 | Amir Bakhytzhan | 24B031694 |
 | Aknur Abdimailk | 24B032174 |
 | Yenglik Aman | 24B031635 |
-
-A taxi app for Almaty, built by our team as a course project for Basics of Information Systems.
-
-Passengers choose where to go, compare prices across four tariffs, and pay in cash or through Kaspi. The nearest free driver gets the order and has 30 seconds to accept it. After the ride, both sides rate each other. An admin approves new drivers and can see all rides.
-
-This is a student project, so the Kaspi payment is only simulated: no real money moves.
 
 ## Before you start
 
