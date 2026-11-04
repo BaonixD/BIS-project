@@ -1,5 +1,15 @@
 # BIS Taxi
 
+## Team
+
+| Name | Student ID |
+| --- | --- |
+| Ilyas Amzekhan | 24B031647 |
+| Aruzhan Nagizbekova | 24B031916 |
+| Amir Bakhytzhan | 24B031694 |
+| Aknur Abdimailk | 24B032174 |
+| Yenglik Aman | 24B031635 |
+
 A taxi app for Almaty, built by our team as a course project for Basics of Information Systems.
 
 Passengers choose where to go, compare prices across four tariffs, and pay in cash or through Kaspi. The nearest free driver gets the order and has 30 seconds to accept it. After the ride, both sides rate each other. An admin approves new drivers and can see all rides.
@@ -73,15 +83,6 @@ The app is built for phones first. On a computer, it looks best in your browser'
 
 **Good to know:** the Kaspi option only shows up if you add a Kaspi link to `.env`, and "Continue with Google" only shows up if you add a Google client ID. Everything else works without them.
 
-## Team
-
-| Name | Student ID |
-| --- | --- |
-| Ilyas Amzekhan | 24B031647 |
-| Aruzhan Nagizbekova | 24B031916 |
-| Amir Bakhytzhan | 24B031694 |
-| Aknur Abdimailk | 24B032174 |
-| Yenglik Aman | 24B031635 |
 
 ## More
 
