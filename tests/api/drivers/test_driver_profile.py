@@ -44,6 +44,7 @@ async def test_new_driver_has_an_empty_pending_profile(client: httpx.AsyncClient
         "approval_status": "pending",
         "approved_at": None,
         "online": False,
+        "enabled_categories": [],
         "location": None,
         "location_updated_at": None,
         "missing_fields": ALL_MISSING,
@@ -76,6 +77,7 @@ async def test_complete_profile_is_normalized_and_stored(client: httpx.AsyncClie
         "plate_number": "123ABC02",
         "year": 2020,
         "car_class": "economy",
+        "categories": ["economy"],
     }
     assert profile["missing_fields"] == []
     assert profile["approval_status"] == "pending"

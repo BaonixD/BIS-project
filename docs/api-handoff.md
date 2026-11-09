@@ -222,6 +222,12 @@ export async function loginWithGoogle(credential: string) {
 
 ## Поток водителя
 
+При выходе на линию можно передать `{online: true, categories: [...]}`.
+`vehicle.categories` — все доступные тарифы по классу машины, `enabled_categories` —
+рабочий выбор водителя. Бизнес автоматически открывает все четыре тарифа,
+но водитель может принимать только отмеченные. Без `categories` сохраняется прежний
+выбор; при `online: false` поле нужно опустить. См. [ADR 0016](decisions/0016-driver-working-tariffs.md).
+
 1. **Регистрация и вход** с `role: "driver"`.
 2. **Профиль**: `GET /drivers/me` → `missing_fields` показывает, чего не хватает. `PATCH /drivers/me {full_name, phone, license_number, vehicle: {make, model, color, plate_number, year}}`. Телефон нормализуется в `+цифры`, номер прав и госномер — заглавными без пробелов и `-`; госномер уникален (`409 plate_number_taken`); год — от 1980 до следующего года. `vehicle` заменяет машину целиком.
 3. **Ожидание допуска**: `approval_status: "pending"` до решения admin; опрашивать `GET /drivers/me` редко (раз в 10–30 с) или по кнопке. Изменение ФИО, прав или машины у допущенного водителя возвращает его в `pending` и offline; телефон меняется без этого.

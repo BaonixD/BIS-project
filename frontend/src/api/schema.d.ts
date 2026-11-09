@@ -633,6 +633,11 @@ export interface components {
             approved_at: string | null;
             /** Online */
             online: boolean;
+            /**
+             * Enabled Categories
+             * @description Working tariffs selected by the driver.
+             */
+            enabled_categories: components["schemas"]["Tariff"][];
             location: components["schemas"]["Coordinates"] | null;
             /**
              * Location Updated At
@@ -775,6 +780,8 @@ export interface components {
         AvailabilityUpdate: {
             /** Online */
             online: boolean;
+            /** Categories */
+            categories?: components["schemas"]["Tariff"][] | null;
         };
         /** CancelRequest */
         CancelRequest: {
@@ -854,6 +861,11 @@ export interface components {
             approved_at: string | null;
             /** Online */
             online: boolean;
+            /**
+             * Enabled Categories
+             * @description Working tariffs selected by the driver.
+             */
+            enabled_categories: components["schemas"]["Tariff"][];
             location: components["schemas"]["Coordinates"] | null;
             /**
              * Location Updated At
@@ -1612,8 +1624,13 @@ export interface components {
             plate_number: string;
             /** Year */
             year: number;
-            /** @description Set by an admin; serves its tariff and lower ones. */
+            /** @description Maximum car class, set by an admin. */
             car_class: components["schemas"]["Tariff"];
+            /**
+             * Categories
+             * @description All tariffs permitted by the maximum vehicle class.
+             */
+            categories: components["schemas"]["Tariff"][];
         };
     };
     responses: never;

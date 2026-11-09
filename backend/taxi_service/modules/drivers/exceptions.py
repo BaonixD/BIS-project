@@ -65,3 +65,12 @@ class VehicleYearOutOfRangeError(AppError):
                 ]
             },
         )
+
+
+class DriverCategoryNotAllowedError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=422,
+            code="driver_category_not_allowed",
+            message="Select at least one tariff permitted by your vehicle class.",
+        )

@@ -43,11 +43,13 @@ async def update_my_driver_profile(
     return DriverResponse.build(user.id, profile, await ratings_service.rating_of(db, user.id))
 
 
-@router.put("/me/availability", responses=error_responses(401, 403, 409))
+@router.put("/me/availability", responses=error_responses(401, 403, 409, 422))
 async def set_my_availability(
     body: AvailabilityUpdate, user: DriverUser, db: DbSession, clock: ClockDep
 ) -> DriverResponse:
-    profile = await service.set_availability(db, user.id, body.online, clock=clock)
+    profile = await service.set_availability(
+        db, user.id, body.online, clock=clock, categories=body.categories
+    )
     return DriverResponse.build(user.id, profile, await ratings_service.rating_of(db, user.id))
 
 

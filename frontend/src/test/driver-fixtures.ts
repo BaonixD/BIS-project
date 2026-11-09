@@ -10,10 +10,11 @@ export function driverFixture(overrides: Partial<NextDriver> = {}): NextDriver {
     full_name: 'Арман Нурланов',
     phone: '+7 701 000 00 00',
     license_number: 'KZ 12345678',
-    vehicle: { make: 'Toyota', model: 'Camry', color: 'белый', plate_number: '123 ABC 02', year: 2020, car_class: 'comfort' },
+    vehicle: { make: 'Toyota', model: 'Camry', color: 'белый', plate_number: '123 ABC 02', year: 2020, car_class: 'comfort', categories: ['economy', 'comfort'] },
     approval_status: 'approved',
     approved_at: '2026-11-03T05:00:00Z',
     online: false,
+    enabled_categories: ['economy', 'comfort'],
     location: { latitude: 43.25, longitude: 76.91 },
     location_updated_at: '2026-11-03T09:00:00Z',
     missing_fields: [],
@@ -101,6 +102,8 @@ export function summaryFixture(overrides: Partial<RideSummary> = {}): RideSummar
 export function adminDriverFixture(overrides: Partial<NextAdminDriver> = {}): NextAdminDriver {
   return {
     ...driverFixture({ approval_status: 'pending', approved_at: null }),
+    vehicle: { ...driverFixture().vehicle!, car_class: 'economy', categories: ['economy'] },
+    enabled_categories: ['economy'],
     username: 'arman',
     created_at: '2026-11-03T04:00:00Z',
     approved_by: null,

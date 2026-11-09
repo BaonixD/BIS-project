@@ -1,5 +1,5 @@
 import uuid
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -12,6 +12,7 @@ from taxi_service.database.errors import violates_unique
 from taxi_service.database.search import matches_text
 from taxi_service.database.session import read_transaction
 from taxi_service.modules.drivers.exceptions import (
+    DriverCategoryNotAllowedError,
     DriverNotApprovedError,
     DriverNotFoundError,
     DriverOnActiveRideError,
@@ -24,6 +25,7 @@ from taxi_service.modules.drivers.models import (
     ApprovalStatus,
     DriverProfile,
     Vehicle,
+    VehicleCategory,
     missing_fields,
 )
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate, VehicleInput
@@ -32,7 +34,7 @@ from taxi_service.modules.ratings import records as rating_records
 from taxi_service.modules.ratings.records import RatingSummary
 from taxi_service.modules.rides import service as rides_service
 from taxi_service.modules.rides.dispatch import revoke_driver_offers
-from taxi_service.modules.rides.tariffs import Tariff, tariffs_above
+from taxi_service.modules.rides.tariffs import TARIFFS, Tariff
 from taxi_service.modules.users.models import User, UserRole
 from taxi_service.modules.users.service import require_account_access
 
@@ -81,7 +83,12 @@ async def update_profile(
 
 
 async def set_availability(
-    db: AsyncSession, driver_id: uuid.UUID, online: bool, *, clock: Clock
+    db: AsyncSession,
+    driver_id: uuid.UUID,
+    online: bool,
+    *,
+    clock: Clock,
+    categories: Sequence[Tariff] | None = None,
 ) -> DriverProfile | None:
     """Going offline revokes a pending offer; the dispatch loop asks the next candidate."""
     async with db.begin():
@@ -89,6 +96,8 @@ async def set_availability(
         if online:
             await require_account_access(db, driver_id)
             _ensure_can_go_online(profile)
+            if profile is not None and categories is not None:
+                await _set_enabled_categories(db, profile, categories, clock.now())
         else:
             await _ensure_no_active_ride(db, driver_id)
         if profile is not None and profile.is_online != online:
@@ -152,7 +161,12 @@ def _check_vehicle_year(year: int, *, newest: int) -> None:
 def _apply_vehicle(profile: DriverProfile, data: VehicleInput, now: datetime) -> bool:
     values = {name: getattr(data, name) for name in _VEHICLE_FIELDS}
     if profile.vehicle is None:
-        profile.vehicle = Vehicle(driver_id=profile.user_id, updated_at=now, **values)
+        profile.vehicle = Vehicle(
+            driver_id=profile.user_id,
+            updated_at=now,
+            category_rows=[VehicleCategory(tariff=Tariff.ECONOMY)],
+            **values,
+        )
         return True
     vehicle = profile.vehicle
     if all(getattr(vehicle, name) == value for name, value in values.items()):
@@ -237,9 +251,40 @@ async def _apply_car_class(
     vehicle = profile.vehicle
     if vehicle is None or vehicle.car_class is car_class:
         return
+    previous_allowed = set(vehicle.categories)
+    previous_selection = set(vehicle.enabled_categories)
     vehicle.car_class = car_class
+    allowed = vehicle.categories
+    # Preserve "all" as all; retain explicit opt-outs when the class changes.
+    selected = (
+        allowed
+        if previous_selection == previous_allowed
+        else [tariff for tariff in allowed if tariff in previous_selection]
+    )
+    if not selected:
+        profile.is_online = False
+        selected = allowed
+    await _set_enabled_categories(db, profile, selected, now)
     vehicle.updated_at = now
-    await revoke_driver_offers(db, profile.user_id, now, tariffs=tariffs_above(car_class))
+
+
+async def _set_enabled_categories(
+    db: AsyncSession, profile: DriverProfile, categories: Sequence[Tariff], now: datetime
+) -> None:
+    vehicle = profile.vehicle
+    if vehicle is None or not categories or not set(categories).issubset(vehicle.categories):
+        raise DriverCategoryNotAllowedError
+    selected = [tariff for tariff in TARIFFS if tariff in categories]
+    if vehicle.enabled_categories == selected:
+        return
+    existing = {row.tariff: row for row in vehicle.category_rows}
+    vehicle.category_rows = [
+        existing.get(tariff) or VehicleCategory(tariff=tariff) for tariff in selected
+    ]
+    vehicle.updated_at = now
+    unavailable = set(TARIFFS) - set(selected)
+    if unavailable:
+        await revoke_driver_offers(db, profile.user_id, now, tariffs=unavailable)
 
 
 def _apply_identity(profile: DriverProfile, update: DriverProfileUpdate) -> bool:

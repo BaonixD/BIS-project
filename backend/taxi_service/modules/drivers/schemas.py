@@ -3,7 +3,15 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StringConstraints
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from taxi_service.modules.drivers.models import (
     FULL_NAME_MAX_LENGTH,
@@ -20,7 +28,7 @@ from taxi_service.modules.drivers.models import (
 from taxi_service.modules.geo.schemas import Coordinates
 from taxi_service.modules.ratings.records import RatingSummary
 from taxi_service.modules.ratings.schemas import RatingSummaryResponse
-from taxi_service.modules.rides.tariffs import Tariff
+from taxi_service.modules.rides.tariffs import TARIFFS, Tariff
 from taxi_service.modules.users.models import User
 from taxi_service.modules.users.schemas import Phone
 from taxi_service.schemas.patch import PatchRequest
@@ -90,6 +98,29 @@ class AvailabilityUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     online: bool = Field(strict=True)
+    categories: list[Tariff] | None = Field(default=None, min_length=1, max_length=4)
+
+    @field_validator("categories", mode="before")
+    @classmethod
+    def categories_not_null(cls, value: Any) -> Any:
+        if value is None:
+            raise ValueError("Omit categories to keep the previous selection.")
+        return value
+
+    @field_validator("categories")
+    @classmethod
+    def unique_categories(cls, value: list[Tariff] | None) -> list[Tariff] | None:
+        if value is None:
+            return None
+        if len(set(value)) != len(value):
+            raise ValueError("Categories must be unique.")
+        return [tariff for tariff in TARIFFS if tariff in value]
+
+    @model_validator(mode="after")
+    def categories_only_online(self) -> "AvailabilityUpdate":
+        if not self.online and self.categories is not None:
+            raise ValueError("Categories are selected when going online.")
+        return self
 
 
 class LocationUpdate(Coordinates):
@@ -106,7 +137,12 @@ class VehicleResponse(BaseModel):
     color: str
     plate_number: str
     year: int
-    car_class: Tariff = Field(description="Set by an admin; serves its tariff and lower ones.")
+    car_class: Tariff = Field(description="Maximum car class, set by an admin.")
+    categories: list[Tariff] = Field(
+        min_length=1,
+        max_length=4,
+        description="All tariffs permitted by the maximum vehicle class.",
+    )
 
 
 class ApprovalRequest(PatchRequest):
@@ -132,6 +168,7 @@ class DriverResponse(BaseModel):
     approval_status: ApprovalStatus
     approved_at: datetime | None
     online: bool
+    enabled_categories: list[Tariff] = Field(description="Working tariffs selected by the driver.")
     location: Coordinates | None
     location_updated_at: datetime | None = Field(description="Server time of the last location.")
     missing_fields: list[str] = Field(
@@ -177,6 +214,7 @@ def _driver_fields(user_id: uuid.UUID, profile: DriverProfile | None) -> dict[st
             "approval_status": ApprovalStatus.PENDING,
             "approved_at": None,
             "online": False,
+            "enabled_categories": [],
             "location": None,
             "location_updated_at": None,
             "missing_fields": missing_fields(None),
@@ -193,6 +231,7 @@ def _driver_fields(user_id: uuid.UUID, profile: DriverProfile | None) -> dict[st
         "approval_status": profile.approval_status,
         "approved_at": profile.approved_at,
         "online": profile.is_online,
+        "enabled_categories": profile.vehicle.enabled_categories if profile.vehicle else [],
         "location": location,
         "location_updated_at": profile.location_updated_at,
         "missing_fields": missing_fields(profile),

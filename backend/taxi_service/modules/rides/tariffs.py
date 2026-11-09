@@ -28,3 +28,8 @@ def tariffs_above(car_class: Tariff) -> list[Tariff]:
 def tariff_check(column: str) -> str:
     """SQL of a CHECK constraint that ``column`` holds a tariff."""
     return f"{column} IN ({', '.join(f"'{tariff.value}'" for tariff in sorted(Tariff))})"
+
+
+def categories_through(car_class: Tariff) -> list[Tariff]:
+    """Legacy class eligibility, preserved when migrating or accepting an old client."""
+    return list(TARIFFS[: TARIFFS.index(car_class) + 1])

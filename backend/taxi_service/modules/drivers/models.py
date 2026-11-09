@@ -6,7 +6,13 @@ from sqlalchemy import Boolean, CheckConstraint, Enum, Float, ForeignKey, Index,
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from taxi_service.database.base import Base, UtcDateTime
-from taxi_service.modules.rides.tariffs import TARIFF_MAX_LENGTH, Tariff, tariff_check
+from taxi_service.modules.rides.tariffs import (
+    TARIFF_MAX_LENGTH,
+    TARIFFS,
+    Tariff,
+    categories_through,
+    tariff_check,
+)
 from taxi_service.modules.users.models import PHONE_MAX_LENGTH
 
 FULL_NAME_MAX_LENGTH = 100
@@ -91,7 +97,7 @@ class DriverProfile(Base):
 class Vehicle(Base):
     """The single car of a driver; ``plate_number`` is stored normalized and is unique.
 
-    ``car_class`` is set by an admin only (ADR 0012); a new car is economy.
+    ``car_class`` sets eligibility; the driver chooses enabled tariffs for the shift.
     """
 
     __tablename__ = "vehicles"
@@ -127,7 +133,40 @@ class Vehicle(Base):
         default=Tariff.ECONOMY,
         server_default=Tariff.ECONOMY.value,
     )
+    category_rows: Mapped[list["VehicleCategory"]] = relationship(
+        lazy="selectin", cascade="all, delete-orphan"
+    )
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+    @property
+    def categories(self) -> list[Tariff]:
+        return categories_through(self.car_class)
+
+    @property
+    def enabled_categories(self) -> list[Tariff]:
+        selected = {row.tariff for row in self.category_rows}
+        return [tariff for tariff in TARIFFS if tariff in selected]
+
+
+class VehicleCategory(Base):
+    """Driver-selected working tariffs, limited by the vehicle class."""
+
+    __tablename__ = "vehicle_categories"
+    __table_args__ = (CheckConstraint(tariff_check("tariff"), name="tariff"),)
+
+    vehicle_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("vehicles.id", ondelete="CASCADE"), primary_key=True
+    )
+    tariff: Mapped[Tariff] = mapped_column(
+        Enum(
+            Tariff,
+            native_enum=False,
+            create_constraint=False,
+            length=TARIFF_MAX_LENGTH,
+            values_callable=lambda values: [value.value for value in values],
+        ),
+        primary_key=True,
+    )
 
 
 def missing_fields(profile: DriverProfile | None) -> list[str]:
