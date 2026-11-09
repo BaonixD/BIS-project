@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from taxi_service.core.clock import Clock
 from taxi_service.database.session import read_transaction
 from taxi_service.modules.auth.exceptions import (
+    AccountBlockedError,
     GoogleLoginUnavailableError,
     InvalidCredentialsError,
     InvalidGoogleTokenError,
@@ -144,6 +145,14 @@ async def _issue_session(
         expires_at=now + SESSION_TTL,
     )
     async with db.begin():
+        current = await db.scalar(
+            select(User)
+            .where(User.id == user.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if current is None or current.blocked_at is not None:
+            raise AccountBlockedError
         if replaces_token:
             await _revoke_by_token_hash(db, hash_token(replaces_token), now)
         db.add(auth_session)
@@ -159,6 +168,7 @@ async def _get_active_session(
             select(AuthSession, User)
             .join(User, User.id == AuthSession.user_id)
             .where(
+                User.blocked_at.is_(None),
                 AuthSession.token_hash == token_hash,
                 AuthSession.revoked_at.is_(None),
                 AuthSession.expires_at > now,

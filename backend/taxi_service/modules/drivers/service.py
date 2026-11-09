@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from taxi_service.core.clock import Clock
 from taxi_service.database.errors import violates_unique
+from taxi_service.database.search import matches_text
 from taxi_service.database.session import read_transaction
 from taxi_service.modules.drivers.exceptions import (
     DriverNotApprovedError,
@@ -33,6 +34,7 @@ from taxi_service.modules.rides import service as rides_service
 from taxi_service.modules.rides.dispatch import revoke_driver_offers
 from taxi_service.modules.rides.tariffs import Tariff, tariffs_above
 from taxi_service.modules.users.models import User, UserRole
+from taxi_service.modules.users.service import require_account_access
 
 # Changing these after approval needs a new approval; the phone is only a contact.
 _IDENTITY_FIELDS = ("full_name", "license_number")
@@ -85,6 +87,7 @@ async def set_availability(
     async with db.begin():
         profile = await _get_profile_for_update(db, driver_id)
         if online:
+            await require_account_access(db, driver_id)
             _ensure_can_go_online(profile)
         else:
             await _ensure_no_active_ride(db, driver_id)
@@ -168,11 +171,19 @@ class DriverPage:
 
 
 async def list_drivers(
-    db: AsyncSession, status: ApprovalStatus | None, *, limit: int, offset: int
+    db: AsyncSession,
+    status: ApprovalStatus | None,
+    *,
+    limit: int,
+    offset: int,
+    query: str = "",
+    online: bool | None = None,
 ) -> DriverPage:
     async with read_transaction(db):
-        rows = await _driver_rows(db, status, limit=limit, offset=offset)
-        total = await _count_drivers(db, status)
+        rows = await _driver_rows(
+            db, status, limit=limit, offset=offset, query=query, online=online
+        )
+        total = await _count_drivers(db, status, query=query, online=online)
         ratings = await rating_records.summaries(db, [user.id for user, _ in rows])
     return DriverPage(rows=rows, total=total, ratings=ratings)
 
@@ -286,10 +297,16 @@ async def _get_driver_user(db: AsyncSession, user_id: uuid.UUID) -> User | None:
 
 
 async def _driver_rows(
-    db: AsyncSession, status: ApprovalStatus | None, *, limit: int, offset: int
+    db: AsyncSession,
+    status: ApprovalStatus | None,
+    *,
+    limit: int,
+    offset: int,
+    query: str = "",
+    online: bool | None = None,
 ) -> list[tuple[User, DriverProfile | None]]:
     rows = await db.execute(
-        _drivers_query(status)
+        _drivers_query(status, query=query, online=online)
         .order_by(User.created_at.desc(), User.id.desc())
         .limit(limit)
         .offset(offset)
@@ -297,20 +314,44 @@ async def _driver_rows(
     return [(user, profile) for user, profile in rows]
 
 
-async def _count_drivers(db: AsyncSession, status: ApprovalStatus | None) -> int:
-    total = await db.scalar(select(func.count()).select_from(_drivers_query(status).subquery()))
+async def _count_drivers(
+    db: AsyncSession, status: ApprovalStatus | None, *, query: str = "", online: bool | None = None
+) -> int:
+    total = await db.scalar(
+        select(func.count()).select_from(
+            _drivers_query(status, query=query, online=online).subquery()
+        )
+    )
     return total or 0
 
 
-def _drivers_query(status: ApprovalStatus | None) -> Select[User, DriverProfile]:
-    query = (
+def _drivers_query(
+    status: ApprovalStatus | None, *, query: str = "", online: bool | None = None
+) -> Select[User, DriverProfile]:
+    statement = (
         select(User, DriverProfile)
         .outerjoin(DriverProfile, DriverProfile.user_id == User.id)
         .where(User.role == UserRole.DRIVER)
     )
     if status is not None:
-        query = query.where(_has_status(status))
-    return query
+        statement = statement.where(_has_status(status))
+    if query.strip():
+        statement = statement.outerjoin(Vehicle, Vehicle.driver_id == User.id).where(
+            matches_text(
+                query,
+                User.username,
+                DriverProfile.full_name,
+                DriverProfile.phone,
+                Vehicle.plate_number,
+            )
+        )
+    if online is not None:
+        statement = statement.where(
+            DriverProfile.is_online.is_(True)
+            if online
+            else or_(DriverProfile.is_online.is_(False), DriverProfile.user_id.is_(None))
+        )
+    return statement
 
 
 def _has_status(status: ApprovalStatus) -> ColumnElement[bool]:
@@ -321,3 +362,15 @@ def _has_status(status: ApprovalStatus) -> ColumnElement[bool]:
             DriverProfile.approval_status == ApprovalStatus.PENDING,
         )
     return DriverProfile.approval_status == status
+
+
+async def read_admin_driver(
+    db: AsyncSession, driver_id: uuid.UUID
+) -> tuple[User, DriverProfile | None, RatingSummary]:
+    async with read_transaction(db):
+        user = await _get_driver_user(db, driver_id)
+        if user is None:
+            raise DriverNotFoundError
+        profile = await get_driver_profile(db, driver_id)
+        rating = await rating_records.summary(db, driver_id)
+    return user, profile, rating

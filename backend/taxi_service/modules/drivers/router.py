@@ -67,8 +67,12 @@ async def list_drivers(
     approval_status: Annotated[
         ApprovalStatus | None, Query(description="Only drivers with this status.")
     ] = None,
+    q: Annotated[str, Query(max_length=100)] = "",
+    online: bool | None = None,
 ) -> Page[AdminDriverResponse]:
-    result = await service.list_drivers(db, approval_status, limit=page.limit, offset=page.offset)
+    result = await service.list_drivers(
+        db, approval_status, limit=page.limit, offset=page.offset, query=q, online=online
+    )
     return Page(
         items=[
             AdminDriverResponse.from_rows(user, profile, result.ratings[user.id])
@@ -105,3 +109,11 @@ async def set_car_class(
     return AdminDriverResponse.from_rows(
         user, profile, await ratings_service.rating_of(db, user.id)
     )
+
+
+@admin_router.get("/{driver_id}", responses=error_responses(401, 403, 404))
+async def read_driver(
+    driver_id: uuid.UUID, _admin: AdminUser, db: DbSession
+) -> AdminDriverResponse:
+    user, profile, rating = await service.read_admin_driver(db, driver_id)
+    return AdminDriverResponse.from_rows(user, profile, rating)

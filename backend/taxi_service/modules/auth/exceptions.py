@@ -66,3 +66,12 @@ class GoogleLoginUnavailableError(AppError):
             code="google_login_unavailable",
             message="Sign-in with Google is not available right now.",
         )
+
+
+class AccountBlockedError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=403,
+            code="account_blocked",
+            message="Account access is blocked. Contact the administrator.",
+        )

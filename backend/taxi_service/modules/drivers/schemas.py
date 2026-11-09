@@ -147,6 +147,7 @@ class DriverResponse(BaseModel):
 
 
 class AdminDriverResponse(DriverResponse):
+    blocked_at: datetime | None
     username: str
     created_at: datetime = Field(description="Registration time of the account.")
     approved_by: uuid.UUID | None
@@ -158,6 +159,7 @@ class AdminDriverResponse(DriverResponse):
         return cls(
             **_driver_fields(user.id, profile),
             rating=RatingSummaryResponse.build(rating),
+            blocked_at=user.blocked_at,
             username=user.username,
             created_at=user.created_at,
             approved_by=profile.approved_by if profile else None,

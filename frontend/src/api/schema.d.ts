@@ -268,7 +268,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Read Driver */
+        get: operations["read_driver_api_v1_admin_drivers__driver_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -500,6 +501,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Overview */
+        get: operations["read_overview_api_v1_admin_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read User */
+        get: operations["read_user_api_v1_admin_users__user_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}/access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Access */
+        put: operations["update_access_api_v1_admin_users__user_id__access_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/drivers/me/offers": {
         parameters: {
             query?: never;
@@ -555,6 +607,13 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AccountAccessUpdate */
+        AccountAccessUpdate: {
+            /** Blocked */
+            blocked: boolean;
+            /** Reason */
+            reason?: string | null;
+        };
         /** AdminDriverResponse */
         AdminDriverResponse: {
             /**
@@ -587,6 +646,8 @@ export interface components {
             missing_fields: string[];
             /** @description Stars the driver received from passengers. */
             rating: components["schemas"]["RatingSummaryResponse"];
+            /** Blocked At */
+            blocked_at: string | null;
             /** Username */
             username: string;
             /**
@@ -597,6 +658,73 @@ export interface components {
             created_at: string;
             /** Approved By */
             approved_by: string | null;
+        };
+        /** AdminOverview */
+        AdminOverview: {
+            /** Total Users */
+            total_users: number;
+            /** Blocked Users */
+            blocked_users: number;
+            /** Pending Drivers */
+            pending_drivers: number;
+            /** Online Drivers */
+            online_drivers: number;
+            /** Active Rides */
+            active_rides: number;
+            /** Completed Rides */
+            completed_rides: number;
+            /** Cancelled Rides */
+            cancelled_rides: number;
+            /** Collected Kzt */
+            collected_kzt: number;
+            /** Outstanding Cash Kzt */
+            outstanding_cash_kzt: number;
+        };
+        /** AdminRideSummary */
+        AdminRideSummary: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            status: components["schemas"]["RideStatus"];
+            /**
+             * Passenger Id
+             * Format: uuid
+             */
+            passenger_id: string;
+            /** Driver Id */
+            driver_id: string | null;
+            pickup: components["schemas"]["Coordinates"];
+            dropoff: components["schemas"]["Coordinates"];
+            /** Distance M */
+            distance_m: number;
+            /** Duration S */
+            duration_s: number;
+            /** Amount Kzt */
+            amount_kzt: number;
+            /**
+             * Currency
+             * @constant
+             */
+            currency: "KZT";
+            tariff: components["schemas"]["Tariff"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            payment_status: components["schemas"]["PaymentStatus"] | null;
+            payment_method: components["schemas"]["PaymentMethod"] | null;
+            /** Passenger Name */
+            passenger_name: string;
+            /** Driver Name */
+            driver_name: string | null;
         };
         /**
          * AdminUserResponse
@@ -618,6 +746,10 @@ export interface components {
             created_at: string;
             /** Display Name */
             display_name: string | null;
+            /** Blocked At */
+            blocked_at: string | null;
+            /** Block Reason */
+            block_reason: string | null;
         };
         /**
          * ApprovalRequest
@@ -918,6 +1050,17 @@ export interface components {
         Page_AdminDriverResponse_: {
             /** Items */
             items: components["schemas"]["AdminDriverResponse"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[AdminRideSummary] */
+        Page_AdminRideSummary_: {
+            /** Items */
+            items: components["schemas"]["AdminRideSummary"][];
             /** Limit */
             limit: number;
             /** Offset */
@@ -2311,6 +2454,8 @@ export interface operations {
             query?: {
                 /** @description Only drivers with this status. */
                 approval_status?: components["schemas"]["ApprovalStatus"] | null;
+                q?: string;
+                online?: boolean | null;
                 /** @description Page size. */
                 limit?: number;
                 /** @description Items to skip. */
@@ -2422,6 +2567,73 @@ export interface operations {
             };
             /** @description Conflict with the current state */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    read_driver_api_v1_admin_drivers__driver_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                driver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminDriverResponse"];
+                };
+            };
+            /** @description Not authenticated (no or expired session) or invalid credentials */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden: role, CSRF token or request origin not allowed */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found or not accessible */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3422,6 +3634,10 @@ export interface operations {
                 passenger_id?: string | null;
                 /** @description Only rides assigned to this driver now. */
                 driver_id?: string | null;
+                q?: string;
+                payment_status?: components["schemas"]["PaymentStatus"] | null;
+                payment_method?: components["schemas"]["PaymentMethod"] | null;
+                tariff?: components["schemas"]["Tariff"] | null;
                 /** @description Page size. */
                 limit?: number;
                 /** @description Items to skip. */
@@ -3445,7 +3661,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Page_RideSummary_"];
+                    "application/json": components["schemas"]["Page_AdminRideSummary_"];
                 };
             };
             /** @description Not authenticated (no or expired session) or invalid credentials */
@@ -3491,6 +3707,8 @@ export interface operations {
             query?: {
                 /** @description Only accounts with this role. */
                 role?: components["schemas"]["UserRole"] | null;
+                q?: string;
+                blocked?: boolean | null;
                 /** @description Page size. */
                 limit?: number;
                 /** @description Items to skip. */
@@ -3522,6 +3740,209 @@ export interface operations {
             };
             /** @description Forbidden: role, CSRF token or request origin not allowed */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    read_overview_api_v1_admin_overview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOverview"];
+                };
+            };
+            /** @description Not authenticated (no or expired session) or invalid credentials */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden: role, CSRF token or request origin not allowed */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    read_user_api_v1_admin_users__user_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserResponse"];
+                };
+            };
+            /** @description Not authenticated (no or expired session) or invalid credentials */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden: role, CSRF token or request origin not allowed */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found or not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    update_access_api_v1_admin_users__user_id__access_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountAccessUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserResponse"];
+                };
+            };
+            /** @description Not authenticated (no or expired session) or invalid credentials */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden: role, CSRF token or request origin not allowed */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found or not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict with the current state */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -55,6 +55,10 @@ class User(Base):
     )
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
+    blocked_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    block_reason: Mapped[str | None] = mapped_column(String(500))
+    blocked_by: Mapped[uuid.UUID | None] = mapped_column()
+
     @property
     def login_method(self) -> LoginMethod:
         return LoginMethod.PASSWORD if self.google_sub is None else LoginMethod.GOOGLE

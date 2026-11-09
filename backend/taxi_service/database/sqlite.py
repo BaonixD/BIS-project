@@ -36,6 +36,12 @@ def sqlite_file_missing(url: URL) -> bool:
 def _on_connect(
     dbapi_connection: Any, _record: ConnectionPoolEntry, *, enforce_foreign_keys: bool
 ) -> None:
+    dbapi_connection.create_function(
+        "unicode_casefold",
+        1,
+        lambda value: value.casefold() if value is not None else None,
+        deterministic=True,
+    )
     dbapi_connection.isolation_level = None
     cursor = dbapi_connection.cursor()
     try:

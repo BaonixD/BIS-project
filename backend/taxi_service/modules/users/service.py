@@ -11,7 +11,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from taxi_service.core.clock import Clock
+from taxi_service.database.search import matches_text
 from taxi_service.database.session import read_transaction
+from taxi_service.modules.auth.exceptions import AccountBlockedError
 from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.ratings import records as rating_records
 from taxi_service.modules.ratings.records import RatingSummary
@@ -38,6 +40,8 @@ class UserListRow:
     role: UserRole
     created_at: datetime
     display_name: str | None
+    blocked_at: datetime | None = None
+    block_reason: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,12 +154,32 @@ async def update_profile(
 
 
 async def list_users(
-    db: AsyncSession, role: UserRole | None, *, limit: int, offset: int
+    db: AsyncSession,
+    role: UserRole | None,
+    *,
+    limit: int,
+    offset: int,
+    query: str = "",
+    blocked: bool | None = None,
 ) -> UserPage:
     """Newest first (``created_at DESC, id DESC``); never the password hash."""
     conditions = _role_conditions(role)
+    if query.strip():
+        conditions.append(
+            matches_text(query, User.username, UserProfile.display_name, UserProfile.phone)
+        )
+    if blocked is not None:
+        conditions.append(User.blocked_at.is_not(None) if blocked else User.blocked_at.is_(None))
     page = (
-        select(User.id, User.username, User.role, User.created_at, UserProfile.display_name)
+        select(
+            User.id,
+            User.username,
+            User.role,
+            User.created_at,
+            UserProfile.display_name,
+            User.blocked_at,
+            User.block_reason,
+        )
         .outerjoin(UserProfile, UserProfile.user_id == User.id)
         .where(*conditions)
         .order_by(User.created_at.desc(), User.id.desc())
@@ -164,7 +188,12 @@ async def list_users(
     )
     async with read_transaction(db):
         rows = await db.execute(page)
-        total = await db.scalar(select(func.count()).select_from(User).where(*conditions))
+        total = await db.scalar(
+            select(func.count())
+            .select_from(User)
+            .outerjoin(UserProfile, UserProfile.user_id == User.id)
+            .where(*conditions)
+        )
         return UserPage(rows=[UserListRow(*row) for row in rows], total=total or 0)
 
 
@@ -249,3 +278,14 @@ def _with_suffix(base: str, suffix: str) -> str:
 
 def _display_name(name: str | None) -> str | None:
     return (name or "").strip()[:DISPLAY_NAME_MAX_LENGTH].strip() or None
+
+
+async def require_account_access(db: AsyncSession, user_id: uuid.UUID) -> None:
+    user = await db.scalar(
+        select(User)
+        .where(User.id == user_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if user is not None and user.blocked_at is not None:
+        raise AccountBlockedError

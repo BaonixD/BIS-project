@@ -369,3 +369,22 @@ async def test_malformed_body_is_a_validation_error(
 
     assert response.status_code == 422
     assert google.calls == []
+
+
+async def test_blocked_google_account_cannot_create_a_session(
+    client: httpx.AsyncClient,
+    google: FakeGoogleVerifier,
+    session_factory: SessionFactory,
+    clock: ManualClock,
+) -> None:
+    credential = google.issue("blocked-sub", "blocked@example.com")
+    assert (await sign_in(client, credential)).status_code == 200
+    async with session_factory.begin() as db:
+        user = await db.scalar(select(User).where(User.google_sub == "blocked-sub"))
+        assert user is not None
+        user.blocked_at = clock.now()
+        user.block_reason = "Test block"
+    denied = await sign_in(client, credential)
+    assert denied.status_code == 403
+    assert error_code(denied) == "account_blocked"
+    assert (await client.get("/api/v1/auth/session")).status_code == 401

@@ -42,6 +42,7 @@ from taxi_service.modules.rides.pricing import Fares, calculate_fares
 from taxi_service.modules.rides.schemas import QuoteRequest, RideCreateRequest
 from taxi_service.modules.rides.states import ACTIVE_RIDE_STATUSES, RideStatus
 from taxi_service.modules.users.models import UserRole
+from taxi_service.modules.users.service import require_account_access
 
 QUOTE_TTL: Final = timedelta(minutes=5)
 DRIVER_CARD_STATUSES: Final = ACCEPTED_ACTIVE_RIDE_STATUSES | {RideStatus.COMPLETED}
@@ -136,6 +137,7 @@ async def create_ride(
                 return RideCreation(replayed, replayed=True)
             if request.payment_method is PaymentMethod.KASPI_LINK and not kaspi_enabled:
                 raise KaspiUnavailableError
+            await require_account_access(db, passenger_id)
             ride = await _ride_from_quote(db, passenger_id, request, clock, policy)
             await payment_records.open_payment(db, ride, request.payment_method, ride.created_at)
             db.add(

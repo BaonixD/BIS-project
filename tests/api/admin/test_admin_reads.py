@@ -23,7 +23,7 @@ from support.rides import RideFactory
 from taxi_service.modules.rides.states import RideStatus
 
 ADMIN_URLS = [ADMIN_RIDES_URL, ADMIN_USERS_URL]
-USER_FIELDS = {"id", "username", "role", "created_at", "display_name"}
+USER_FIELDS = {"id", "username", "role", "created_at", "display_name", "blocked_at", "block_reason"}
 
 
 @pytest.fixture
@@ -99,7 +99,7 @@ async def test_admin_sees_every_ride_newest_first(
     body = await get_page(client, ADMIN_RIDES_URL)
 
     assert (ids_of(body), body["total"]) == (newest_first(rides), 4)
-    assert set(body["items"][0]) == RIDE_SUMMARY_FIELDS
+    assert set(body["items"][0]) == RIDE_SUMMARY_FIELDS | {"passenger_name", "driver_name"}
 
 
 async def test_admin_filters_rides_by_passenger_and_driver(
@@ -325,9 +325,9 @@ async def test_admin_lists_reveal_no_secrets(
         (
             "/admin/rides",
             {"limit", "offset", "status", "created_from", "created_to"}
-            | {"passenger_id", "driver_id"},
+            | {"passenger_id", "driver_id", "q", "payment_status", "payment_method", "tariff"},
         ),
-        ("/admin/users", {"limit", "offset", "role"}),
+        ("/admin/users", {"limit", "offset", "role", "q", "blocked"}),
     ],
 )
 async def test_admin_lists_are_documented(

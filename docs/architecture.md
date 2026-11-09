@@ -36,7 +36,7 @@ backend/taxi_service/
 │   ├── rides/         quote, поездка, идемпотентность, тариф, состояния, dispatch, жизненный цикл, история
 │   ├── payments/      правила оплаты, Kaspi-ссылка, payments, API оплаты
 │   ├── ratings/       оценки после поездки, теги, средний рейтинг
-│   └── admin/         только чтение: /admin/rides, /admin/users
+│   └── admin/         списки, сводка, карточки и управление доступом аккаунтов
 ├── schemas/           общие контракты: ErrorResponse, Page, patch-поля
 └── seeds/demo.py      демонстрационные данные (вызывается только из scripts/seed.py)
 ```
@@ -144,7 +144,7 @@ flowchart TB
 - `core/`, `database/`, `schemas/` не импортируют предметные модули (исключение — `core/lifespan.py`, который собирает провайдер маршрута и цикл dispatch, и `database/metadata.py`, который импортирует все `models.py` для Alembic).
 - Модуль обращается к другому через названные функции и контракты, а не через чужие роутеры: `users.service.get_user_by_username`, `users.service.create_user`, `users.service.list_users`, `drivers.service.get_driver_profile`, `drivers.candidates.find_nearby_candidates`, `geo.service.plan_road_route`, `rides.dispatch.revoke_driver_offers`, `rides.service.driver_has_active_ride`, `rides.service.can_view_ride`, `rides.transitions.lock_ride`, `rides.history.list_all_rides`, `rides.service.create_ride → payments.records.open_payment`, `rides.lifecycle`/`rides.dispatch → payments.records.refund_if_paid`.
 - На уровне пакетов есть взаимные зависимости `auth ↔ users`, `drivers ↔ rides`, `rides ↔ payments`. Обычно пару связывают разные файлы (`drivers/service.py → rides/dispatch.py`, а `rides/dispatch.py → drivers/candidates.py`). Единственный цикл файлов — `drivers/service.py ↔ rides/service.py` (`get_driver_profile` и `driver_has_active_ride`): оба импортируют чужой модуль целиком (`from taxi_service.modules.rides import service as rides_service`) и обращаются к функции при вызове, поэтому порядок импорта не важен. Это осознанный компромисс MVP; при росте связей выделяется отдельный контракт.
-- `admin` — только чтение (история поездок и пользователи); допуск водителей живёт в модуле `drivers`: `admin_router` (`/admin/drivers`) в `drivers/router.py` и функции `drivers.service.list_drivers`, `approve_driver`.
+- `admin` — списки, сводка и управление доступом ([ADR 0015](decisions/0015-admin-management.md)); допуск водителей живёт в модуле `drivers`: `admin_router` (`/admin/drivers`) в `drivers/router.py` и функции `drivers.service.list_drivers`, `approve_driver`.
 - `seeds` вызывает функции сервисов `users` и `drivers`, а не прямой SQL; приложение `seeds` не импортирует.
 
 ## Схема данных

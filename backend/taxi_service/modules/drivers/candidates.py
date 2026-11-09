@@ -14,6 +14,7 @@ from taxi_service.modules.geo.schemas import Coordinates
 from taxi_service.modules.rides.models import ACCEPTED_ACTIVE_RIDE_STATUSES, Ride, RideOffer
 from taxi_service.modules.rides.states import OfferStatus
 from taxi_service.modules.rides.tariffs import Tariff, car_classes_for
+from taxi_service.modules.users.models import User
 
 DEFAULT_RADIUS_M = 5000.0
 DEFAULT_MAX_LOCATION_AGE_S = 60.0
@@ -74,7 +75,9 @@ def eligible_drivers(fresh_since: datetime) -> Select[uuid.UUID, float | None, f
     return (
         select(DriverProfile.user_id, DriverProfile.longitude, DriverProfile.latitude)
         .join(Vehicle, Vehicle.driver_id == DriverProfile.user_id)
+        .join(User, User.id == DriverProfile.user_id)
         .where(
+            User.blocked_at.is_(None),
             DriverProfile.approval_status == ApprovalStatus.APPROVED,
             DriverProfile.is_online.is_(True),
             DriverProfile.location_updated_at >= fresh_since,

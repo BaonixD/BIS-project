@@ -18,3 +18,4 @@
 | [0012](0012-tariffs-and-car-classes.md) | Четыре тарифа `economy`/`comfort`/`comfort_plus`/`business` (`edu-v2`): quote со всеми ценами, `tariff` в заказе, класс машины `car_class` ставит admin, предложение — машине класса не ниже тарифа |
 | [0013](0013-ride-ratings.md) | Оценки после `completed`: одна на сторону (`UNIQUE ride_id, rater_role`), 1–5 звёзд, теги стороны в таблице `ride_rating_tags`, `my_rating` в деталях поездки, средний рейтинг в карточке водителя, предложении, `/drivers/me` и `/users/me` |
 | [0014](0014-osrm-in-docker.md) | Маршруты по умолчанию — свой OSRM (`ROUTING_PROVIDER=osrm`, `OSRM_BASE_URL`) в Docker только для сервера маршрутов: карта агломерации Алматы, `scripts/osrm_prepare.sh`; приложение и тесты без Docker; ORS — запасной вариант |
+| [0015](0015-admin-management.md) | Управление доступом аккаунтов с отзывом сессий, поиск и пагинация админки, имена участников поездок и сводка сервиса |
