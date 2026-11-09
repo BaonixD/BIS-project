@@ -25,7 +25,8 @@ export function CarClassSheet({
       <BottomSheet role="dialog" aria-modal aria-label="Класс машины" className="bottom-0 pb-7">
         <h2 className="w-full text-title text-text-primary">Класс машины</h2>
         <p className="w-full text-callout text-text-secondary">
-          Водитель получит заказы этого тарифа и тарифов ниже.
+          Класс машины открывает этот тариф и все тарифы ниже. При выходе на линию водитель выберет,
+          какие заказы принимать.
         </p>
         <div role="radiogroup" aria-label="Класс машины" className="flex w-full flex-col gap-2">
           {TARIFFS.map((tariff) => {
@@ -39,16 +40,28 @@ export function CarClassSheet({
                 onClick={() => setValue(tariff)}
                 className={cn(
                   'flex h-16 w-full items-center gap-3 rounded-md border-solid px-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-bg-inverse',
-                  selected ? 'border-2 border-bg-inverse bg-bg-subtle' : 'border border-border-default bg-bg-canvas',
+                  selected
+                    ? 'border-2 border-bg-inverse bg-bg-subtle'
+                    : 'border border-border-default bg-bg-canvas',
                 )}
               >
                 <CarIcon carClass={tariff} />
-                <span className="flex-1 text-body-medium text-text-primary">{TARIFF_LABELS[tariff]}</span>
-                {selected && <Check className="size-5 text-text-primary" strokeWidth={2.5} aria-hidden />}
+                <span className="flex-1 text-body-medium text-text-primary">
+                  {TARIFF_LABELS[tariff]}
+                </span>
+                {selected && (
+                  <Check className="size-5 text-text-primary" strokeWidth={2.5} aria-hidden />
+                )}
               </button>
             )
           })}
         </div>
+        <p className="text-caption text-text-secondary" aria-label="Доступные тарифы">
+          Доступны:{' '}
+          {TARIFFS.slice(0, TARIFFS.indexOf(value) + 1)
+            .map((tariff) => TARIFF_LABELS[tariff])
+            .join(', ')}
+        </p>
         <Button className="w-full" loading={busy} onClick={() => onConfirm(value)}>
           {confirmLabel}
         </Button>

@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { AlertCircle, ChevronRight } from 'lucide-react'
 import type { ApprovalStatus } from '@/api'
 import type { NextAdminDriver } from '@/api/driver-types'
-import { TARIFF_LABELS } from '@/api/driver-types'
+import { TARIFF_LABELS, vehicleCategories } from '@/api/driver-types'
 import { ErrorAlert } from '@/components/common/ErrorAlert'
 import { Avatar } from '@/components/driver/Avatar'
 import { Button, Chip, StatusPill } from '@/components/ui-kit'
@@ -60,7 +60,10 @@ function DriverRequest({ driver, onApprove }: { driver: NextAdminDriver; onAppro
         <StatusPill tone={driver.online ? 'info' : 'neutral'}>
           {driver.online ? 'На линии' : 'Не на линии'}
         </StatusPill>
-        {driver.vehicle && <StatusPill>{TARIFF_LABELS[driver.vehicle.car_class]}</StatusPill>}
+        {driver.vehicle &&
+          vehicleCategories(driver.vehicle).map((category) => (
+            <StatusPill key={category}>{TARIFF_LABELS[category]}</StatusPill>
+          ))}
       </div>
       <p className="text-callout text-text-secondary">{vehicleLine(driver)}</p>
       {driver.missing_fields.length > 0 && (

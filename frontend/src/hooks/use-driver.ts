@@ -1,3 +1,4 @@
+import type { Tariff } from '@/api/driver-types'
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, unwrap, type Coordinates, type DriverProfileUpdate, type Page } from '@/api'
@@ -31,8 +32,12 @@ export function useSetAvailability() {
   const store = useStoreDriver()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (online: boolean) =>
-      unwrap(api.PUT('/api/v1/drivers/me/availability', { body: { online } })),
+    mutationFn: (selection: boolean | { online: boolean; categories: Tariff[] }) =>
+      unwrap(
+        api.PUT('/api/v1/drivers/me/availability', {
+          body: typeof selection === 'boolean' ? { online: selection } : selection,
+        }),
+      ),
     onSuccess: (driver) => {
       store(driver)
       rememberOnline(driver.online)

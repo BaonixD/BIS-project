@@ -1,3 +1,5 @@
+import { TARIFF_LABELS, vehicleCategories } from '@/api/driver-types'
+import { DriverCategoriesSheet } from './DriverCategoriesSheet'
 import { useEffect, useState } from 'react'
 import { Navigation, Timer } from 'lucide-react'
 import {
@@ -65,7 +67,11 @@ function useDriverRide() {
   return { ride: data ?? null, rideId, track, paymentStatus: payment.data?.status ?? null }
 }
 
-function mapFor(screen: DriverScreen, me: Coordinates | null, insets: MapInsets): Partial<MapViewProps> {
+function mapFor(
+  screen: DriverScreen,
+  me: Coordinates | null,
+  insets: MapInsets,
+): Partial<MapViewProps> {
   switch (screen.kind) {
     case 'offer':
       return {
@@ -75,14 +81,18 @@ function mapFor(screen: DriverScreen, me: Coordinates | null, insets: MapInsets)
         children: (
           <>
             {me && <DashedLine from={me} to={screen.offer.pickup} />}
-            <FitToPoints points={me ? [me, screen.offer.pickup] : [screen.offer.pickup]} insets={insets} />
+            <FitToPoints
+              points={me ? [me, screen.offer.pickup] : [screen.offer.pickup]}
+              insets={insets}
+            />
           </>
         ),
       }
     case 'ride': {
       const { ride } = screen
       if (ride.status === 'arrived') return { pickup: ride.pickup, driver: me }
-      if (ride.status === 'in_progress') return { route: ride.route, dropoff: ride.dropoff, driver: me }
+      if (ride.status === 'in_progress')
+        return { route: ride.route, dropoff: ride.dropoff, driver: me }
       return { route: ride.route, pickup: ride.pickup, dropoff: ride.dropoff, driver: me }
     }
     default:
@@ -116,7 +126,9 @@ function RideBanner({ ride, me }: { ride: NextRide; me: Coordinates | null }) {
     )
   }
   const distance = me ? ` · ${formatDistance(haversineM(me, ride.pickup))}` : ''
-  return <MapBanner icon={Navigation} title="Едьте к пассажиру" subtitle={`${pickupTitle}${distance}`} />
+  return (
+    <MapBanner icon={Navigation} title="Едьте к пассажиру" subtitle={`${pickupTitle}${distance}`} />
+  )
 }
 
 export function DriverHomePage() {
@@ -125,6 +137,7 @@ export function DriverHomePage() {
   const { ride, rideId, track, paymentStatus } = useDriverRide()
   const [manualPoint, setManualPoint] = useState<Coordinates | null>(null)
   const [releasing, setReleasing] = useState(false)
+  const [choosingCategories, setChoosingCategories] = useState(false)
   const [sheetHeight, setSheetHeight] = useState(0)
   const insets = useMapInsets(sheetHeight)
 
@@ -156,10 +169,15 @@ export function DriverHomePage() {
   }
 
   if (screen.kind === 'collect-cash') return <CollectCashScreen ride={screen.ride} />
-  if (screen.kind === 'completed') return <CompletedScreen ride={screen.ride} paidBy={screen.paidBy} onDone={dismiss} />
+  if (screen.kind === 'completed')
+    return <CompletedScreen ride={screen.ride} paidBy={screen.paidBy} onDone={dismiss} />
 
   const setOnline = (value: boolean) =>
     availability.mutate(value, { onError: (error) => showToast({ title: errorMessage(error) }) })
+  const openCategories = () => {
+    availability.reset()
+    setChoosingCategories(true)
+  }
   const immersive = ['offer', 'ride', 'cancelled'].includes(screen.kind)
   const withBanner = screen.kind === 'ride' && !releasing
 
@@ -191,9 +209,15 @@ export function DriverHomePage() {
       }
     >
       {screen.kind === 'offline' && (
-        <GoOnlineButton sheetHeight={sheetHeight} loading={availability.isPending} onClick={() => setOnline(true)} />
+        <GoOnlineButton
+          sheetHeight={sheetHeight}
+          loading={availability.isPending}
+          onClick={openCategories}
+        />
       )}
-      {screen.kind === 'pending' && <GoOnlineButton sheetHeight={sheetHeight} disabled onClick={() => undefined} />}
+      {screen.kind === 'pending' && (
+        <GoOnlineButton sheetHeight={sheetHeight} disabled onClick={() => undefined} />
+      )}
       {screen.kind === 'online' && <SearchingPulse sheetHeight={sheetHeight} />}
 
       {screen.kind === 'cancelled' ? (
@@ -204,13 +228,19 @@ export function DriverHomePage() {
         <BottomSheet
           aria-label="Смена"
           onHeightChange={setSheetHeight}
-          className={screen.kind === 'ride' && screen.ride.status !== 'assigned' ? 'pb-7' : undefined}
+          className={
+            screen.kind === 'ride' && screen.ride.status !== 'assigned' ? 'pb-7' : undefined
+          }
         >
           {screen.kind === 'pending' && <PendingSheet driver={driver} />}
           {screen.kind === 'offline' && <OfflineSheet stats={stats} />}
           {screen.kind === 'online' && (
             <OnlineSheet
               stats={stats}
+              categories={(driver.enabled_categories ?? vehicleCategories(driver.vehicle))
+                .map((category) => TARIFF_LABELS[category])
+                .join(', ')}
+              onChooseCategories={openCategories}
               onlineS={onlineSince ? (now - onlineSince) / 1000 : 0}
               manualHint={reporter.needsManualPoint && !reporter.position}
               leaving={availability.isPending}
@@ -218,10 +248,33 @@ export function DriverHomePage() {
             />
           )}
           {screen.kind === 'offer' && (
-            <OfferSheet key={screen.offer.id} offer={screen.offer} driverLocation={me} onAccepted={track} />
+            <OfferSheet
+              key={screen.offer.id}
+              offer={screen.offer}
+              driverLocation={me}
+              onAccepted={track}
+            />
           )}
-          {screen.kind === 'ride' && <RideSheet ride={screen.ride} onRelease={() => setReleasing(true)} />}
+          {screen.kind === 'ride' && (
+            <RideSheet ride={screen.ride} onRelease={() => setReleasing(true)} />
+          )}
         </BottomSheet>
+      )}
+      {choosingCategories && (
+        <DriverCategoriesSheet
+          available={vehicleCategories(driver.vehicle)}
+          initial={driver.enabled_categories ?? vehicleCategories(driver.vehicle)}
+          busy={availability.isPending}
+          error={availability.error}
+          online={online}
+          onClose={() => setChoosingCategories(false)}
+          onConfirm={(categories) =>
+            availability.mutate(
+              { online: true, categories },
+              { onSuccess: () => setChoosingCategories(false) },
+            )
+          }
+        />
       )}
     </DriverMapLayout>
   )

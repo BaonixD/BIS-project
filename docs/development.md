@@ -407,6 +407,12 @@ uv run python scripts/routing_smoke.py
 
 ## Водители и профили
 
+Максимальный класс машины открывает свой тариф и все ниже (бизнес — все четыре).
+Перед выходом на линию водитель выбирает рабочие тарифы;
+`PUT /api/v1/drivers/me/availability` принимает `{online: true, categories: ["economy", "comfort"]}`.
+`vehicle.categories` — весь допуск, `enabled_categories` — сохранённый выбор водителя.
+Подробности — [ADR 0016](decisions/0016-driver-working-tariffs.md).
+
 Все маршруты — под `/api/v1`, с сессией; изменяющие запросы требуют `X-CSRF-Token` (см. «Аутентификация»). Идентификатора в путях `/me` нет: пользователь читает и меняет только себя. Лишние поля тела (`role`, `id`, `username`, `approval_status`, `online` и т. п.) и `null` вместо значения дают `422 validation_error`; пропущенное поле не меняется.
 
 | Маршрут | Роль | Что делает |

@@ -1,7 +1,7 @@
 import { APPROVAL_STATUS_LABELS } from '@/lib/labels'
 import { Link, useParams } from 'react-router'
 import { Check, CircleAlert } from 'lucide-react'
-import { TARIFF_LABELS, type NextAdminDriver } from '@/api/driver-types'
+import { vehicleCategoryLabel, type NextAdminDriver } from '@/api/driver-types'
 import { ErrorAlert } from '@/components/common/ErrorAlert'
 import { FullScreenLoader } from '@/components/common/FullScreenLoader'
 import { Avatar } from '@/components/driver/Avatar'
@@ -42,7 +42,7 @@ function DriverDetails({ driver }: { driver: NextAdminDriver }) {
     ['Госномер', vehicle?.plate_number ?? '—'],
   ]
   if (driver.approval_status === 'approved' && vehicle?.car_class) {
-    vehicleRows.push(['Класс', TARIFF_LABELS[vehicle.car_class]])
+    vehicleRows.push(['Категории', vehicleCategoryLabel(vehicle)])
   }
   const missing = driver.missing_fields.map((field) => DRIVER_FIELD_LABELS[field] ?? field)
   return (

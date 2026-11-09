@@ -1,5 +1,15 @@
-import { Car, CreditCard, Hash, LogOut, Phone, Settings, ShieldCheck, Star, Timer } from 'lucide-react'
-import { formatRating, TARIFF_LABELS } from '@/api/driver-types'
+import {
+  Car,
+  CreditCard,
+  Hash,
+  LogOut,
+  Phone,
+  Settings,
+  ShieldCheck,
+  Star,
+  Timer,
+} from 'lucide-react'
+import { formatRating, TARIFF_LABELS, vehicleCategories } from '@/api/driver-types'
 import { useSession } from '@/auth/use-session'
 import { ErrorAlert } from '@/components/common/ErrorAlert'
 import { GroupedRow, GroupedSection, ProfileHeaderCard } from '@/components/common/GroupedList'
@@ -45,26 +55,64 @@ export function DriverProfilePage() {
                   </StatusPill>
                 }
               />
-              <GroupedRow icon={Star} tone="bg-accent-warning" title="Рейтинг" value={formatRating(data.rating) ?? 'Пока нет оценок'} />
+              <GroupedRow
+                icon={Star}
+                tone="bg-accent-warning"
+                title="Рейтинг"
+                value={formatRating(data.rating) ?? 'Пока нет оценок'}
+              />
             </GroupedSection>
             <GroupedSection title="Автомобиль">
               <GroupedRow
                 icon={Car}
                 tone="bg-accent-info"
                 title="Машина"
-                value={vehicle ? `${vehicle.make} ${vehicle.model} · ${vehicle.color}` : 'Не добавлена'}
+                value={
+                  vehicle ? `${vehicle.make} ${vehicle.model} · ${vehicle.color}` : 'Не добавлена'
+                }
               />
-              {vehicle && <GroupedRow icon={Hash} tone="bg-text-tertiary" title="Госномер" value={vehicle.plate_number} />}
-              {vehicle && <GroupedRow icon={Car} tone="bg-bg-inverse" title="Класс" value={TARIFF_LABELS[vehicle.car_class]} />}
+              {vehicle && (
+                <GroupedRow
+                  icon={Hash}
+                  tone="bg-text-tertiary"
+                  title="Госномер"
+                  value={vehicle.plate_number}
+                />
+              )}
+              {vehicle && (
+                <div className="border-t border-border-default px-4 py-3">
+                  <p className="mb-2 text-callout text-text-primary">Доступные тарифы</p>
+                  <div className="flex flex-wrap gap-2">
+                    {vehicleCategories(vehicle).map((category) => (
+                      <StatusPill key={category}>{TARIFF_LABELS[category]}</StatusPill>
+                    ))}
+                  </div>
+                </div>
+              )}
             </GroupedSection>
             <GroupedSection title="Контакты">
-              <GroupedRow icon={Phone} tone="bg-accent-success" title="Телефон" value={data.phone ?? 'Не указан'} />
-              <GroupedRow icon={CreditCard} tone="bg-text-tertiary" title="Удостоверение" value={data.license_number ?? 'Не указано'} />
+              <GroupedRow
+                icon={Phone}
+                tone="bg-accent-success"
+                title="Телефон"
+                value={data.phone ?? 'Не указан'}
+              />
+              <GroupedRow
+                icon={CreditCard}
+                tone="bg-text-tertiary"
+                title="Удостоверение"
+                value={data.license_number ?? 'Не указано'}
+              />
             </GroupedSection>
           </>
         )}
         <GroupedSection>
-          <GroupedRow icon={Settings} tone="bg-text-tertiary" title="Настройки" to="/driver/settings" />
+          <GroupedRow
+            icon={Settings}
+            tone="bg-text-tertiary"
+            title="Настройки"
+            to="/driver/settings"
+          />
         </GroupedSection>
         <GroupedSection>
           <GroupedRow

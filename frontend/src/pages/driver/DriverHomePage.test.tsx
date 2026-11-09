@@ -1,12 +1,14 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiError, createFakeApi, memoryStorage } from '@/test/fake-api'
 import { driverFixture, offerFixture, rideFixture } from '@/test/driver-fixtures'
 
-const fake = vi.hoisted(() => ({ current: null as ReturnType<typeof import('@/test/fake-api').createFakeApi> | null }))
+const fake = vi.hoisted(() => ({
+  current: null as ReturnType<typeof import('@/test/fake-api').createFakeApi> | null,
+}))
 
 vi.mock('@/api/client', async (importOriginal) => {
   const original = await importOriginal<typeof import('@/api/client')>()
@@ -46,7 +48,9 @@ afterEach(() => vi.useRealTimers())
 
 describe('DriverHomePage', () => {
   it('shows the review banner and a disabled go-online button to a pending driver', async () => {
-    api.on('GET /api/v1/drivers/me', () => driverFixture({ approval_status: 'pending', missing_fields: ['vehicle'] }))
+    api.on('GET /api/v1/drivers/me', () =>
+      driverFixture({ approval_status: 'pending', missing_fields: ['vehicle'] }),
+    )
     renderPage()
     expect(await screen.findByText('Аккаунт на проверке')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Выйти на линию' })).toBeDisabled()
@@ -60,9 +64,19 @@ describe('DriverHomePage', () => {
     api.on('GET /api/v1/drivers/me/offers', () => page([]))
     renderPage()
     await userEvent.click(await screen.findByRole('button', { name: 'Выйти на линию' }))
+    expect(api.calls.some((call) => call.path.endsWith('/availability'))).toBe(false)
+    await userEvent.click(
+      within(screen.getByRole('dialog', { name: 'Тарифы смены' })).getByRole('button', {
+        name: 'Выйти на линию',
+      }),
+    )
     expect(await screen.findByText('Ищем заказы рядом')).toBeInTheDocument()
-    expect(api.calls.find((call) => call.method === 'PUT' && call.path.endsWith('/availability'))?.init.body).toEqual({
+    expect(
+      api.calls.find((call) => call.method === 'PUT' && call.path.endsWith('/availability'))?.init
+        .body,
+    ).toEqual({
       online: true,
+      categories: ['economy', 'comfort'],
     })
   })
 
@@ -96,8 +110,12 @@ describe('DriverHomePage', () => {
   it('releases the order with the reason and the comment', async () => {
     localStorage.setItem('bis.driver.rideId', 'ride-1')
     api.on('GET /api/v1/drivers/me', () => driverFixture({ online: true }))
-    api.on('GET /api/v1/rides/{ride_id}', () => rideFixture({ status: 'arrived', arrived_at: '2026-11-03T09:05:00Z' }))
-    api.on('POST /api/v1/rides/{ride_id}/release', () => rideFixture({ status: 'searching', driver_id: null }))
+    api.on('GET /api/v1/rides/{ride_id}', () =>
+      rideFixture({ status: 'arrived', arrived_at: '2026-11-03T09:05:00Z' }),
+    )
+    api.on('POST /api/v1/rides/{ride_id}/release', () =>
+      rideFixture({ status: 'searching', driver_id: null }),
+    )
     renderPage()
     await userEvent.click(await screen.findByRole('button', { name: 'Отказаться от заказа' }))
     const submit = screen.getByRole('button', { name: 'Отказаться' })
@@ -130,8 +148,16 @@ describe('DriverHomePage', () => {
     api.on('GET /api/v1/drivers/me', () => driverFixture({ online: true }))
     api.on('GET /api/v1/drivers/me/offers', () => page([]))
     api.on('GET /api/v1/rides/{ride_id}', () => ride)
-    api.on('GET /api/v1/rides/{ride_id}/payment', () => ({ ride_id: 'ride-1', method: 'cash', status: 'unpaid' }))
-    api.on('POST /api/v1/rides/{ride_id}/payment/cash-received', () => ({ ride_id: 'ride-1', method: 'cash', status: 'paid' }))
+    api.on('GET /api/v1/rides/{ride_id}/payment', () => ({
+      ride_id: 'ride-1',
+      method: 'cash',
+      status: 'unpaid',
+    }))
+    api.on('POST /api/v1/rides/{ride_id}/payment/cash-received', () => ({
+      ride_id: 'ride-1',
+      method: 'cash',
+      status: 'paid',
+    }))
     api.on('POST /api/v1/rides/{ride_id}/rating', () => apiError(409, 'rating_already_exists'))
     renderPage()
     await userEvent.click(await screen.findByRole('button', { name: 'Наличные получены' }))
@@ -145,5 +171,63 @@ describe('DriverHomePage', () => {
       tags: ['polite'],
       comment: null,
     })
+  })
+})
+
+describe('working tariff selection', () => {
+  it('automatically offers all four tariffs for Business and sends only the checked choices', async () => {
+    const vehicle = {
+      ...driverFixture().vehicle!,
+      car_class: 'business' as const,
+      categories: ['economy', 'comfort', 'comfort_plus', 'business'] as const,
+    }
+    const driver = driverFixture({
+      vehicle: { ...vehicle, categories: [...vehicle.categories] },
+      enabled_categories: [...vehicle.categories],
+    })
+    api.on('GET /api/v1/drivers/me', () => driver)
+    api.on('PUT /api/v1/drivers/me/availability', () => ({
+      ...driver,
+      online: true,
+      enabled_categories: ['comfort_plus', 'business'],
+    }))
+    api.on('GET /api/v1/drivers/me/offers', () => page([]))
+    renderPage()
+    await userEvent.click(await screen.findByRole('button', { name: 'Выйти на линию' }))
+    const dialog = screen.getByRole('dialog', { name: 'Тарифы смены' })
+    expect(within(dialog).getAllByRole('checkbox')).toHaveLength(4)
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Эконом' }))
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Комфорт' }))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Выйти на линию' }))
+    expect(await screen.findByText('Ищем заказы рядом')).toBeInTheDocument()
+    expect(api.calls.find((call) => call.path.endsWith('/availability'))?.init.body).toEqual({
+      online: true,
+      categories: ['comfort_plus', 'business'],
+    })
+    await userEvent.click(screen.getByRole('button', { name: 'Изменить тарифы' }))
+    const reopened = screen.getByRole('dialog')
+    expect(within(reopened).getByRole('checkbox', { name: 'Бизнес' })).toBeChecked()
+    expect(
+      within(reopened).getByRole('checkbox', { name: 'Эконом' }),
+    ).not.toBeChecked()
+  })
+
+  it('shows only eligible tariffs, prevents an empty shift and cancels without a request', async () => {
+    api.on('GET /api/v1/drivers/me', () =>
+      driverFixture({
+        vehicle: { ...driverFixture().vehicle!, car_class: 'economy', categories: ['economy'] },
+        enabled_categories: ['economy'],
+      }),
+    )
+    renderPage()
+    await userEvent.click(await screen.findByRole('button', { name: 'Выйти на линию' }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getAllByRole('checkbox')).toHaveLength(1)
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Эконом' }))
+    expect(within(dialog).getByRole('button', { name: 'Выйти на линию' })).toBeDisabled()
+    expect(within(dialog).getByText('Выберите хотя бы один тариф')).toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Отмена' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(api.calls.some((call) => call.path.endsWith('/availability'))).toBe(false)
   })
 })

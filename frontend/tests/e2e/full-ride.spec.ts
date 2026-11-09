@@ -84,7 +84,10 @@ async function driverOnline(page: Page, step: string | null) {
   const leave = page.getByRole('button', { name: 'Уйти с линии' })
   await expect(goOnline.or(leave)).toBeVisible()
   if (step === null) {
-    if (await goOnline.isVisible()) await goOnline.click()
+    if (await goOnline.isVisible()) {
+      await goOnline.click()
+      await page.getByRole('dialog', { name: 'Тарифы смены' }).getByRole('button', { name: 'Выйти на линию' }).click()
+    }
     await expect(page.getByText('Ищем заказы рядом')).toBeVisible()
     return
   }
@@ -92,6 +95,7 @@ async function driverOnline(page: Page, step: string | null) {
   await expect(goOnline).toBeEnabled()
   await shoot(page, `${step}a`, 'driver-offline-6-2')
   await goOnline.click()
+  await page.getByRole('dialog', { name: 'Тарифы смены' }).getByRole('button', { name: 'Выйти на линию' }).click()
   await expect(page.getByText('Ищем заказы рядом')).toBeVisible()
   await shoot(page, `${step}b`, 'driver-online-25-149')
 }

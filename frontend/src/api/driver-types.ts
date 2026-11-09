@@ -1,5 +1,10 @@
 import { api, unwrap } from './client'
-import type { MyRating as GeneratedMyRating, RatingSummary as GeneratedRatingSummary, Tariff } from './passenger-types'
+import { TARIFFS } from './passenger-types'
+import type {
+  MyRating as GeneratedMyRating,
+  RatingSummary as GeneratedRatingSummary,
+  Tariff,
+} from './passenger-types'
 import type { AdminDriver, Driver, Offer, RideDetails } from './types'
 
 export { TARIFFS } from './passenger-types'
@@ -37,10 +42,15 @@ export interface PassengerRatingRequest {
 export const RATING_ALREADY_EXISTS = 'rating_already_exists'
 
 export function postPassengerRating(rideId: string, body: PassengerRatingRequest) {
-  return unwrap(api.POST('/api/v1/rides/{ride_id}/rating', { params: { path: { ride_id: rideId } }, body }))
+  return unwrap(
+    api.POST('/api/v1/rides/{ride_id}/rating', { params: { path: { ride_id: rideId } }, body }),
+  )
 }
 
-export function postApproveDriver(driverId: string, carClass: Tariff | null): Promise<NextAdminDriver> {
+export function postApproveDriver(
+  driverId: string,
+  carClass: Tariff | null,
+): Promise<NextAdminDriver> {
   return unwrap(
     api.POST('/api/v1/admin/drivers/{driver_id}/approve', {
       params: { path: { driver_id: driverId } },
@@ -62,4 +72,20 @@ export function patchDriverCarClass(driverId: string, carClass: Tariff): Promise
 export function formatRating(rating: RatingSummary | null | undefined): string | null {
   if (!rating || rating.count === 0 || rating.average === null) return null
   return `★ ${rating.average.toFixed(1).replace('.', ',')}`
+}
+
+export function vehicleCategories(
+  vehicle: { categories?: readonly Tariff[]; car_class: Tariff } | null | undefined,
+): readonly Tariff[] {
+  if (!vehicle) return []
+  return vehicle.categories ?? TARIFFS.slice(0, TARIFFS.indexOf(vehicle.car_class) + 1)
+}
+
+export function vehicleCategoryLabel(vehicle: {
+  categories?: readonly Tariff[]
+  car_class: Tariff
+}): string {
+  return vehicleCategories(vehicle)
+    .map((category) => TARIFF_LABELS[category])
+    .join(', ')
 }

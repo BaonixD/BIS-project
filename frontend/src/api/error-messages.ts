@@ -24,6 +24,7 @@ const MESSAGES: Record<string, string> = {
 
   driver_not_found: 'Водитель не найден.',
   driver_profile_incomplete: 'Профиль водителя заполнен не полностью.',
+  driver_category_not_allowed: 'Выберите хотя бы один тариф, доступный классу вашей машины.',
   driver_not_approved: 'Водитель ещё не допущен администратором.',
   driver_on_active_ride: 'Сначала завершите текущую поездку.',
   driver_busy: 'У вас уже есть активная поездка.',

@@ -15,7 +15,13 @@ function Stat({ value, label }: { value: string; label: string }) {
 }
 
 /** Figma Stats (6:78, 25:229): rides and earnings for today plus approval or time online. */
-export function ShiftStatsCard({ stats, third }: { stats: ShiftStats; third: { value: string; label: string } }) {
+export function ShiftStatsCard({
+  stats,
+  third,
+}: {
+  stats: ShiftStats
+  third: { value: string; label: string }
+}) {
   return (
     <div className="flex w-full items-center justify-between overflow-hidden rounded-lg bg-bg-subtle p-4">
       <Stat value={String(stats.rides)} label="поездок сегодня" />
@@ -54,12 +60,16 @@ export function OnlineSheet({
   manualHint,
   leaving,
   onLeave,
+  categories,
+  onChooseCategories,
 }: {
   stats: ShiftStats
   onlineS: number
   manualHint: boolean
   leaving: boolean
   onLeave: () => void
+  categories: string
+  onChooseCategories: () => void
 }) {
   return (
     <>
@@ -72,6 +82,19 @@ export function OnlineSheet({
         }
       />
       <ShiftStatsCard stats={stats} third={{ value: formatSpan(onlineS), label: 'на линии' }} />
+      <div className="flex w-full flex-col gap-1">
+        <p className="text-caption text-text-secondary">Принимаете заказы</p>
+        <p className="text-callout text-text-primary">{categories}</p>
+      </div>
+      <Button
+        variant="ghost"
+        size="md"
+        className="w-full"
+        disabled={leaving}
+        onClick={onChooseCategories}
+      >
+        Изменить тарифы
+      </Button>
       <Button variant="secondary" className="w-full" loading={leaving} onClick={onLeave}>
         Уйти с линии
       </Button>
