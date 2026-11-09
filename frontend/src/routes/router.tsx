@@ -68,6 +68,9 @@ export const router = createBrowserRouter([
         element: <AppShell />,
         children: [
           { path: '/admin', ...page(admin, (m) => m.AdminDriversPage) },
+          { path: '/admin/overview', ...page(admin, (m) => m.AdminOverviewPage) },
+          { path: '/admin/users/:userId', ...page(admin, (m) => m.AdminUserPage) },
+          { path: '/admin/rides/:rideId', ...page(admin, (m) => m.AdminRidePage) },
           { path: '/admin/drivers/:driverId', ...page(admin, (m) => m.AdminDriverPage) },
           { path: '/admin/rides', ...page(admin, (m) => m.AdminRidesPage) },
           { path: '/admin/users', ...page(admin, (m) => m.AdminUsersPage) },

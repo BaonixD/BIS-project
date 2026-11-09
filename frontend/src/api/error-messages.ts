@@ -16,6 +16,10 @@ const MESSAGES: Record<string, string> = {
   google_login_unavailable: 'Вход через Google сейчас недоступен.',
   csrf_failed: 'Сессия устарела. Обновите страницу.',
   origin_not_allowed: 'Адрес приложения не разрешён на сервере (CORS_ALLOWED_ORIGINS).',
+  account_blocked: 'Аккаунт заблокирован. Обратитесь к администратору.',
+  user_not_found: 'Пользователь не найден.',
+  admin_account_protected: 'Аккаунт администратора нельзя заблокировать.',
+  account_has_active_ride: 'Сначала завершите активную поездку и подтвердите получение наличных.',
   forbidden: 'Недостаточно прав для этого действия.',
 
   driver_not_found: 'Водитель не найден.',

@@ -7,6 +7,10 @@ export interface RideHistoryFilters extends PageParams {
 }
 
 export interface AdminRideFilters extends RideHistoryFilters {
+  q?: string
+  payment_status?: 'unpaid' | 'paid' | 'refunded'
+  payment_method?: 'cash' | 'kaspi_link'
+  tariff?: 'economy' | 'comfort' | 'comfort_plus' | 'business'
   passenger_id?: string
   driver_id?: string
 }
