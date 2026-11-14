@@ -1,4 +1,5 @@
-import { t, getIntlLocale, getLocale } from '@/i18n/core'
+import { dateFormatter } from '@/i18n/date'
+import { t, getLocale } from '@/i18n/core'
 import type { RideSummary } from '@/api'
 import type { StatusTone } from '@/components/ui-kit'
 const TIME_ZONE = 'Asia/Almaty'
@@ -71,13 +72,12 @@ export function ridesWord(count: number): string {
   return t('поездок')
 }
 const timeFormat = () =>
-  new Intl.DateTimeFormat(getIntlLocale(), {
+  dateFormatter({
     timeZone: TIME_ZONE,
     hour: '2-digit',
     minute: '2-digit',
   })
-const dayFormat = () =>
-  new Intl.DateTimeFormat(getIntlLocale(), { timeZone: TIME_ZONE, day: 'numeric', month: 'short' })
+const dayFormat = () => dateFormatter({ timeZone: TIME_ZONE, day: 'numeric', month: 'short' })
 /** «14:20» today, «2 нояб., 14:20» earlier. */
 export function formatRideTime(iso: string, now: Date): string {
   const date = new Date(iso)

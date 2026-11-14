@@ -1,14 +1,14 @@
+import { dateFormatter } from '@/i18n/date'
 import { t, getIntlLocale, getLocale } from '@/i18n/core'
 import type { Coordinates } from '@/api'
 const TIME_ZONE = 'Asia/Almaty'
 const clockFormat = () =>
-  new Intl.DateTimeFormat(getIntlLocale(), {
+  dateFormatter({
     timeZone: TIME_ZONE,
     hour: '2-digit',
     minute: '2-digit',
   })
-const dayMonthFormat = () =>
-  new Intl.DateTimeFormat(getIntlLocale(), { timeZone: TIME_ZONE, day: 'numeric', month: 'long' })
+const dayMonthFormat = () => dateFormatter({ timeZone: TIME_ZONE, day: 'numeric', month: 'long' })
 const dayKeyFormat = new Intl.DateTimeFormat('en-CA', {
   timeZone: TIME_ZONE,
   year: 'numeric',

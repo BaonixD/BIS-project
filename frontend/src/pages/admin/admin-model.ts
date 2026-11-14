@@ -1,4 +1,5 @@
-import { t, getIntlLocale } from '@/i18n/core'
+import { dateFormatter } from '@/i18n/date'
+import { t } from '@/i18n/core'
 import { useSearchParams } from 'react-router'
 import type { RideSummary } from '@/api'
 export const ADMIN_PAGE_SIZE = 20
@@ -23,7 +24,7 @@ export function useAdminFilters() {
 }
 export const adminDate = (value: string | null | undefined) =>
   value
-    ? new Intl.DateTimeFormat(getIntlLocale(), {
+    ? dateFormatter({
         timeZone: 'Asia/Almaty',
         dateStyle: 'medium',
         timeStyle: 'short',

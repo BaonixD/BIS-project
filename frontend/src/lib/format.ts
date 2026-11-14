@@ -1,3 +1,4 @@
+import { dateFormatter } from '@/i18n/date'
 import { t, getIntlLocale } from '@/i18n/core'
 import type { Coordinates } from '@/api'
 const TIME_ZONE = 'Asia/Almaty'
@@ -9,7 +10,7 @@ const moneyFormat = () =>
     maximumFractionDigits: 0,
   })
 const dateTimeFormat = () =>
-  new Intl.DateTimeFormat(getIntlLocale(), {
+  dateFormatter({
     timeZone: TIME_ZONE,
     dateStyle: 'short',
     timeStyle: 'short',

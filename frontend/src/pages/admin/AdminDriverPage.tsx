@@ -1,4 +1,5 @@
-import { t, useLocale, getIntlLocale } from '@/i18n/core'
+import { dateFormatter } from '@/i18n/date'
+import { t, useLocale } from '@/i18n/core'
 import { APPROVAL_STATUS_LABELS } from '@/lib/labels'
 import { Link, useParams } from 'react-router'
 import { Check, CircleAlert } from 'lucide-react'
@@ -15,7 +16,7 @@ import { DRIVER_FIELD_LABELS } from '@/lib/labels'
 import { CarClassSheet } from './CarClassSheet'
 import { useApproveFlow } from './use-approve-flow'
 const registeredFormat = () =>
-  new Intl.DateTimeFormat(getIntlLocale(), {
+  dateFormatter({
     timeZone: 'Asia/Almaty',
     day: 'numeric',
     month: 'long',
