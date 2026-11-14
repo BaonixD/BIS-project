@@ -1,49 +1,50 @@
+import { t, useLocale } from '@/i18n/core'
 import { Link } from 'react-router'
 import { ArrowUpRight, Car, Clock, Users, Wallet } from 'lucide-react'
 import { ErrorAlert } from '@/components/common/ErrorAlert'
 import { useAdminOverview } from '@/hooks/use-admin'
 import { formatMoney } from '@/lib/format'
 import { AdminLayout, AdminLoading } from './admin-controls'
-
 export function AdminOverviewPage() {
+  useLocale()
   const query = useAdminOverview()
   const data = query.data
   const metrics = data
     ? [
         {
-          label: 'Ждут проверки',
+          label: t('Ждут проверки'),
           value: data.pending_drivers,
           icon: Clock,
           to: '/admin?status=pending',
-          note: 'Заявки водителей',
+          note: t('Заявки водителей'),
         },
         {
-          label: 'Активные поездки',
+          label: t('Активные поездки'),
           value: data.active_rides,
           icon: Car,
           to: '/admin/rides?view=active',
-          note: 'От поиска до завершения',
+          note: t('От поиска до завершения'),
         },
         {
-          label: 'Водители на линии',
+          label: t('Водители на линии'),
           value: data.online_drivers,
           icon: Car,
           to: '/admin?status=all&online=true',
-          note: 'Включая занятых водителей',
+          note: t('Включая занятых водителей'),
         },
         {
-          label: 'Пользователи',
+          label: t('Пользователи'),
           value: data.total_users,
           icon: Users,
           to: '/admin/users',
-          note: `${data.blocked_users} заблокировано`,
+          note: t('{p0} заблокировано', { p0: data.blocked_users }),
         },
       ]
     : []
   return (
     <AdminLayout
-      title="Обзор сервиса"
-      description="Текущее состояние и итоги за всё время. Обновление каждые 15 секунд."
+      title={t('Обзор сервиса')}
+      description={t('Текущее состояние и итоги за всё время. Обновление каждые 15 секунд.')}
       refreshing={query.isFetching}
       onRefresh={() => void query.refetch()}
     >
@@ -69,32 +70,33 @@ export function AdminOverviewPage() {
       {data && (
         <div className="grid gap-4 lg:grid-cols-2">
           <section className="rounded-lg bg-bg-canvas p-5">
-            <h2 className="text-headline text-text-primary">Результаты поездок</h2>
+            <h2 className="text-headline text-text-primary">{t('Результаты поездок')}</h2>
             <div className="mt-5 grid grid-cols-2 gap-4">
               <Link to="/admin/rides?view=completed" className="outline-none focus-visible:ring-2">
                 <p className="text-display text-accent-success">{data.completed_rides}</p>
-                <p className="text-callout text-text-secondary">Завершено</p>
+                <p className="text-callout text-text-secondary">{t('Завершено')}</p>
               </Link>
               <Link to="/admin/rides?view=cancelled" className="outline-none focus-visible:ring-2">
                 <p className="text-display text-text-primary">{data.cancelled_rides}</p>
-                <p className="text-callout text-text-secondary">Отмена / нет водителя</p>
+                <p className="text-callout text-text-secondary">{t('Отмена / нет водителя')}</p>
               </Link>
             </div>
           </section>
           <section className="rounded-lg bg-bg-canvas p-5">
             <div className="flex items-center gap-2">
               <Wallet className="size-5" />
-              <h2 className="text-headline text-text-primary">Оплата завершённых поездок</h2>
+              <h2 className="text-headline text-text-primary">{t('Оплата завершённых поездок')}</h2>
             </div>
             <p className="mt-4 text-display text-text-primary">{formatMoney(data.collected_kzt)}</p>
             <p className="text-caption text-text-secondary">
-              Подтверждённая оплата · Kaspi учитывается как учебная имитация
+              {t('Подтверждённая оплата · Kaspi учитывается как учебная имитация')}
             </p>
             <Link
               to="/admin/rides?view=completed&payment_status=unpaid&payment_method=cash"
               className="mt-4 inline-block text-callout underline underline-offset-4"
             >
-              Ожидают наличных: {formatMoney(data.outstanding_cash_kzt)}
+              {t('Ожидают наличных: ')}
+              {formatMoney(data.outstanding_cash_kzt)}
             </Link>
           </section>
         </div>

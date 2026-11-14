@@ -1,3 +1,4 @@
+import { t, useLocale } from '@/i18n/core'
 import { adminDate } from './admin-model'
 import { Link, useParams } from 'react-router'
 import { ArrowLeft } from 'lucide-react'
@@ -12,8 +13,8 @@ import { formatMoney } from '@/lib/format'
 import { rideStatusPill } from './admin-format'
 import { adminPayment } from './admin-model'
 import { AdminLayout, AdminLoading, FactList, RidesLink } from './admin-controls'
-
 export function AdminRidePage() {
+  useLocale()
   const { rideId } = useParams()
   const query = useRide(rideId)
   const ride = query.data
@@ -22,14 +23,14 @@ export function AdminRidePage() {
   const pill = ride ? rideStatusPill(ride.status) : null
   return (
     <AdminLayout
-      title="Детали поездки"
-      description="Маршрут, участники и время прохождения этапов."
+      title={t('Детали поездки')}
+      description={t('Маршрут, участники и время прохождения этапов.')}
       refreshing={query.isFetching}
       onRefresh={() => void query.refetch()}
     >
       <Link to="/admin/rides" className="inline-flex items-center gap-2 text-callout">
         <ArrowLeft className="size-4" />
-        Все поездки
+        {t('Все поездки')}
       </Link>
       <ErrorAlert error={query.error} />
       {query.isPending && <AdminLoading />}
@@ -58,49 +59,55 @@ export function AdminRidePage() {
                 </h2>
                 <FactList
                   items={[
-                    ['Тариф', TARIFF_LABELS[ride.tariff]],
-                    ['Стоимость', formatMoney(ride.amount_kzt)],
-                    ['Оплата', adminPayment(ride)],
-                    ['Расстояние', `${(ride.route.distance_m / 1000).toFixed(1)} км`],
-                    ['Расчётное время', `${Math.ceil(ride.route.duration_s / 60)} мин`],
+                    [t('Тариф'), TARIFF_LABELS()[ride.tariff]],
+                    [t('Стоимость'), formatMoney(ride.amount_kzt)],
+                    [t('Оплата'), adminPayment(ride)],
+                    [
+                      t('Расстояние'),
+                      t('{p0} км', { p0: (ride.route.distance_m / 1000).toFixed(1) }),
+                    ],
+                    [
+                      t('Расчётное время'),
+                      t('{p0} мин', { p0: Math.ceil(ride.route.duration_s / 60) }),
+                    ],
                   ]}
                 />
               </div>
             </section>
             <div className="flex flex-col gap-5">
               <section className="rounded-lg bg-bg-canvas p-5">
-                <h2 className="text-headline">Участники</h2>
+                <h2 className="text-headline">{t('Участники')}</h2>
                 <ErrorAlert error={passenger.error ?? driver.error} />
                 <FactList
                   items={[
                     [
-                      'Пассажир',
+                      t('Пассажир'),
                       <Link
                         to={`/admin/users/${ride.passenger_id}`}
                         className="underline underline-offset-4"
                       >
                         {passenger.data?.display_name ??
                           passenger.data?.username ??
-                          'Открыть аккаунт'}
+                          t('Открыть аккаунт')}
                       </Link>,
                     ],
                     [
-                      'Водитель',
+                      t('Водитель'),
                       ride.driver_id ? (
                         <Link
                           to={`/admin/drivers/${ride.driver_id}`}
                           className="underline underline-offset-4"
                         >
-                          {driver.data?.full_name ?? driver.data?.username ?? 'Открыть профиль'}
+                          {driver.data?.full_name ?? driver.data?.username ?? t('Открыть профиль')}
                         </Link>
                       ) : (
-                        'Не назначен'
+                        t('Не назначен')
                       ),
                     ],
                     ...(driver.data?.phone
                       ? [
                           [
-                            'Телефон водителя',
+                            t('Телефон водителя'),
                             <a href={`tel:${driver.data.phone}`} className="underline">
                               {driver.data.phone}
                             </a>,
@@ -110,21 +117,21 @@ export function AdminRidePage() {
                   ]}
                 />
                 <RidesLink userId={ride.passenger_id} role="passenger">
-                  Все поездки пассажира
+                  {t('Все поездки пассажира')}
                 </RidesLink>
               </section>
               <section className="rounded-lg bg-bg-canvas p-5">
-                <h2 className="text-headline">Этапы поездки</h2>
+                <h2 className="text-headline">{t('Этапы поездки')}</h2>
                 <FactList
                   items={[
-                    ['Заказ создан', adminDate(ride.created_at)],
-                    ['Водитель назначен', adminDate(ride.assigned_at)],
-                    ['На месте', adminDate(ride.arrived_at)],
-                    ['Поездка начата', adminDate(ride.started_at)],
-                    ['Завершена', adminDate(ride.completed_at)],
-                    ['Отменена', adminDate(ride.cancelled_at)],
+                    [t('Заказ создан'), adminDate(ride.created_at)],
+                    [t('Водитель назначен'), adminDate(ride.assigned_at)],
+                    [t('На месте'), adminDate(ride.arrived_at)],
+                    [t('Поездка начата'), adminDate(ride.started_at)],
+                    [t('Завершена'), adminDate(ride.completed_at)],
+                    [t('Отменена'), adminDate(ride.cancelled_at)],
                     ...(ride.cancel_reason
-                      ? [['Причина отмены', ride.cancel_reason] as [string, string]]
+                      ? [[t('Причина отмены'), ride.cancel_reason] as [string, string]]
                       : []),
                   ]}
                 />

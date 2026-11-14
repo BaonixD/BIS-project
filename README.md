@@ -80,6 +80,8 @@ To see a full ride, you need both sides at once:
 2. In your normal window, log in as `demo_passenger_1`, pick a destination, choose the Economy tariff, and order.
 3. Accept the order in the driver window and take the ride through to the end.
 
+The interface supports Russian, Kazakh and English. Choose a language on the sign-in page, in your profile or in the desktop header; your choice is saved.
+
 The app is built for phones first. On a computer, it looks best in your browser's device view.
 
 **Good to know:** the Kaspi option only shows up if you add a Kaspi link to `.env`, and "Continue with Google" only shows up if you add a Google client ID. Everything else works without them.

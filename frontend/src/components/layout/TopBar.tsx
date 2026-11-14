@@ -1,11 +1,13 @@
+import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
+import { t, useLocale } from '@/i18n/core'
 import { LogOut } from 'lucide-react'
 import { Link, useLocation } from 'react-router'
 import type { UserRole } from '@/api'
 import { ROLE_HOME } from '@/auth/role-home'
 import { cn } from '@/lib/utils'
 import { isNavItemActive, NAV_ITEMS, PROFILE_PATH } from './nav-items'
-
 function Account({ displayName }: { displayName: string }) {
+  useLocale()
   return (
     <>
       <span
@@ -18,7 +20,6 @@ function Account({ displayName }: { displayName: string }) {
     </>
   )
 }
-
 /** Figma Desktop 7:2 «TopBar»: 64px black bar with the brand, role links and the account (≥1024px only). */
 export function TopBar({
   role,
@@ -35,6 +36,7 @@ export function TopBar({
   /** Kit preview: render in the flow at every width. */
   preview?: boolean
 }) {
+  useLocale()
   const location = useLocation()
   const pathname = pathnameOverride ?? location.pathname
   const profile = PROFILE_PATH[role]
@@ -48,8 +50,8 @@ export function TopBar({
       <Link to={ROLE_HOME[role]} className="text-headline whitespace-nowrap text-text-inverse">
         BIS Taxi
       </Link>
-      <nav aria-label="Разделы" className="flex min-w-0 flex-1 items-center gap-6">
-        {NAV_ITEMS[role].map((item) => {
+      <nav aria-label={t('Разделы')} className="flex min-w-0 flex-1 items-center gap-6">
+        {NAV_ITEMS()[role].map((item) => {
           const active = isNavItemActive(item, pathname)
           return (
             <Link
@@ -66,6 +68,7 @@ export function TopBar({
           )
         })}
       </nav>
+      <LanguageSwitcher inverse />
       {profile ? (
         <Link to={profile} className="flex shrink-0 items-center gap-2.5">
           <Account displayName={displayName} />
@@ -76,7 +79,7 @@ export function TopBar({
           {onLogout && (
             <button
               type="button"
-              aria-label="Выйти"
+              aria-label={t('Выйти')}
               onClick={onLogout}
               className="ml-2 flex size-8 items-center justify-center rounded-full text-text-inverse opacity-60 outline-none transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-bg-canvas"
             >

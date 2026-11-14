@@ -1,3 +1,4 @@
+import { t, useLocale } from '@/i18n/core'
 import { adminDate } from './admin-model'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
@@ -9,8 +10,8 @@ import { Button, StatusPill, showToast } from '@/components/ui-kit'
 import { useAccountAccess, useAdminUser } from '@/hooks/use-admin'
 import { ROLE_PILL } from './admin-format'
 import { AdminLayout, AdminLoading, FactList, RidesLink } from './admin-controls'
-
 export function AdminUserPage() {
+  useLocale()
   const { userId } = useParams()
   const query = useAdminUser(userId)
   const access = useAccountAccess()
@@ -27,14 +28,14 @@ export function AdminUserPage() {
   }
   return (
     <AdminLayout
-      title="Карточка пользователя"
-      description="Доступ к сервису и история поездок."
+      title={t('Карточка пользователя')}
+      description={t('Доступ к сервису и история поездок.')}
       refreshing={query.isFetching}
       onRefresh={() => void query.refetch()}
     >
       <Link to="/admin/users" className="inline-flex items-center gap-2 text-callout">
         <ArrowLeft className="size-4" />
-        Все пользователи
+        {t('Все пользователи')}
       </Link>
       <ErrorAlert error={query.error} />
       {query.isPending && <AdminLoading />}
@@ -46,16 +47,16 @@ export function AdminUserPage() {
               <div className="min-w-0">
                 <h2 className="break-words text-headline">{user.display_name ?? user.username}</h2>
                 <p className="text-caption text-text-secondary">@{user.username}</p>
-                <StatusPill tone={ROLE_PILL[user.role].tone}>
-                  {ROLE_PILL[user.role].label}
+                <StatusPill tone={ROLE_PILL()[user.role].tone}>
+                  {ROLE_PILL()[user.role].label}
                 </StatusPill>
               </div>
             </div>
             <FactList
               items={[
-                ['Регистрация', adminDate(user.created_at)],
+                [t('Регистрация'), adminDate(user.created_at)],
                 [
-                  'ID аккаунта',
+                  t('ID аккаунта'),
                   <span className="select-all font-mono text-caption">{user.id}</span>,
                 ],
               ]}
@@ -67,32 +68,36 @@ export function AdminUserPage() {
                   to={`/admin/drivers/${user.id}`}
                   className="text-callout underline underline-offset-4"
                 >
-                  Профиль водителя
+                  {t('Профиль водителя')}
                 </Link>
               )}
             </div>
           </section>
           <section className="rounded-lg bg-bg-canvas p-5">
-            <h2 className="text-headline">Доступ к сервису</h2>
+            <h2 className="text-headline">{t('Доступ к сервису')}</h2>
             <div className="mt-4">
               <StatusPill tone={blocked ? 'danger' : 'success'}>
-                {blocked ? 'Заблокирован' : 'Активен'}
+                {blocked ? t('Заблокирован') : t('Активен')}
               </StatusPill>
             </div>
             {blocked && (
               <FactList
                 items={[
-                  ['Дата блокировки', adminDate(user.blocked_at)],
-                  ['Причина', user.block_reason],
+                  [t('Дата блокировки'), adminDate(user.blocked_at)],
+                  [t('Причина'), user.block_reason],
                 ]}
               />
             )}
             <p className="my-4 text-callout text-text-secondary">
               {user.role === 'admin'
-                ? 'Аккаунты администраторов защищены от блокировки.'
+                ? t('Аккаунты администраторов защищены от блокировки.')
                 : blocked
-                  ? 'Разблокировка разрешит новый вход. Водителю нужно будет снова выйти на линию.'
-                  : 'Блокировка завершит все сессии пользователя. Водитель будет снят с линии. С активной поездкой или неполученными наличными блокировка недоступна.'}
+                  ? t(
+                      'Разблокировка разрешит новый вход. Водителю нужно будет снова выйти на линию.',
+                    )
+                  : t(
+                      'Блокировка завершит все сессии пользователя. Водитель будет снят с линии. С активной поездкой или неполученными наличными блокировка недоступна.',
+                    )}
             </p>
             {user.role !== 'admin' && (
               <Button
@@ -100,7 +105,7 @@ export function AdminUserPage() {
                 size="md"
                 onClick={() => setConfirm(true)}
               >
-                {blocked ? 'Разблокировать аккаунт' : 'Заблокировать аккаунт'}
+                {blocked ? t('Разблокировать аккаунт') : t('Заблокировать аккаунт')}
               </Button>
             )}
           </section>
@@ -117,12 +122,14 @@ export function AdminUserPage() {
           <Dialog.Content className="fixed top-1/2 left-1/2 z-50 flex max-h-[85dvh] w-[calc(100%-32px)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-xl bg-bg-canvas p-6 shadow-sheet">
             <ShieldAlert className="size-7" />
             <Dialog.Title className="text-headline">
-              {blocked ? 'Разблокировать аккаунт?' : 'Заблокировать аккаунт?'}
+              {blocked ? t('Разблокировать аккаунт?') : t('Заблокировать аккаунт?')}
             </Dialog.Title>
             <Dialog.Description className="text-callout text-text-secondary">
               {blocked
-                ? `Пользователь @${user?.username} снова сможет войти в сервис.`
-                : `Пользователь @${user?.username} потеряет доступ, все его сессии завершатся.`}
+                ? t('Пользователь @{p0} снова сможет войти в сервис.', { p0: user?.username })
+                : t('Пользователь @{p0} потеряет доступ, все его сессии завершатся.', {
+                    p0: user?.username,
+                  })}
             </Dialog.Description>
             <form
               className="flex flex-col gap-4"
@@ -140,7 +147,7 @@ export function AdminUserPage() {
                       setConfirm(false)
                       setReason('')
                       showToast({
-                        title: blocked ? 'Аккаунт разблокирован' : 'Аккаунт заблокирован',
+                        title: blocked ? t('Аккаунт разблокирован') : t('Аккаунт заблокирован'),
                       })
                     },
                   },
@@ -149,7 +156,7 @@ export function AdminUserPage() {
             >
               {!blocked && (
                 <label className="flex flex-col gap-2 text-callout">
-                  Причина блокировки
+                  {t('Причина блокировки')}
                   <textarea
                     required
                     minLength={3}
@@ -167,10 +174,10 @@ export function AdminUserPage() {
                 loading={access.isPending}
                 disabled={!blocked && reason.trim().length < 3}
               >
-                {blocked ? 'Разблокировать' : 'Подтвердить блокировку'}
+                {blocked ? t('Разблокировать') : t('Подтвердить блокировку')}
               </Button>
               <Button variant="ghost" size="md" disabled={access.isPending} onClick={close}>
-                Отмена
+                {t('Отмена')}
               </Button>
             </form>
           </Dialog.Content>

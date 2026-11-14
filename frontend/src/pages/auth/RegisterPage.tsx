@@ -1,3 +1,4 @@
+import { t, useLocale } from '@/i18n/core'
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { ArrowLeft, Car, Lock, User, type LucideIcon } from 'lucide-react'
@@ -6,19 +7,28 @@ import { useSession } from '@/auth/use-session'
 import { Button, Input, showToast } from '@/components/ui-kit'
 import { cn } from '@/lib/utils'
 import { AuthHeading, AuthLayout, FormError } from './AuthLayout'
-
 type PublicRole = RegisterRequest['role']
-
-const ROLES: { role: PublicRole; title: string; subtitle: string; icon: LucideIcon }[] = [
-  { role: 'passenger', title: 'Пассажир', subtitle: 'Заказывать поездки', icon: User },
-  { role: 'driver', title: 'Водитель', subtitle: 'Принимать заказы', icon: Car },
+const ROLES = (): {
+  role: PublicRole
+  title: string
+  subtitle: string
+  icon: LucideIcon
+}[] => [
+  { role: 'passenger', title: t('Пассажир'), subtitle: t('Заказывать поездки'), icon: User },
+  { role: 'driver', title: t('Водитель'), subtitle: t('Принимать заказы'), icon: Car },
 ]
-
 /** Figma «RolePicker» 4:61: two cards; the selected one is black. */
-function RolePicker({ value, onChange }: { value: PublicRole; onChange: (role: PublicRole) => void }) {
+function RolePicker({
+  value,
+  onChange,
+}: {
+  value: PublicRole
+  onChange: (role: PublicRole) => void
+}) {
+  useLocale()
   return (
-    <div role="radiogroup" aria-label="Роль" className="flex w-full items-start gap-3">
-      {ROLES.map(({ role, title, subtitle, icon: Icon }) => {
+    <div role="radiogroup" aria-label={t('Роль')} className="flex w-full items-start gap-3">
+      {ROLES().map(({ role, title, subtitle, icon: Icon }) => {
         const selected = role === value
         return (
           <button
@@ -35,7 +45,12 @@ function RolePicker({ value, onChange }: { value: PublicRole; onChange: (role: P
           >
             <Icon className="size-6" strokeWidth={2} aria-hidden />
             <span className="w-full text-headline">{title}</span>
-            <span className={cn('w-full text-caption', selected ? 'text-text-inverse' : 'text-text-secondary')}>
+            <span
+              className={cn(
+                'w-full text-caption',
+                selected ? 'text-text-inverse' : 'text-text-secondary',
+              )}
+            >
               {subtitle}
             </span>
           </button>
@@ -44,15 +59,14 @@ function RolePicker({ value, onChange }: { value: PublicRole; onChange: (role: P
     </div>
   )
 }
-
 /** Figma «Auth / Register» 4:43. Registration does not sign in: the user continues on the login screen. */
 export function RegisterPage() {
+  useLocale()
   const { register } = useSession()
   const navigate = useNavigate()
   const [role, setRole] = useState<PublicRole>('passenger')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     try {
@@ -60,32 +74,34 @@ export function RegisterPage() {
     } catch {
       return
     }
-    showToast({ title: 'Аккаунт создан', description: 'Войдите с этим именем и паролем' })
+    showToast({ title: t('Аккаунт создан'), description: t('Войдите с этим именем и паролем') })
     navigate('/login', { state: { username } })
   }
-
   return (
     <AuthLayout top="register">
       <Link
         to="/login"
-        aria-label="Назад ко входу"
+        aria-label={t('Назад ко входу')}
         className="-m-2.5 self-start rounded-full p-2.5 outline-none focus-visible:ring-2 focus-visible:ring-bg-inverse"
       >
         <ArrowLeft className="size-6" strokeWidth={2} aria-hidden />
       </Link>
-      <AuthHeading title="Создать аккаунт" subtitle="Выберите, как будете пользоваться BIS" />
+      <AuthHeading
+        title={t('Создать аккаунт')}
+        subtitle={t('Выберите, как будете пользоваться BIS')}
+      />
       <RolePicker value={role} onChange={setRole} />
       <form className="flex flex-col gap-6" onSubmit={submit}>
         <div className="flex flex-col gap-3">
           <Input
             icon={User}
             name="username"
-            placeholder="Имя пользователя"
+            placeholder={t('Имя пользователя')}
             autoComplete="username"
             autoCapitalize="none"
             required
             pattern="[A-Za-z0-9_]{3,32}"
-            title="3–32 символа: латинские буквы, цифры, _"
+            title={t('3–32 символа: латинские буквы, цифры, _')}
             value={username}
             onChange={(event) => setUsername(event.target.value)}
           />
@@ -93,7 +109,7 @@ export function RegisterPage() {
             icon={Lock}
             name="password"
             type="password"
-            placeholder="Пароль — от 10 символов"
+            placeholder={t('Пароль — от 10 символов')}
             autoComplete="new-password"
             required
             minLength={10}
@@ -104,11 +120,11 @@ export function RegisterPage() {
           <FormError error={register.error} />
         </div>
         <Button type="submit" className="w-full" loading={register.isPending}>
-          Создать аккаунт
+          {t('Создать аккаунт')}
         </Button>
       </form>
       <p className="text-caption text-text-tertiary">
-        Регистрация не выполняет вход — после неё войдите с этим именем и паролем.
+        {t('Регистрация не выполняет вход — после неё войдите с этим именем и паролем.')}
       </p>
     </AuthLayout>
   )

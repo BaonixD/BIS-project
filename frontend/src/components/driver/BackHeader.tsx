@@ -1,15 +1,24 @@
+import { t, useLocale } from '@/i18n/core'
 import type { ReactNode } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { useNavigate } from 'react-router'
-
 /** Figma TopBar of D8 / A4: 44px round back button, Headline title, optional trailing pill. */
-export function BackHeader({ title, fallback, trailing }: { title: string; fallback: string; trailing?: ReactNode }) {
+export function BackHeader({
+  title,
+  fallback,
+  trailing,
+}: {
+  title: string
+  fallback: string
+  trailing?: ReactNode
+}) {
+  useLocale()
   const navigate = useNavigate()
   return (
     <div className="flex w-full items-center gap-3">
       <button
         type="button"
-        aria-label="Назад"
+        aria-label={t('Назад')}
         onClick={() => (window.history.length > 1 ? navigate(-1) : navigate(fallback))}
         className="flex size-11 shrink-0 items-center justify-center rounded-full bg-bg-subtle text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-bg-inverse"
       >

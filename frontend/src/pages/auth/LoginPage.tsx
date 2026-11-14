@@ -1,3 +1,4 @@
+import { t, useLocale } from '@/i18n/core'
 import { useState, type FormEvent } from 'react'
 import { Link, useLocation } from 'react-router'
 import { Lock, User } from 'lucide-react'
@@ -6,8 +7,8 @@ import { useSession } from '@/auth/use-session'
 import { Button, Input } from '@/components/ui-kit'
 import { AuthHeading, AuthLayout, FormError } from './AuthLayout'
 import { GoogleSignInButton } from './GoogleSignInButton'
-
 function Logo() {
+  useLocale()
   return (
     <div className="flex items-center gap-2">
       <span className="flex size-10 items-center justify-center rounded-[10px] bg-bg-inverse text-headline text-text-inverse">
@@ -17,43 +18,48 @@ function Logo() {
     </div>
   )
 }
-
 function OrDivider() {
+  useLocale()
   return (
     <div className="flex items-center gap-3" aria-hidden>
       <span className="h-px flex-1 bg-border-default" />
-      <span className="text-caption text-text-tertiary">или</span>
+      <span className="text-caption text-text-tertiary">{t('или')}</span>
       <span className="h-px flex-1 bg-border-default" />
     </div>
   )
 }
-
 /** Figma «Auth / Login» 4:2. */
 export function LoginPage() {
+  useLocale()
   const { login, googleLogin } = useSession()
   const providers = useAuthProviders()
   const location = useLocation()
-  const registered = (location.state as { username?: string } | null)?.username
+  const registered = (
+    location.state as {
+      username?: string
+    } | null
+  )?.username
   const [username, setUsername] = useState(registered ?? '')
   const [password, setPassword] = useState('')
   const googleClientId = providers.data?.google_client_id
-
   const submit = (event: FormEvent) => {
     event.preventDefault()
     googleLogin.reset()
     login.mutate({ username, password })
   }
-
   return (
     <AuthLayout top="login">
       <Logo />
-      <AuthHeading title="С возвращением" subtitle="Войдите, чтобы заказать поездку по Алматы" />
+      <AuthHeading
+        title={t('С возвращением')}
+        subtitle={t('Войдите, чтобы заказать поездку по Алматы')}
+      />
       <form className="flex flex-col gap-6" onSubmit={submit}>
         <div className="flex flex-col gap-3">
           <Input
             icon={User}
             name="username"
-            placeholder="Имя пользователя"
+            placeholder={t('Имя пользователя')}
             autoComplete="username"
             autoCapitalize="none"
             required
@@ -65,7 +71,7 @@ export function LoginPage() {
             icon={Lock}
             name="password"
             type="password"
-            placeholder="Пароль"
+            placeholder={t('Пароль')}
             autoComplete="current-password"
             required
             autoFocus={Boolean(registered)}
@@ -75,7 +81,7 @@ export function LoginPage() {
           <FormError error={login.error ?? googleLogin.error} />
         </div>
         <Button type="submit" className="w-full" loading={login.isPending}>
-          Войти
+          {t('Войти')}
         </Button>
       </form>
       {googleClientId && (
@@ -92,7 +98,10 @@ export function LoginPage() {
         </>
       )}
       <p className="text-center text-callout text-text-primary">
-        Нет аккаунта? <Link to="/register" className="outline-none focus-visible:underline">Зарегистрироваться</Link>
+        {t('Нет аккаунта? ')}
+        <Link to="/register" className="outline-none focus-visible:underline">
+          {t('Зарегистрироваться')}
+        </Link>
       </p>
     </AuthLayout>
   )

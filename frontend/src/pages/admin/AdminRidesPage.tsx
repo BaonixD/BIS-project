@@ -1,3 +1,4 @@
+import { t, useLocale } from '@/i18n/core'
 import { Link } from 'react-router'
 import { ArrowUpRight } from 'lucide-react'
 import type { RideStatus } from '@/api'
@@ -25,20 +26,23 @@ import {
   periodFrom,
   useAdminFilters,
 } from './admin-model'
-
 type AdminRide = components['schemas']['AdminRideSummary']
-const VIEWS: { id: string; label: string; statuses?: RideStatus[] }[] = [
+const VIEWS = (): {
+  id: string
+  label: string
+  statuses?: RideStatus[]
+}[] => [
   {
     id: 'active',
-    label: 'Активные',
+    label: t('Активные'),
     statuses: ['searching', 'assigned', 'arrived', 'in_progress'],
   },
-  { id: 'all', label: 'Все' },
-  { id: 'completed', label: 'Завершённые', statuses: ['completed'] },
-  { id: 'cancelled', label: 'Отменённые', statuses: ['cancelled', 'no_driver'] },
+  { id: 'all', label: t('Все') },
+  { id: 'completed', label: t('Завершённые'), statuses: ['completed'] },
+  { id: 'cancelled', label: t('Отменённые'), statuses: ['cancelled', 'no_driver'] },
 ]
-
 function RideRow({ ride }: { ride: AdminRide }) {
+  useLocale()
   const pill = rideStatusPill(ride.status)
   return (
     <tr className="border-t border-border-default text-callout">
@@ -52,7 +56,7 @@ function RideRow({ ride }: { ride: AdminRide }) {
             <ArrowUpRight className="size-4 shrink-0" />
           </span>
           <span className="text-caption text-text-secondary">
-            {adminDate(ride.created_at)} · {TARIFF_LABELS[ride.tariff]}
+            {adminDate(ride.created_at)} · {TARIFF_LABELS()[ride.tariff]}
           </span>
         </Link>
       </td>
@@ -61,7 +65,7 @@ function RideRow({ ride }: { ride: AdminRide }) {
           to={`/admin/users/${ride.passenger_id}`}
           className="underline decoration-border-default underline-offset-4"
         >
-          {ride.passenger_name ?? 'Пассажир'}
+          {ride.passenger_name ?? t('Пассажир')}
         </Link>
       </td>
       <td className="px-4 py-4">
@@ -70,10 +74,10 @@ function RideRow({ ride }: { ride: AdminRide }) {
             to={`/admin/drivers/${ride.driver_id}`}
             className="underline decoration-border-default underline-offset-4"
           >
-            {ride.driver_name ?? 'Водитель'}
+            {ride.driver_name ?? t('Водитель')}
           </Link>
         ) : (
-          <span className="text-text-secondary">Не назначен</span>
+          <span className="text-text-secondary">{t('Не назначен')}</span>
         )}
       </td>
       <td className="whitespace-nowrap px-4 py-4">{formatMoney(ride.amount_kzt)}</td>
@@ -94,10 +98,10 @@ function RideRow({ ride }: { ride: AdminRide }) {
     </tr>
   )
 }
-
 export function AdminRidesPage() {
+  useLocale()
   const { params, offset, update, reset } = useAdminFilters()
-  const view = VIEWS.find((item) => item.id === params.get('view')) ?? VIEWS[0]!
+  const view = VIEWS().find((item) => item.id === params.get('view')) ?? VIEWS()[0]!
   const q = params.get('q') ?? ''
   const paymentStatus = params.get('payment_status') ?? ''
   const paymentMethod = params.get('payment_method') ?? ''
@@ -116,19 +120,19 @@ export function AdminRidesPage() {
     filters.payment_status = paymentStatus as AdminRideFilters['payment_status']
   if (['cash', 'kaspi_link'].includes(paymentMethod))
     filters.payment_method = paymentMethod as AdminRideFilters['payment_method']
-  if (Object.keys(TARIFF_LABELS).includes(tariff))
+  if (Object.keys(TARIFF_LABELS()).includes(tariff))
     filters.tariff = tariff as AdminRideFilters['tariff']
   const rides = useAdminRides(filters)
   const scoped = Boolean(filters.passenger_id || filters.driver_id)
   return (
     <AdminLayout
-      title="Поездки"
-      description="Маршруты, участники, оплата и этапы каждой поездки."
+      title={t('Поездки')}
+      description={t('Маршруты, участники, оплата и этапы каждой поездки.')}
       refreshing={rides.isFetching}
       onRefresh={() => void rides.refetch()}
     >
       <div className="flex gap-2 overflow-x-auto">
-        {VIEWS.map((item) => (
+        {VIEWS().map((item) => (
           <Chip
             key={item.id}
             selected={view.id === item.id}
@@ -140,13 +144,16 @@ export function AdminRidesPage() {
       </div>
       {scoped && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-bg-canvas px-4 py-2 text-callout">
-          <span>Показаны поездки выбранного {filters.driver_id ? 'водителя' : 'пассажира'}</span>
+          <span>
+            {t('Показаны поездки выбранного ')}
+            {filters.driver_id ? t('водителя') : t('пассажира')}
+          </span>
           <Button
             variant="ghost"
             size="md"
             onClick={() => update({ passenger_id: '', driver_id: '' })}
           >
-            Показать всех
+            {t('Показать всех')}
           </Button>
         </div>
       )}
@@ -154,57 +161,57 @@ export function AdminRidesPage() {
         <AdminSearch
           key={q}
           value={q}
-          placeholder="Участник, телефон, госномер или полный ID поездки"
+          placeholder={t('Участник, телефон, госномер или полный ID поездки')}
           onSearch={(value) => update({ q: value })}
         />
         <div className="mt-4 grid grid-cols-2 items-end gap-3 md:grid-cols-3 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
           <AdminSelect
-            label="Период"
+            label={t('Период')}
             value={period}
             options={[
-              ['', 'За всё время'],
-              ['today', 'Сегодня'],
-              ['week', 'Последние 7 дней'],
-              ['month', 'Последние 30 дней'],
+              ['', t('За всё время')],
+              ['today', t('Сегодня')],
+              ['week', t('Последние 7 дней')],
+              ['month', t('Последние 30 дней')],
             ]}
             onChange={(value) => update({ period: value })}
           />
           <AdminSelect
-            label="Статус оплаты"
+            label={t('Статус оплаты')}
             value={paymentStatus}
             options={[
-              ['', 'Любой'],
-              ['unpaid', 'Не оплачено'],
-              ['paid', 'Оплачено'],
-              ['refunded', 'Возврат'],
+              ['', t('Любой')],
+              ['unpaid', t('Не оплачено')],
+              ['paid', t('Оплачено')],
+              ['refunded', t('Возврат')],
             ]}
             onChange={(value) => update({ payment_status: value })}
           />
           <AdminSelect
-            label="Способ оплаты"
+            label={t('Способ оплаты')}
             value={paymentMethod}
             options={[
-              ['', 'Любой'],
-              ['cash', 'Наличные'],
+              ['', t('Любой')],
+              ['cash', t('Наличные')],
               ['kaspi_link', 'Kaspi'],
             ]}
             onChange={(value) => update({ payment_method: value })}
           />
           <AdminSelect
-            label="Тариф"
+            label={t('Тариф')}
             value={tariff}
-            options={[['', 'Все тарифы'], ...Object.entries(TARIFF_LABELS)]}
+            options={[['', t('Все тарифы')], ...Object.entries(TARIFF_LABELS())]}
             onChange={(value) => update({ tariff: value })}
           />
           <Button variant="ghost" size="md" onClick={reset}>
-            Сбросить
+            {t('Сбросить')}
           </Button>
         </div>
       </div>
       <ErrorAlert error={rides.error} />
       {rides.isPending && <AdminLoading />}
       {rides.data?.items.length === 0 && (
-        <AdminEmpty message="Поездок не найдено" onReset={reset} />
+        <AdminEmpty message={t('Поездок не найдено')} onReset={reset} />
       )}
       {Boolean(rides.data?.items.length) && (
         <div
@@ -212,16 +219,21 @@ export function AdminRidesPage() {
           className={`hidden overflow-x-auto rounded-lg bg-bg-canvas lg:block ${rides.isPlaceholderData ? 'pointer-events-none opacity-50' : ''}`}
         >
           <table className="w-full min-w-[960px] text-left">
-            <caption className="sr-only">Поездки и статус оплаты</caption>
+            <caption className="sr-only">{t('Поездки и статус оплаты')}</caption>
             <thead>
               <tr className="text-label text-text-tertiary">
-                {['МАРШРУТ / ДАТА', 'ПАССАЖИР', 'ВОДИТЕЛЬ', 'СУММА', 'ОПЛАТА', 'СТАТУС'].map(
-                  (label) => (
-                    <th scope="col" key={label} className="px-4 py-3 font-semibold">
-                      {label}
-                    </th>
-                  ),
-                )}
+                {[
+                  t('МАРШРУТ / ДАТА'),
+                  t('ПАССАЖИР'),
+                  t('ВОДИТЕЛЬ'),
+                  t('СУММА'),
+                  t('ОПЛАТА'),
+                  t('СТАТУС'),
+                ].map((label) => (
+                  <th scope="col" key={label} className="px-4 py-3 font-semibold">
+                    {label}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -251,7 +263,8 @@ export function AdminRidesPage() {
                   <RouteTitle pickup={ride.pickup} dropoff={ride.dropoff} />
                 </p>
                 <p className="text-caption text-text-secondary">
-                  {ride.passenger_name ?? 'Пассажир'} · {ride.driver_name ?? 'Водитель не назначен'}
+                  {ride.passenger_name ?? t('Пассажир')} ·{' '}
+                  {ride.driver_name ?? t('Водитель не назначен')}
                 </p>
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border-default pt-3 text-caption text-text-secondary">
                   <span>{adminDate(ride.created_at)}</span>

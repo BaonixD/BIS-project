@@ -1,8 +1,8 @@
+import { t, useLocale } from '@/i18n/core'
 import { MapPin } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Coordinates } from '@/api'
 import { formatCoordinates } from '@/lib/format'
-
 interface PointRowProps {
   label: string
   point: Coordinates | null
@@ -10,9 +10,9 @@ interface PointRowProps {
   active?: boolean
   onSelect?: () => void
 }
-
 /** The backend has no geocoding: a point is shown as «Точка на карте» with its coordinates. */
 export function PointRow({ label, point, color, active, onSelect }: PointRowProps) {
+  useLocale()
   return (
     <button
       type="button"
@@ -27,7 +27,9 @@ export function PointRow({ label, point, color, active, onSelect }: PointRowProp
       <span className="grid">
         <span className="text-xs text-muted-foreground">{label}</span>
         <span className="text-sm">
-          {point ? `Точка на карте · ${formatCoordinates(point)}` : 'Нажмите на карту'}
+          {point
+            ? t('Точка на карте · {p0}', { p0: formatCoordinates(point) })
+            : t('Нажмите на карту')}
         </span>
       </span>
     </button>

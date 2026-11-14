@@ -1,3 +1,4 @@
+import { t, useLocale, getIntlLocale } from '@/i18n/core'
 import { APPROVAL_STATUS_LABELS } from '@/lib/labels'
 import { Link, useParams } from 'react-router'
 import { Check, CircleAlert } from 'lucide-react'
@@ -13,14 +14,14 @@ import { RidesLink } from './admin-controls'
 import { DRIVER_FIELD_LABELS } from '@/lib/labels'
 import { CarClassSheet } from './CarClassSheet'
 import { useApproveFlow } from './use-approve-flow'
-
-const registeredFormat = new Intl.DateTimeFormat('ru-RU', {
-  timeZone: 'Asia/Almaty',
-  day: 'numeric',
-  month: 'long',
-})
-
+const registeredFormat = () =>
+  new Intl.DateTimeFormat(getIntlLocale(), {
+    timeZone: 'Asia/Almaty',
+    day: 'numeric',
+    month: 'long',
+  })
 function Facts({ rows }: { rows: [string, string][] }) {
+  useLocale()
   return (
     <dl className="flex w-full flex-col gap-2.5 overflow-hidden rounded-lg bg-bg-subtle p-4 text-callout">
       {rows.map(([label, value]) => (
@@ -32,19 +33,19 @@ function Facts({ rows }: { rows: [string, string][] }) {
     </dl>
   )
 }
-
 function DriverDetails({ driver }: { driver: NextAdminDriver }) {
+  useLocale()
   const name = driver.full_name ?? driver.username
   const vehicle = driver.vehicle
   const vehicleRows: [string, string][] = [
-    ['Машина', vehicle ? `${vehicle.make} ${vehicle.model}` : '—'],
-    ['Цвет', vehicle?.color ?? '—'],
-    ['Госномер', vehicle?.plate_number ?? '—'],
+    [t('Машина'), vehicle ? `${vehicle.make} ${vehicle.model}` : '—'],
+    [t('Цвет'), vehicle?.color ?? '—'],
+    [t('Госномер'), vehicle?.plate_number ?? '—'],
   ]
   if (driver.approval_status === 'approved' && vehicle?.car_class) {
-    vehicleRows.push(['Категории', vehicleCategoryLabel(vehicle)])
+    vehicleRows.push([t('Категории'), vehicleCategoryLabel(vehicle)])
   }
-  const missing = driver.missing_fields.map((field) => DRIVER_FIELD_LABELS[field] ?? field)
+  const missing = driver.missing_fields.map((field) => DRIVER_FIELD_LABELS()[field] ?? field)
   return (
     <>
       <div className="flex w-full items-center gap-4">
@@ -52,15 +53,15 @@ function DriverDetails({ driver }: { driver: NextAdminDriver }) {
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <p className="truncate text-headline text-text-primary">{name}</p>
           <p className="truncate text-caption text-text-secondary">
-            @{driver.username} · зарегистрирован{' '}
-            {registeredFormat.format(new Date(driver.created_at))}
+            @{driver.username}
+            {t(' · зарегистрирован')} {registeredFormat().format(new Date(driver.created_at))}
           </p>
         </div>
       </div>
       <Facts
         rows={[
-          ['Телефон', driver.phone ?? '—'],
-          ['Права', driver.license_number ?? '—'],
+          [t('Телефон'), driver.phone ?? '—'],
+          [t('Права'), driver.license_number ?? '—'],
         ]}
       />
       <Facts rows={vehicleRows} />
@@ -72,33 +73,32 @@ function DriverDetails({ driver }: { driver: NextAdminDriver }) {
         )}
         <p className="text-callout text-text-secondary">
           {missing.length === 0
-            ? 'Все обязательные поля заполнены'
-            : `Не заполнено: ${missing.join(', ')}`}
+            ? t('Все обязательные поля заполнены')
+            : t('Не заполнено: {p0}', { p0: missing.join(', ') })}
         </p>
       </div>
     </>
   )
 }
-
 /** Figma 26:764: a driver's application. */
 export function AdminDriverPage() {
+  useLocale()
   const { driverId } = useParams()
   const drivers = useAdminDriver(driverId)
   const flow = useApproveFlow()
   if (drivers.isPending) return <FullScreenLoader />
   const driver = drivers.data ?? null
   const approved = driver?.approval_status === 'approved'
-
   return (
     <Screen overNav>
       <ScreenColumn className="gap-4 pt-[calc(56px+env(safe-area-inset-top))] pb-32">
         <BackHeader
-          title="Заявка водителя"
+          title={t('Заявка водителя')}
           fallback="/admin"
           trailing={
             driver && (
               <StatusPill tone={approved ? 'success' : 'warning'}>
-                {APPROVAL_STATUS_LABELS[driver.approval_status]}
+                {APPROVAL_STATUS_LABELS()[driver.approval_status]}
               </StatusPill>
             )
           }
@@ -107,19 +107,23 @@ export function AdminDriverPage() {
         {driver ? (
           <>
             <DriverDetails driver={driver} />
-            {driver.blocked_at && <StatusPill tone="danger">Аккаунт заблокирован</StatusPill>}
+            {driver.blocked_at && (
+              <StatusPill tone="danger">{t('Аккаунт заблокирован')}</StatusPill>
+            )}
             <RidesLink userId={driver.id} role="driver">
-              Поездки водителя
+              {t('Поездки водителя')}
             </RidesLink>
             <Link
               to={`/admin/users/${driver.id}`}
               className="text-callout underline underline-offset-4"
             >
-              Управление доступом к аккаунту
+              {t('Управление доступом к аккаунту')}
             </Link>
           </>
         ) : (
-          !drivers.error && <p className="text-callout text-text-secondary">Водитель не найден</p>
+          !drivers.error && (
+            <p className="text-callout text-text-secondary">{t('Водитель не найден')}</p>
+          )
         )}
       </ScreenColumn>
       {driver && (
@@ -129,14 +133,14 @@ export function AdminDriverPage() {
             disabled={Boolean(driver.blocked_at)}
             onClick={() => flow.open(driver)}
           >
-            {approved ? 'Сменить класс машины' : 'Одобрить водителя'}
+            {approved ? t('Сменить класс машины') : t('Одобрить водителя')}
           </Button>
         </ScreenFooter>
       )}
       {flow.target && (
         <CarClassSheet
           initial={flow.target.vehicle?.car_class ?? 'economy'}
-          confirmLabel={approved ? 'Сохранить класс' : 'Одобрить'}
+          confirmLabel={approved ? t('Сохранить класс') : t('Одобрить')}
           busy={flow.busy}
           onConfirm={flow.confirm}
           onClose={flow.close}

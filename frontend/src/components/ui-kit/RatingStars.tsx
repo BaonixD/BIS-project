@@ -1,11 +1,11 @@
+import { t, useLocale } from '@/i18n/core'
 import { useRef, type KeyboardEvent } from 'react'
 import { cn } from '@/lib/utils'
-
 const MAX = 5
 const STAR_PATH =
   'M14 3.73333L17.0567 9.91667L23.8817 10.9083L18.9467 15.715L20.1133 22.5167L14 19.3083L7.88667 22.5167L9.05333 15.715L4.11833 10.9083L10.9433 9.91667L14 3.73333Z'
-
 function Star({ filled }: { filled: boolean }) {
+  useLocale()
   return (
     <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden className="block">
       <path
@@ -19,7 +19,6 @@ function Star({ filled }: { filled: boolean }) {
     </svg>
   )
 }
-
 interface RatingStarsProps {
   value: number
   onChange?: (value: number) => void
@@ -27,7 +26,6 @@ interface RatingStarsProps {
   label?: string
   className?: string
 }
-
 function nextValue(key: string, value: number): number | null {
   switch (key) {
     case 'ArrowRight':
@@ -44,25 +42,28 @@ function nextValue(key: string, value: number): number | null {
       return null
   }
 }
-
 /** Figma «RatingStars» 30:119: 5 × 28px stars, 6px gap; a radio group operable with the keyboard. */
-export function RatingStars({ value, onChange, readOnly = false, label = 'Оценка', className }: RatingStarsProps) {
+export function RatingStars({
+  value,
+  onChange,
+  readOnly = false,
+  label = t('Оценка'),
+  className,
+}: RatingStarsProps) {
+  useLocale()
   const refs = useRef<(HTMLButtonElement | null)[]>([])
   const focusIndex = Math.max(0, value - 1)
-
   const select = (next: number) => {
     if (readOnly) return
     onChange?.(next)
     refs.current[next - 1]?.focus()
   }
-
   const onKeyDown = (event: KeyboardEvent) => {
     const next = nextValue(event.key, value)
     if (next === null) return
     event.preventDefault()
     select(next)
   }
-
   return (
     <div
       role="radiogroup"
@@ -82,7 +83,7 @@ export function RatingStars({ value, onChange, readOnly = false, label = 'Оце
             type="button"
             role="radio"
             aria-checked={value === star}
-            aria-label={`${star} из ${MAX}`}
+            aria-label={t('{p0} из {p1}', { p0: star, p1: MAX })}
             tabIndex={index === focusIndex ? 0 : -1}
             onClick={() => select(star)}
             className={cn(

@@ -1,6 +1,6 @@
+import { t, useLocale } from '@/i18n/core'
 import type { ReactNode } from 'react'
 import { BottomSheet } from '@/components/ui-kit'
-
 /**
  * Full-screen map under the shell chrome with a bottom sheet
  * (a floating left panel at ≥1024px, as in Figma Desktop 7:2).
@@ -8,7 +8,7 @@ import { BottomSheet } from '@/components/ui-kit'
 export function MapScreen({
   map,
   sheet,
-  sheetLabel = 'Панель заказа',
+  sheetLabel = t('Панель заказа'),
   onSheetHeightChange,
 }: {
   map: ReactNode
@@ -16,6 +16,7 @@ export function MapScreen({
   sheetLabel?: string
   onSheetHeightChange?: (height: number) => void
 }) {
+  useLocale()
   return (
     <div className="fixed inset-0 isolate lg:top-(--top-bar-height)">
       <div className="absolute inset-0 z-0">{map}</div>

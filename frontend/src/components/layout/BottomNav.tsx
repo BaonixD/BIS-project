@@ -1,9 +1,9 @@
+import { t, useLocale } from '@/i18n/core'
 import { Link, useLocation } from 'react-router'
 import { motion } from 'motion/react'
 import type { UserRole } from '@/api'
 import { cn } from '@/lib/utils'
 import { isNavItemActive, NAV_ITEMS } from './nav-items'
-
 /**
  * Figma «BottomNav» 3:85: a floating white pill (16px inset, radius 28, 1px border, Elevation/Card);
  * the active item sits on a light-grey radius-20 capsule that glides between items.
@@ -20,18 +20,19 @@ export function BottomNav({
   /** Kit preview: render in the flow at every width. */
   preview?: boolean
 }) {
+  useLocale()
   const location = useLocation()
   const pathname = pathnameOverride ?? location.pathname
   return (
     <nav
-      aria-label={preview ? `Навигация: ${role}` : 'Основная навигация'}
+      aria-label={preview ? t('Навигация: {p0}', { p0: role }) : t('Основная навигация')}
       className={cn(
         'px-4 pt-2 pb-(--nav-bottom-gap)',
         preview ? 'relative w-full' : 'pointer-events-none fixed inset-x-0 bottom-0 z-40 lg:hidden',
       )}
     >
       <ul className="pointer-events-auto flex items-center gap-1 overflow-hidden rounded-[28px] border border-solid border-border-default bg-bg-canvas p-1.5 shadow-card">
-        {NAV_ITEMS[role].map((item) => {
+        {NAV_ITEMS()[role].map((item) => {
           const active = isNavItemActive(item, pathname)
           const Icon = item.icon
           return (
@@ -50,7 +51,9 @@ export function BottomNav({
                   />
                 )}
                 <Icon
-                  className={cn('relative size-6 text-text-primary transition-opacity duration-200')}
+                  className={cn(
+                    'relative size-6 text-text-primary transition-opacity duration-200',
+                  )}
                   strokeWidth={2}
                   aria-hidden
                 />

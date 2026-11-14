@@ -1,3 +1,4 @@
+import { t, useLocale } from '@/i18n/core'
 import { useEffect } from 'react'
 import { Marker, Polyline, useMap } from 'react-leaflet'
 import {
@@ -10,18 +11,17 @@ import type { Coordinates, RouteResult } from '@/api'
 import { routeToLatLngs, toLatLng } from '@/lib/geo'
 import { routeAttribution } from './attribution'
 import { carIcon, dropoffIcon, myLocationIcon, pickupIcon } from './markers'
-
 export type PointKind = 'pickup' | 'dropoff' | 'driver' | 'me'
-
-const MARKERS = {
-  pickup: { icon: pickupIcon, label: 'Откуда' },
-  dropoff: { icon: dropoffIcon, label: 'Куда' },
-  driver: { icon: carIcon, label: 'Водитель' },
-  me: { icon: myLocationIcon, label: 'Вы здесь' },
-} as const
-
+const MARKERS = () =>
+  ({
+    pickup: { icon: pickupIcon, label: t('Откуда') },
+    dropoff: { icon: dropoffIcon, label: t('Куда') },
+    driver: { icon: carIcon, label: t('Водитель') },
+    me: { icon: myLocationIcon, label: t('Вы здесь') },
+  }) as const
 export function PointMarker({ point, kind }: { point: Coordinates; kind: PointKind }) {
-  const { icon, label } = MARKERS[kind]
+  useLocale()
+  const { icon, label } = MARKERS()[kind]
   return (
     <Marker
       position={toLatLng(point)}
@@ -34,10 +34,8 @@ export function PointMarker({ point, kind }: { point: Coordinates; kind: PointKi
     />
   )
 }
-
 /** Route lines use the brand green (accent/success). */
 export const ROUTE_COLOR = '#05A357'
-
 const ROUTE_EVENTS = {
   add({ target }: LeafletEvent) {
     // Normalized length keeps the reveal consistent while the map zooms or pans.
@@ -45,9 +43,9 @@ const ROUTE_EVENTS = {
     path?.setAttribute('pathLength', '1')
   },
 }
-
 /** Reveal a new route once; polling the same geometry keeps the existing line. */
 export function RouteLine({ route }: { route: RouteResult | LatLngTuple[] }) {
+  useLocale()
   const positions = Array.isArray(route) ? route : routeToLatLngs(route)
   const attribution = Array.isArray(route) ? undefined : routeAttribution(route.provider)
   const geometryKey = positions.map(([lat, lng]) => `${lat},${lng}`).join(';')
@@ -70,16 +68,13 @@ export function RouteLine({ route }: { route: RouteResult | LatLngTuple[] }) {
     />
   )
 }
-
 export interface MapInsets {
   top?: number
   right?: number
   bottom?: number
   left?: number
 }
-
 const FIT_PADDING = 48
-
 /** Fits the view to the points, keeping them clear of overlays (bottom sheet, desktop panel). */
 export function FitToPoints({
   points: input,
@@ -88,11 +83,11 @@ export function FitToPoints({
   points: (Coordinates | LatLngTuple)[]
   insets?: MapInsets
 }) {
+  useLocale()
   const map = useMap()
   const { top = 0, right = 0, bottom = 0, left = 0 } = insets
   const points = input.map((point) => (Array.isArray(point) ? point : toLatLng(point)))
   const key = points.map(([lat, lng]) => `${lat.toFixed(5)},${lng.toFixed(5)}`).join('|')
-
   useEffect(() => {
     if (points.length === 0) return
     map.fitBounds(latLngBounds(points), {
@@ -103,6 +98,5 @@ export function FitToPoints({
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` captures the points
   }, [map, key, top, right, bottom, left])
-
   return null
 }

@@ -1,3 +1,4 @@
+import { setLocale } from '@/i18n/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -207,9 +208,7 @@ describe('working tariff selection', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Изменить тарифы' }))
     const reopened = screen.getByRole('dialog')
     expect(within(reopened).getByRole('checkbox', { name: 'Бизнес' })).toBeChecked()
-    expect(
-      within(reopened).getByRole('checkbox', { name: 'Эконом' }),
-    ).not.toBeChecked()
+    expect(within(reopened).getByRole('checkbox', { name: 'Эконом' })).not.toBeChecked()
   })
 
   it('shows only eligible tariffs, prevents an empty shift and cancels without a request', async () => {
@@ -230,4 +229,20 @@ describe('working tariff selection', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(api.calls.some((call) => call.path.endsWith('/availability'))).toBe(false)
   })
+})
+
+afterEach(() => act(() => setLocale('ru')))
+
+it('translates the working category picker without losing the selection', async () => {
+  setLocale('en')
+  api.on('GET /api/v1/drivers/me', () => driverFixture())
+  renderPage()
+  await userEvent.click(await screen.findByRole('button', { name: 'Go online' }))
+  const dialog = screen.getByRole('dialog', { name: 'Choose ride types' })
+  await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Economy' }))
+  act(() => setLocale('kk'))
+  expect(screen.getByRole('dialog', { name: 'Ауысым тарифтері' })).toBeInTheDocument()
+  expect(screen.getByRole('checkbox', { name: 'Эконом' })).not.toBeChecked()
+  expect(screen.getByRole('checkbox', { name: 'Комфорт' })).toBeChecked()
+  expect(api.calls.some((call) => call.path.endsWith('/availability'))).toBe(false)
 })

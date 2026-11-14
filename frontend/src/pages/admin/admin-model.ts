@@ -1,13 +1,12 @@
+import { t, getIntlLocale } from '@/i18n/core'
 import { useSearchParams } from 'react-router'
 import type { RideSummary } from '@/api'
-
 export const ADMIN_PAGE_SIZE = 20
-
 export function useAdminFilters() {
   const [params, setParams] = useSearchParams()
   const offsetValue = Number(params.get('offset') ?? 0)
   const offset =
-    Number.isSafeInteger(offsetValue) && offsetValue >= 0 && offsetValue <= 10_000_000
+    Number.isSafeInteger(offsetValue) && offsetValue >= 0 && offsetValue <= 10000000
       ? offsetValue
       : 0
   const update = (values: Record<string, string>, paging = false) => {
@@ -22,32 +21,29 @@ export function useAdminFilters() {
   }
   return { params, offset, update, reset: () => setParams({}) }
 }
-
 export const adminDate = (value: string | null | undefined) =>
   value
-    ? new Intl.DateTimeFormat('ru-RU', {
+    ? new Intl.DateTimeFormat(getIntlLocale(), {
         timeZone: 'Asia/Almaty',
         dateStyle: 'medium',
         timeStyle: 'short',
       }).format(new Date(value))
     : '—'
-
 export function adminPayment(ride: Pick<RideSummary, 'payment_method' | 'payment_status'>) {
   const method =
     ride.payment_method === 'kaspi_link'
       ? 'Kaspi'
       : ride.payment_method === 'cash'
-        ? 'Наличные'
+        ? t('Наличные')
         : '—'
   const status =
     ride.payment_status === 'paid'
-      ? 'оплачено'
+      ? t('оплачено')
       : ride.payment_status === 'refunded'
-        ? 'возврат'
-        : 'не оплачено'
+        ? t('возврат')
+        : t('не оплачено')
   return `${method} · ${status}`
 }
-
 export function periodFrom(period: string): string | undefined {
   if (!['today', 'week', 'month'].includes(period)) return undefined
   const localDate = new Intl.DateTimeFormat('en-CA', {

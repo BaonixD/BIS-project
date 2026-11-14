@@ -1,3 +1,5 @@
+import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
+import { t, useLocale } from '@/i18n/core'
 import { useState, type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router'
 import { ArrowUpRight, RefreshCw, Search } from 'lucide-react'
@@ -5,7 +7,6 @@ import { Button, Input, Skeleton } from '@/components/ui-kit'
 import { Pagination } from '@/components/common/Pagination'
 import { AdminLogoutButton } from './AdminLogoutButton'
 import { ADMIN_PAGE_SIZE } from './admin-model'
-
 export function AdminLayout({
   title,
   description,
@@ -19,12 +20,13 @@ export function AdminLayout({
   refreshing?: boolean
   onRefresh: () => void
 }) {
+  useLocale()
   return (
     <div className="min-h-dvh bg-bg-subtle">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 px-4 pt-[calc(64px+env(safe-area-inset-top))] pb-8 lg:gap-5 lg:px-8 lg:pt-8">
-        <header className="flex items-start justify-between gap-4 sm:items-center">
+        <header className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <p className="mb-1 text-label text-text-secondary">BIS TAXI / УПРАВЛЕНИЕ</p>
+            <p className="mb-1 text-label text-text-secondary">{t('BIS TAXI / УПРАВЛЕНИЕ')}</p>
             <h1 className="text-display text-text-primary">{title}</h1>
             <p className="mt-1 text-callout text-text-secondary">{description}</p>
           </div>
@@ -34,21 +36,22 @@ export function AdminLayout({
               size="md"
               onClick={onRefresh}
               disabled={refreshing}
-              aria-label="Обновить данные"
+              aria-label={t('Обновить данные')}
             >
               <RefreshCw className={refreshing ? 'motion-safe:animate-spin' : ''} />
-              <span className="hidden sm:inline">Обновить</span>
+              <span className="hidden sm:inline">{t('Обновить')}</span>
             </Button>
+            <LanguageSwitcher className="lg:hidden" />
             <AdminLogoutButton />
           </div>
         </header>
-        <nav aria-label="Управление сервисом" className="flex gap-2 overflow-x-auto pb-1">
+        <nav aria-label={t('Управление сервисом')} className="flex gap-2 overflow-x-auto pb-1">
           {(
             [
-              ['/admin/overview', 'Обзор'],
-              ['/admin', 'Водители'],
-              ['/admin/rides', 'Поездки'],
-              ['/admin/users', 'Пользователи'],
+              ['/admin/overview', t('Обзор')],
+              ['/admin', t('Водители')],
+              ['/admin/rides', t('Поездки')],
+              ['/admin/users', t('Пользователи')],
             ] as const
           ).map(([to, label]) => (
             <NavLink
@@ -68,7 +71,6 @@ export function AdminLayout({
     </div>
   )
 }
-
 export function AdminSearch({
   value,
   placeholder,
@@ -78,6 +80,7 @@ export function AdminSearch({
   placeholder: string
   onSearch: (value: string) => void
 }) {
+  useLocale()
   const [draft, setDraft] = useState(value)
   return (
     <form
@@ -88,7 +91,7 @@ export function AdminSearch({
       }}
       role="search"
     >
-      <span className="text-caption text-text-secondary">Поиск</span>
+      <span className="text-caption text-text-secondary">{t('Поиск')}</span>
       <div className="flex min-w-0 items-center gap-2">
         <Input
           icon={Search}
@@ -101,13 +104,12 @@ export function AdminSearch({
           className="text-callout"
         />
         <Button type="submit" size="md">
-          Найти
+          {t('Найти')}
         </Button>
       </div>
     </form>
   )
 }
-
 export function AdminSelect({
   label,
   value,
@@ -119,6 +121,7 @@ export function AdminSelect({
   options: readonly (readonly [string, string])[]
   onChange: (value: string) => void
 }) {
+  useLocale()
   return (
     <label className="flex min-w-0 flex-col gap-1.5 text-caption text-text-secondary">
       <span>{label}</span>
@@ -136,7 +139,6 @@ export function AdminSelect({
     </label>
   )
 }
-
 export function AdminResults({
   total,
   offset,
@@ -148,14 +150,19 @@ export function AdminResults({
   busy: boolean
   onPage: (offset: number) => void
 }) {
+  useLocale()
   return (
     <div className="flex flex-col gap-2" aria-busy={busy}>
       <p className="text-caption text-text-secondary" role="status">
         {total === undefined
-          ? 'Загружаем…'
+          ? t('Загружаем…')
           : total === 0
-            ? 'Найдено: 0'
-            : `${offset + 1}–${Math.min(offset + ADMIN_PAGE_SIZE, total)} из ${total}`}
+            ? t('Найдено: 0')
+            : t('{p0}–{p1} из {p2}', {
+                p0: offset + 1,
+                p1: Math.min(offset + ADMIN_PAGE_SIZE, total),
+                p2: total,
+              })}
       </p>
       <div className={busy ? 'pointer-events-none opacity-50' : ''}>
         {total !== undefined && (
@@ -165,28 +172,28 @@ export function AdminResults({
     </div>
   )
 }
-
 export function AdminEmpty({
-  message = 'Ничего не найдено',
+  message = t('Ничего не найдено'),
   onReset,
 }: {
   message?: string
   onReset: () => void
 }) {
+  useLocale()
   return (
     <div className="flex flex-col items-center gap-3 rounded-lg bg-bg-canvas px-5 py-10 text-center sm:py-12">
       <p className="text-headline text-text-primary">{message}</p>
       <p className="text-callout text-text-secondary">
-        Попробуйте другой запрос или измените фильтры.
+        {t('Попробуйте другой запрос или измените фильтры.')}
       </p>
       <Button variant="secondary" size="md" onClick={onReset}>
-        Сбросить фильтры
+        {t('Сбросить фильтры')}
       </Button>
     </div>
   )
 }
-
 export function AdminLoading() {
+  useLocale()
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <Skeleton className="h-40 rounded-lg" />
@@ -194,8 +201,8 @@ export function AdminLoading() {
     </div>
   )
 }
-
 export function FactList({ items }: { items: [string, ReactNode][] }) {
+  useLocale()
   return (
     <dl className="flex flex-col divide-y divide-border-default">
       {items.map(([label, value]) => (
@@ -212,16 +219,16 @@ export function FactList({ items }: { items: [string, ReactNode][] }) {
     </dl>
   )
 }
-
 export function RidesLink({
   userId,
   role,
-  children = 'Поездки пользователя',
+  children = t('Поездки пользователя'),
 }: {
   userId: string
   role: string
   children?: ReactNode
 }) {
+  useLocale()
   return (
     <Link
       className="inline-flex items-center gap-1 text-callout text-text-primary underline underline-offset-4 outline-none focus-visible:ring-2"

@@ -1,10 +1,9 @@
+import { t, useLocale } from '@/i18n/core'
 import { useEffect, useRef } from 'react'
 import googleIcon from '@/assets/icons/google.svg'
 import { loadGoogleIdentity } from '@/auth/google-identity'
 import { cn } from '@/lib/utils'
-
 const GIS_MAX_WIDTH = 400
-
 /**
  * Figma «GoogleButton» 12:538. Google Identity Services only issues an ID token from its own button,
  * so the official button is rendered transparently over the Figma one and receives the click;
@@ -19,13 +18,12 @@ export function GoogleSignInButton({
   onCredential: (credential: string) => void
   disabled?: boolean
 }) {
+  const locale = useLocale()
   const overlay = useRef<HTMLDivElement>(null)
   const callback = useRef(onCredential)
-
   useEffect(() => {
     callback.current = onCredential
   }, [onCredential])
-
   useEffect(() => {
     let cancelled = false
     loadGoogleIdentity()
@@ -44,7 +42,7 @@ export function GoogleSignInButton({
           theme: 'outline',
           size: 'large',
           text: 'continue_with',
-          locale: 'ru',
+          locale,
           width: Math.min(GIS_MAX_WIDTH, target.offsetWidth),
         })
       })
@@ -52,8 +50,7 @@ export function GoogleSignInButton({
     return () => {
       cancelled = true
     }
-  }, [clientId])
-
+  }, [clientId, locale])
   return (
     <div className="relative w-full">
       <button
@@ -66,11 +63,14 @@ export function GoogleSignInButton({
         )}
       >
         <img src={googleIcon} alt="" className="size-6" />
-        Продолжить с Google
+        {t('Продолжить с Google')}
       </button>
       <div
         ref={overlay}
-        className={cn('absolute inset-0 flex items-center justify-center overflow-hidden opacity-[0.01]', disabled && 'hidden')}
+        className={cn(
+          'absolute inset-0 flex items-center justify-center overflow-hidden opacity-[0.01]',
+          disabled && 'hidden',
+        )}
       />
     </div>
   )

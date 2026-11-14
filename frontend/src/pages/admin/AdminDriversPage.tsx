@@ -1,3 +1,4 @@
+import { t, useLocale } from '@/i18n/core'
 import { ADMIN_PAGE_SIZE, useAdminFilters } from './admin-model'
 import { Link } from 'react-router'
 import { AlertCircle, ChevronRight } from 'lucide-react'
@@ -19,14 +20,14 @@ import {
   AdminSearch,
   AdminSelect,
 } from './admin-controls'
-
-const FILTERS = [
-  ['pending', 'На проверке'],
-  ['approved', 'Одобрены'],
-  ['all', 'Все'],
-] as const
-
+const FILTERS = () =>
+  [
+    ['pending', t('На проверке')],
+    ['approved', t('Одобрены')],
+    ['all', t('Все')],
+  ] as const
 function DriverRequest({ driver, onApprove }: { driver: NextAdminDriver; onApprove: () => void }) {
+  useLocale()
   const name = driver.full_name ?? driver.username
   return (
     <li className="flex flex-col gap-4 rounded-lg bg-bg-canvas p-5">
@@ -52,39 +53,39 @@ function DriverRequest({ driver, onApprove }: { driver: NextAdminDriver; onAppro
           }
         >
           {driver.blocked_at
-            ? 'Заблокирован'
+            ? t('Заблокирован')
             : driver.approval_status === 'approved'
-              ? 'Одобрен'
-              : 'На проверке'}
+              ? t('Одобрен')
+              : t('На проверке')}
         </StatusPill>
         <StatusPill tone={driver.online ? 'info' : 'neutral'}>
-          {driver.online ? 'На линии' : 'Не на линии'}
+          {driver.online ? t('На линии') : t('Не на линии')}
         </StatusPill>
         {driver.vehicle &&
           vehicleCategories(driver.vehicle).map((category) => (
-            <StatusPill key={category}>{TARIFF_LABELS[category]}</StatusPill>
+            <StatusPill key={category}>{TARIFF_LABELS()[category]}</StatusPill>
           ))}
       </div>
       <p className="text-callout text-text-secondary">{vehicleLine(driver)}</p>
       {driver.missing_fields.length > 0 && (
         <p className="flex items-center gap-2 text-caption text-accent-danger">
           <AlertCircle className="size-4" />
-          Профиль заполнен не полностью
+          {t('Профиль заполнен не полностью')}
         </p>
       )}
       <div className="mt-auto grid grid-cols-2 gap-2">
         <Button asChild variant="secondary" size="md">
-          <Link to={`/admin/drivers/${driver.id}`}>Подробнее</Link>
+          <Link to={`/admin/drivers/${driver.id}`}>{t('Подробнее')}</Link>
         </Button>
         <Button size="md" onClick={onApprove} disabled={Boolean(driver.blocked_at)}>
-          {driver.approval_status === 'approved' ? 'Класс машины' : 'Одобрить'}
+          {driver.approval_status === 'approved' ? t('Класс машины') : t('Одобрить')}
         </Button>
       </div>
     </li>
   )
 }
-
 export function AdminDriversPage() {
+  useLocale()
   const { params, offset, update, reset } = useAdminFilters()
   const status = params.get('status') ?? 'pending'
   const filter = status === 'approved' ? 'approved' : status === 'all' ? 'all' : 'pending'
@@ -100,8 +101,8 @@ export function AdminDriversPage() {
   const flow = useApproveFlow()
   return (
     <AdminLayout
-      title="Водители"
-      description="Проверяйте заявки, назначайте класс машины и следите за доступностью."
+      title={t('Водители')}
+      description={t('Проверяйте заявки, назначайте класс машины и следите за доступностью.')}
       refreshing={drivers.isFetching}
       onRefresh={() => {
         void drivers.refetch()
@@ -109,34 +110,37 @@ export function AdminDriversPage() {
       }}
     >
       <div className="flex flex-wrap items-center gap-2">
-        {FILTERS.map(([id, label]) => (
+        {FILTERS().map(([id, label]) => (
           <Chip key={id} selected={filter === id} onClick={() => update({ status: id })}>
             {label}
           </Chip>
         ))}
         {(waiting.data?.total ?? 0) > 0 && (
-          <StatusPill tone="warning">{waiting.data!.total} ждут</StatusPill>
+          <StatusPill tone="warning">
+            {waiting.data!.total}
+            {t(' ждут')}
+          </StatusPill>
         )}
       </div>
       <div className="grid items-end gap-3 rounded-lg bg-bg-canvas p-4 sm:grid-cols-[minmax(0,1fr)_180px_auto]">
         <AdminSearch
           key={q}
           value={q}
-          placeholder="Имя, логин, телефон или госномер"
+          placeholder={t('Имя, логин, телефон или госномер')}
           onSearch={(value) => update({ q: value })}
         />
         <AdminSelect
-          label="Доступность"
+          label={t('Доступность')}
           value={online ?? ''}
           options={[
-            ['', 'Любая'],
-            ['true', 'На линии'],
-            ['false', 'Не на линии'],
+            ['', t('Любая')],
+            ['true', t('На линии')],
+            ['false', t('Не на линии')],
           ]}
           onChange={(value) => update({ online: value })}
         />
         <Button variant="ghost" size="md" onClick={reset}>
-          Сбросить
+          {t('Сбросить')}
         </Button>
       </div>
       <ErrorAlert error={drivers.error} />
@@ -159,7 +163,9 @@ export function AdminDriversPage() {
       {flow.target && (
         <CarClassSheet
           initial={flow.target.vehicle?.car_class ?? 'economy'}
-          confirmLabel={flow.target.approval_status === 'approved' ? 'Сохранить класс' : 'Одобрить'}
+          confirmLabel={
+            flow.target.approval_status === 'approved' ? t('Сохранить класс') : t('Одобрить')
+          }
           busy={flow.busy}
           onConfirm={flow.confirm}
           onClose={flow.close}

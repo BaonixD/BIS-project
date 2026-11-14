@@ -1,6 +1,6 @@
+import { t, useLocale } from '@/i18n/core'
 import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
 /** Figma NextStep / Banner (6:313, 25:66): 16px radius, 14×16 padding, 24px icon, Body/Medium + Caption. */
 export function MapBanner({
   icon: Icon,
@@ -13,12 +13,15 @@ export function MapBanner({
   subtitle: string
   tone?: 'inverse' | 'warning'
 }) {
+  useLocale()
   return (
     <div
       role="status"
       className={cn(
         'flex w-full items-center gap-3 overflow-hidden rounded-lg px-4 py-3.5',
-        tone === 'inverse' ? 'bg-bg-inverse text-text-inverse' : 'bg-accent-warning text-text-primary',
+        tone === 'inverse'
+          ? 'bg-bg-inverse text-text-inverse'
+          : 'bg-accent-warning text-text-primary',
       )}
     >
       <Icon className="size-6 shrink-0" strokeWidth={2} aria-hidden />
@@ -29,9 +32,9 @@ export function MapBanner({
     </div>
   )
 }
-
 /** Figma StatusCard (6:66, 25:213): white pill with a 10px status dot. */
 export function OnlinePill({ online }: { online: boolean }) {
+  useLocale()
   return (
     <div
       role="status"
@@ -40,8 +43,15 @@ export function OnlinePill({ online }: { online: boolean }) {
         online ? 'gap-2.5' : 'gap-3',
       )}
     >
-      <span className={cn('size-2.5 shrink-0 rounded-full', online ? 'bg-accent-success' : 'bg-text-tertiary')} />
-      <span className="text-callout whitespace-nowrap text-text-primary">{online ? 'Вы на линии' : 'Вы не на линии'}</span>
+      <span
+        className={cn(
+          'size-2.5 shrink-0 rounded-full',
+          online ? 'bg-accent-success' : 'bg-text-tertiary',
+        )}
+      />
+      <span className="text-callout whitespace-nowrap text-text-primary">
+        {online ? t('Вы на линии') : t('Вы не на линии')}
+      </span>
     </div>
   )
 }

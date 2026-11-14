@@ -1,3 +1,4 @@
+import { t, useLocale } from '@/i18n/core'
 import type { ReactNode } from 'react'
 import { CircleDot, MapPin, type LucideIcon } from 'lucide-react'
 import type { Coordinates, DriverCard as DriverCardData } from '@/api'
@@ -6,18 +7,21 @@ import { DriverCard, ListRow, Skeleton, StatusIcon, type StatusIconTone } from '
 import { cn } from '@/lib/utils'
 import { shortName } from '@/pages/passenger/model/format'
 import { usePlaceTitle, vehicleText } from './ride-text'
-
 export function PlaceTitle({ point, className }: { point: Coordinates; className?: string }) {
+  useLocale()
   const title = usePlaceTitle(point)
-  return title ? <>{title}</> : <Skeleton className={cn('inline-block h-4 w-32 align-middle', className)} />
+  return title ? (
+    <>{title}</>
+  ) : (
+    <Skeleton className={cn('inline-block h-4 w-32 align-middle', className)} />
+  )
 }
-
 /** Pickup ◉ and drop-off pin rows (Figma «Route» 5:345). */
 export function RouteRows({
   pickup,
   dropoff,
-  pickupSubtitle = 'Откуда',
-  dropoffSubtitle = 'Куда',
+  pickupSubtitle = t('Откуда'),
+  dropoffSubtitle = t('Куда'),
   trailing,
 }: {
   pickup: Coordinates
@@ -26,16 +30,28 @@ export function RouteRows({
   dropoffSubtitle?: ReactNode
   trailing?: ReactNode
 }) {
+  useLocale()
   return (
     <div className="flex w-full flex-col">
       <ListRow icon={CircleDot} title={<PlaceTitle point={pickup} />} subtitle={pickupSubtitle} />
-      <ListRow icon={MapPin} title={<PlaceTitle point={dropoff} />} subtitle={dropoffSubtitle} trailing={trailing} />
+      <ListRow
+        icon={MapPin}
+        title={<PlaceTitle point={dropoff} />}
+        subtitle={dropoffSubtitle}
+        trailing={trailing}
+      />
     </div>
   )
 }
-
 /** Label/value rows of receipts and summaries (Callout). */
-export function SummaryRows({ rows, className }: { rows: [string, ReactNode][]; className?: string }) {
+export function SummaryRows({
+  rows,
+  className,
+}: {
+  rows: [string, ReactNode][]
+  className?: string
+}) {
+  useLocale()
   return (
     <dl className={cn('flex w-full flex-col gap-3 text-left text-callout', className)}>
       {rows.map(([label, value]) => (
@@ -47,9 +63,9 @@ export function SummaryRows({ rows, className }: { rows: [string, ReactNode][]; 
     </dl>
   )
 }
-
 /** 6px track with a black bar (Figma «Progress» 5:343). */
 export function ProgressBar({ value, label }: { value: number; label: string }) {
+  useLocale()
   const percent = Math.round(Math.min(1, Math.max(0, value)) * 100)
   return (
     <div
@@ -67,7 +83,6 @@ export function ProgressBar({ value, label }: { value: number; label: string }) 
     </div>
   )
 }
-
 /** Centered status icon + Title + Callout text (Figma «Heading» of status sheets). */
 export function StatusHeading({
   icon,
@@ -86,19 +101,22 @@ export function StatusHeading({
   text?: ReactNode
   gap?: string
 }) {
+  useLocale()
   return (
     <div className={cn('flex w-full flex-col items-center', gap)}>
       <StatusIcon icon={icon} tone={tone} size={size} className={iconClassName} />
       <div className="flex w-full flex-col items-center gap-1.5 text-center">
         <h1 className="w-full text-title text-text-primary">{title}</h1>
         {/* Chrome lays out Inter ~1px wider than Figma: 12px of slack keeps the mockup's line breaks. */}
-        {text && <p className="-mx-3 w-[calc(100%+24px)] text-callout text-text-secondary">{text}</p>}
+        {text && (
+          <p className="-mx-3 w-[calc(100%+24px)] text-callout text-text-secondary">{text}</p>
+        )}
       </div>
     </div>
   )
 }
-
 export function RideDriverCard({ driver, tariff }: { driver: DriverCardData; tariff: Tariff }) {
+  useLocale()
   return (
     <DriverCard
       name={shortName(driver.full_name)}
@@ -108,7 +126,6 @@ export function RideDriverCard({ driver, tariff }: { driver: DriverCardData; tar
     />
   )
 }
-
 /** Round 52px action with a caption (Figma «Actions» 5:459). */
 export function RoundAction({
   icon: Icon,
@@ -121,6 +138,7 @@ export function RoundAction({
   onClick?: () => void
   href?: string
 }) {
+  useLocale()
   const body = (
     <>
       <span className="flex size-[52px] items-center justify-center rounded-full bg-bg-muted">
@@ -133,7 +151,12 @@ export function RoundAction({
     'flex shrink-0 flex-col items-center gap-1.5 rounded-md outline-none transition-opacity active:opacity-60 focus-visible:ring-2 focus-visible:ring-bg-inverse'
   if (href) {
     return (
-      <a href={href} target={href.startsWith('http') ? '_blank' : undefined} rel="noopener noreferrer" className={className}>
+      <a
+        href={href}
+        target={href.startsWith('http') ? '_blank' : undefined}
+        rel="noopener noreferrer"
+        className={className}
+      >
         {body}
       </a>
     )

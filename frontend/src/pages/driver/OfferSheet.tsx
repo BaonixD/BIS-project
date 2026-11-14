@@ -1,3 +1,4 @@
+import { t, useLocale } from '@/i18n/core'
 import { Banknote, CircleDot, CreditCard, MapPin } from 'lucide-react'
 import { errorMessage, type Coordinates } from '@/api'
 import { formatRating, TARIFF_LABELS, type NextOffer } from '@/api/driver-types'
@@ -7,14 +8,13 @@ import { useAcceptOffer, useRejectOffer } from '@/hooks/use-driver'
 import { useReverseGeocode } from '@/hooks/use-geocoding'
 import { formatDistance, formatDuration, formatMoney } from '@/lib/format'
 import { pickupLine } from './pickup-eta'
-
 export const OFFER_TTL_S = 30
-
 /** Figma Pay row (6:232). */
 function PaymentLine({ offer }: { offer: NextOffer }) {
+  useLocale()
   const kaspi = offer.payment_method === 'kaspi_link'
   const Icon = kaspi ? CreditCard : Banknote
-  const text = kaspi ? 'Kaspi · спишется, когда вы примете заказ' : 'Оплата наличными'
+  const text = kaspi ? t('Kaspi · спишется, когда вы примете заказ') : t('Оплата наличными')
   return (
     <div className="flex w-full items-center gap-2">
       <Icon className="size-6 shrink-0 text-text-primary" strokeWidth={2} aria-hidden />
@@ -22,7 +22,6 @@ function PaymentLine({ offer }: { offer: NextOffer }) {
     </div>
   )
 }
-
 /** Figma 6:125: a 30-second offer; the ring follows the server `expires_at`. */
 export function OfferSheet({
   offer,
@@ -33,6 +32,7 @@ export function OfferSheet({
   driverLocation: Coordinates | null
   onAccepted: (rideId: string) => void
 }) {
+  useLocale()
   const secondsLeft = useCountdown(offer.expires_at)
   const accept = useAcceptOffer()
   const reject = useRejectOffer()
@@ -41,18 +41,14 @@ export function OfferSheet({
   const busy = accept.isPending || reject.isPending
   const expired = secondsLeft === 0
   const rating = formatRating(offer.passenger_rating)
-
   const fail = (error: Error) => showToast({ title: errorMessage(error) })
-
   return (
     <>
       <div className="flex w-full items-center gap-4">
         <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
           <div className="flex items-center gap-1.5">
-            <StatusPill tone="inverse">Новый заказ</StatusPill>
-            {offer.tariff !== 'economy' && (
-              <StatusPill>{TARIFF_LABELS[offer.tariff]}</StatusPill>
-            )}
+            <StatusPill tone="inverse">{t('Новый заказ')}</StatusPill>
+            {offer.tariff !== 'economy' && <StatusPill>{TARIFF_LABELS()[offer.tariff]}</StatusPill>}
           </div>
           <p className="text-display text-text-primary">{formatMoney(offer.amount_kzt)}</p>
           <p className="text-callout text-text-secondary">
@@ -63,11 +59,18 @@ export function OfferSheet({
         <CountdownRing seconds={secondsLeft} total={OFFER_TTL_S} />
       </div>
       <div className="flex w-full flex-col">
-        <ListRow icon={CircleDot} title={pickup.data?.title ?? 'Точка подачи'} subtitle="Подача" />
+        <ListRow
+          icon={CircleDot}
+          title={pickup.data?.title ?? t('Точка подачи')}
+          subtitle={t('Подача')}
+        />
         <ListRow
           icon={MapPin}
-          title={dropoff.data?.title ?? 'Точка назначения'}
-          subtitle={`Назначение · ${formatDistance(offer.distance_m)} · ${formatDuration(offer.duration_s)}`}
+          title={dropoff.data?.title ?? t('Точка назначения')}
+          subtitle={t('Назначение · {p0} · {p1}', {
+            p0: formatDistance(offer.distance_m),
+            p1: formatDuration(offer.duration_s),
+          })}
         />
       </div>
       <PaymentLine offer={offer} />
@@ -78,15 +81,17 @@ export function OfferSheet({
           disabled={busy || expired}
           onClick={() => reject.mutate(offer.id, { onError: fail })}
         >
-          Отклонить
+          {t('Отклонить')}
         </Button>
         <Button
           className="flex-1"
           disabled={busy || expired}
           loading={accept.isPending}
-          onClick={() => accept.mutate(offer.id, { onSuccess: (ride) => onAccepted(ride.id), onError: fail })}
+          onClick={() =>
+            accept.mutate(offer.id, { onSuccess: (ride) => onAccepted(ride.id), onError: fail })
+          }
         >
-          Принять
+          {t('Принять')}
         </Button>
       </div>
     </>

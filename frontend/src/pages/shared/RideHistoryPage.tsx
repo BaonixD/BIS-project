@@ -1,14 +1,14 @@
+import { t, useLocale } from '@/i18n/core'
 import { useState } from 'react'
 import type { RideStatus, RideSummary } from '@/api'
 import { PageHeader } from '@/components/common/PageHeader'
 import { ALL_STATUSES, RideList, RideStatusFilter } from '@/components/common/RideList'
 import { PageContainer } from '@/components/layout/PageContainer'
 import { useRideHistory } from '@/hooks/use-rides'
-
 const PAGE_SIZE = 20
-
 /** `GET /rides` history for passengers and drivers. */
 export function RideHistoryPage({ linkTo }: { linkTo?: (ride: RideSummary) => string }) {
+  useLocale()
   const [status, setStatus] = useState<RideStatus | typeof ALL_STATUSES>(ALL_STATUSES)
   const [offset, setOffset] = useState(0)
   const history = useRideHistory({
@@ -16,10 +16,9 @@ export function RideHistoryPage({ linkTo }: { linkTo?: (ride: RideSummary) => st
     limit: PAGE_SIZE,
     offset,
   })
-
   return (
     <PageContainer>
-      <PageHeader title="Поездки" />
+      <PageHeader title={t('Поездки')} />
       <div className="pb-4">
         <RideStatusFilter
           value={status}

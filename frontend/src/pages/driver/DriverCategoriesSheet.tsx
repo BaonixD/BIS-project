@@ -1,3 +1,4 @@
+import { t, useLocale } from '@/i18n/core'
 import { useState } from 'react'
 import { Dialog } from 'radix-ui'
 import { Check } from 'lucide-react'
@@ -5,7 +6,6 @@ import { TARIFF_LABELS, TARIFFS, type Tariff } from '@/api/driver-types'
 import { ErrorAlert } from '@/components/common/ErrorAlert'
 import { Button, CarIcon } from '@/components/ui-kit'
 import { cn } from '@/lib/utils'
-
 export function DriverCategoriesSheet({
   available,
   initial,
@@ -23,6 +23,7 @@ export function DriverCategoriesSheet({
   onConfirm: (categories: Tariff[]) => void
   onClose: () => void
 }) {
+  useLocale()
   const allowed = TARIFFS.filter((tariff) => available.includes(tariff))
   const [selected, setSelected] = useState<readonly Tariff[]>(() =>
     initial.filter((tariff) => allowed.includes(tariff)),
@@ -38,12 +39,14 @@ export function DriverCategoriesSheet({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
         <Dialog.Content className="fixed inset-x-0 bottom-0 z-50 flex max-h-[90dvh] flex-col gap-4 overflow-y-auto rounded-t-xl bg-bg-canvas px-4 pt-6 pb-[calc(24px+env(safe-area-inset-bottom))] shadow-sheet outline-none sm:inset-x-auto sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:w-[420px] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:p-6">
-          <Dialog.Title className="text-title text-text-primary">Тарифы смены</Dialog.Title>
+          <Dialog.Title className="text-title text-text-primary">{t('Тарифы смены')}</Dialog.Title>
           <Dialog.Description className="text-callout text-text-secondary">
-            Отметьте, какие заказы хотите получать. Доступны тарифы класса вашей машины и ниже.
+            {t(
+              'Отметьте, какие заказы хотите получать. Доступны тарифы класса вашей машины и ниже.',
+            )}
           </Dialog.Description>
           <fieldset disabled={busy} className="flex flex-col gap-2">
-            <legend className="sr-only">Принимать заказы</legend>
+            <legend className="sr-only">{t('Принимать заказы')}</legend>
             {allowed.map((tariff) => {
               const checked = categories.includes(tariff)
               return (
@@ -71,7 +74,7 @@ export function DriverCategoriesSheet({
                   />
                   <CarIcon carClass={tariff} />
                   <span className="flex-1 text-body-medium text-text-primary">
-                    {TARIFF_LABELS[tariff]}
+                    {TARIFF_LABELS()[tariff]}
                   </span>
                   <span
                     aria-hidden
@@ -96,8 +99,8 @@ export function DriverCategoriesSheet({
             role="status"
           >
             {categories.length
-              ? `Выбрано тарифов: ${categories.length}`
-              : 'Выберите хотя бы один тариф'}
+              ? t('Выбрано тарифов: {p0}', { p0: categories.length })
+              : t('Выберите хотя бы один тариф')}
           </p>
           <ErrorAlert error={error} />
           <Button
@@ -106,10 +109,10 @@ export function DriverCategoriesSheet({
             loading={busy}
             onClick={() => onConfirm(categories)}
           >
-            {online ? 'Сохранить тарифы' : 'Выйти на линию'}
+            {online ? t('Сохранить тарифы') : t('Выйти на линию')}
           </Button>
           <Button variant="ghost" size="md" className="w-full" disabled={busy} onClick={onClose}>
-            Отмена
+            {t('Отмена')}
           </Button>
         </Dialog.Content>
       </Dialog.Portal>

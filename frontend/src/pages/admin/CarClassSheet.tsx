@@ -1,9 +1,9 @@
+import { t, useLocale } from '@/i18n/core'
 import { useState } from 'react'
 import { Check } from 'lucide-react'
 import { TARIFF_LABELS, TARIFFS, type Tariff } from '@/api/driver-types'
 import { BottomSheet, Button, CarIcon } from '@/components/ui-kit'
 import { cn } from '@/lib/utils'
-
 /** Approve a driver (or change the class) with the class of the car: it serves its tariff and the lower ones. */
 export function CarClassSheet({
   initial,
@@ -18,17 +18,28 @@ export function CarClassSheet({
   onConfirm: (carClass: Tariff) => void
   onClose: () => void
 }) {
+  useLocale()
   const [value, setValue] = useState<Tariff>(initial)
   return (
     <div className="fixed inset-0 z-50 lg:top-(--top-bar-height)">
       <div aria-hidden className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <BottomSheet role="dialog" aria-modal aria-label="Класс машины" className="bottom-0 pb-7">
-        <h2 className="w-full text-title text-text-primary">Класс машины</h2>
+      <BottomSheet
+        role="dialog"
+        aria-modal
+        aria-label={t('Класс машины')}
+        className="bottom-0 pb-7"
+      >
+        <h2 className="w-full text-title text-text-primary">{t('Класс машины')}</h2>
         <p className="w-full text-callout text-text-secondary">
-          Класс машины открывает этот тариф и все тарифы ниже. При выходе на линию водитель выберет,
-          какие заказы принимать.
+          {t(
+            'Класс машины открывает этот тариф и все тарифы ниже. При выходе на линию водитель выберет, какие заказы принимать.',
+          )}
         </p>
-        <div role="radiogroup" aria-label="Класс машины" className="flex w-full flex-col gap-2">
+        <div
+          role="radiogroup"
+          aria-label={t('Класс машины')}
+          className="flex w-full flex-col gap-2"
+        >
           {TARIFFS.map((tariff) => {
             const selected = tariff === value
             return (
@@ -47,7 +58,7 @@ export function CarClassSheet({
               >
                 <CarIcon carClass={tariff} />
                 <span className="flex-1 text-body-medium text-text-primary">
-                  {TARIFF_LABELS[tariff]}
+                  {TARIFF_LABELS()[tariff]}
                 </span>
                 {selected && (
                   <Check className="size-5 text-text-primary" strokeWidth={2.5} aria-hidden />
@@ -56,17 +67,17 @@ export function CarClassSheet({
             )
           })}
         </div>
-        <p className="text-caption text-text-secondary" aria-label="Доступные тарифы">
-          Доступны:{' '}
+        <p className="text-caption text-text-secondary" aria-label={t('Доступные тарифы')}>
+          {t('Доступны:')}{' '}
           {TARIFFS.slice(0, TARIFFS.indexOf(value) + 1)
-            .map((tariff) => TARIFF_LABELS[tariff])
+            .map((tariff) => TARIFF_LABELS()[tariff])
             .join(', ')}
         </p>
         <Button className="w-full" loading={busy} onClick={() => onConfirm(value)}>
           {confirmLabel}
         </Button>
         <Button variant="ghost" size="md" className="w-full" onClick={onClose}>
-          Отмена
+          {t('Отмена')}
         </Button>
       </BottomSheet>
     </div>

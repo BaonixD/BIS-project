@@ -1,3 +1,4 @@
+import { t, useLocale } from '@/i18n/core'
 import { CircleDot, MapPin } from 'lucide-react'
 import type { PaymentMethod, Quote } from '@/api'
 import type { Tariff } from '@/api/passenger-types'
@@ -5,7 +6,6 @@ import { Button, PaymentMethodPicker, Skeleton, TariffCarousel } from '@/compone
 import routeRail from '@/assets/passenger/route-rail.svg'
 import { formatKmCompact, formatMinutes } from '@/pages/passenger/model/format'
 import { orderButtonLabel, tariffOptions } from '@/pages/passenger/model/order'
-
 interface ChooseRideSheetProps {
   pickupTitle: string
   dropoffTitle: string
@@ -19,9 +19,13 @@ interface ChooseRideSheetProps {
   onOrder: () => void
   onEdit: (target: 'pickup' | 'dropoff') => void
 }
-
 /** Figma 17:718 «RouteSummary»: rail, two addresses, distance and time. */
-function RouteSummary({ pickupTitle, dropoffTitle, quote }: Pick<ChooseRideSheetProps, 'pickupTitle' | 'dropoffTitle' | 'quote'>) {
+function RouteSummary({
+  pickupTitle,
+  dropoffTitle,
+  quote,
+}: Pick<ChooseRideSheetProps, 'pickupTitle' | 'dropoffTitle' | 'quote'>) {
+  useLocale()
   return (
     <div className="flex w-full items-center gap-3 overflow-hidden rounded-lg bg-bg-subtle px-4 py-3 lg:hidden">
       <img src={routeRail} width={12} height={40} alt="" aria-hidden className="block shrink-0" />
@@ -39,9 +43,13 @@ function RouteSummary({ pickupTitle, dropoffTitle, quote }: Pick<ChooseRideSheet
     </div>
   )
 }
-
 /** Desktop 7:74: the two points as fields under «Заказать поездку». */
-function DesktopPoints({ pickupTitle, dropoffTitle, onEdit }: Pick<ChooseRideSheetProps, 'pickupTitle' | 'dropoffTitle' | 'onEdit'>) {
+function DesktopPoints({
+  pickupTitle,
+  dropoffTitle,
+  onEdit,
+}: Pick<ChooseRideSheetProps, 'pickupTitle' | 'dropoffTitle' | 'onEdit'>) {
+  useLocale()
   const field = (Icon: typeof MapPin, text: string, target: 'pickup' | 'dropoff') => (
     <button
       type="button"
@@ -54,7 +62,9 @@ function DesktopPoints({ pickupTitle, dropoffTitle, onEdit }: Pick<ChooseRideShe
   )
   return (
     <>
-      <h1 className="hidden w-full text-title text-text-primary lg:block">Заказать поездку</h1>
+      <h1 className="hidden w-full text-title text-text-primary lg:block">
+        {t('Заказать поездку')}
+      </h1>
       <div className="hidden w-full flex-col gap-2 lg:flex">
         {field(CircleDot, pickupTitle, 'pickup')}
         {field(MapPin, dropoffTitle, 'dropoff')}
@@ -62,15 +72,23 @@ function DesktopPoints({ pickupTitle, dropoffTitle, onEdit }: Pick<ChooseRideShe
     </>
   )
 }
-
-const NOTE: Record<PaymentMethod, string> = {
-  kaspi_link: 'Деньги спишутся, когда найдётся водитель. Отмена до этого — бесплатно.',
-  cash: 'Оплата наличными водителю после поездки. Отмена до назначения — бесплатно.',
-}
-
+const NOTE = (): Record<PaymentMethod, string> => ({
+  kaspi_link: t('Деньги спишутся, когда найдётся водитель. Отмена до этого — бесплатно.'),
+  cash: t('Оплата наличными водителю после поездки. Отмена до назначения — бесплатно.'),
+})
 /** Figma Choose ride 4:327 (mobile) and the Desktop 7:72 panel. */
 export function ChooseRideSheet(props: ChooseRideSheetProps) {
-  const { quote, tariff, onTariffChange, paymentMethod, onPaymentMethodChange, ordering, error, onOrder } = props
+  useLocale()
+  const {
+    quote,
+    tariff,
+    onTariffChange,
+    paymentMethod,
+    onPaymentMethodChange,
+    ordering,
+    error,
+    onOrder,
+  } = props
   return (
     <>
       <RouteSummary {...props} />
@@ -83,7 +101,11 @@ export function ChooseRideSheet(props: ChooseRideSheetProps) {
           className="shrink-0"
         />
       ) : (
-        <div className="flex w-full shrink-0 gap-2.5 overflow-hidden" aria-busy aria-label="Считаем цену">
+        <div
+          className="flex w-full shrink-0 gap-2.5 overflow-hidden"
+          aria-busy
+          aria-label={t('Считаем цену')}
+        >
           <Skeleton className="h-20 w-[212px] shrink-0 rounded-[10px]" />
           <Skeleton className="h-20 w-[212px] shrink-0 rounded-[10px]" />
         </div>
@@ -98,10 +120,12 @@ export function ChooseRideSheet(props: ChooseRideSheetProps) {
         </p>
       )}
       <p className="w-full text-center text-caption text-text-secondary lg:text-left">
-        <span className="lg:hidden">{NOTE[paymentMethod]}</span>
+        <span className="lg:hidden">{NOTE()[paymentMethod]}</span>
         <span className="hidden lg:inline">
-          {paymentMethod === 'kaspi_link' ? 'Деньги спишутся, когда найдётся водитель' : 'Наличные — водителю после поездки'} · точки можно
-          выбрать кликом по карте
+          {paymentMethod === 'kaspi_link'
+            ? t('Деньги спишутся, когда найдётся водитель')
+            : t('Наличные — водителю после поездки')}
+          {t(' · точки можно выбрать кликом по карте')}
         </span>
       </p>
     </>

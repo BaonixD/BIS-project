@@ -1,4 +1,5 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { setLocale } from '@/i18n/core'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RideDetails } from '@/api'
@@ -20,7 +21,10 @@ beforeEach(async () => {
   server.routes.set('GET /api/v1/rides', () => ({ items: [], limit: 1, offset: 0, total: 0 }))
 })
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  act(() => setLocale('ru'))
+  vi.unstubAllGlobals()
+})
 
 function serveRide(ride: RideDetails | (() => RideDetails)) {
   server.routes.set(`GET /api/v1/rides/ride-1`, () => (typeof ride === 'function' ? ride() : ride))
@@ -34,10 +38,22 @@ const rideRoutes = [
 describe('RidePage picks the screen from the ride status', () => {
   it.each([
     [makeRide(), 'Подбираем ближайшего водителя'],
-    [makeRide({ status: 'assigned', payment_method: 'cash', driver: DRIVER }), 'Приедет через ~4 мин'],
-    [makeRide({ status: 'arrived', driver: DRIVER, arrived_at: new Date().toISOString() }), 'Выходите — вас ждут'],
-    [makeRide({ status: 'in_progress', driver: DRIVER, started_at: new Date().toISOString() }), /Прибытие ~/],
-    [makeRide({ status: 'completed', payment_method: 'cash', payment_status: 'unpaid' }), 'Оплатите наличными'],
+    [
+      makeRide({ status: 'assigned', payment_method: 'cash', driver: DRIVER }),
+      'Приедет через ~4 мин',
+    ],
+    [
+      makeRide({ status: 'arrived', driver: DRIVER, arrived_at: new Date().toISOString() }),
+      'Выходите — вас ждут',
+    ],
+    [
+      makeRide({ status: 'in_progress', driver: DRIVER, started_at: new Date().toISOString() }),
+      /Прибытие ~/,
+    ],
+    [
+      makeRide({ status: 'completed', payment_method: 'cash', payment_status: 'unpaid' }),
+      'Оплатите наличными',
+    ],
     [makeRide({ status: 'completed', payment_status: 'paid' }), 'Поездка завершена'],
     [makeRide({ status: 'cancelled', payment_status: 'refunded' }), 'Поездка отменена'],
     [makeRide({ status: 'no_driver' }), 'Свободных водителей нет'],
@@ -64,7 +80,9 @@ describe('RidePage picks the screen from the ride status', () => {
     await screen.findByRole('heading', { name: 'Приедет через ~4 мин' })
     ride = makeRide({ payment_method: 'cash' })
     await queryClient.invalidateQueries()
-    expect(await screen.findByRole('heading', { name: 'Подбираем другого водителя' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Подбираем другого водителя' }),
+    ).toBeInTheDocument()
   })
 
   it('asks before cancelling and promises the Kaspi refund', async () => {
@@ -74,9 +92,13 @@ describe('RidePage picks the screen from the ride status', () => {
     renderRoutes(rideRoutes, '/ride/ride-1')
     await userEvent.click(await screen.findByRole('button', { name: 'Отменить' }))
     expect(screen.getByRole('heading', { name: 'Отменить поездку?' })).toBeInTheDocument()
-    expect(screen.getByText('Водитель уже едет к вам. Оплата Kaspi 2 200 ₸ вернётся автоматически.')).toBeInTheDocument()
+    expect(
+      screen.getByText('Водитель уже едет к вам. Оплата Kaspi 2 200 ₸ вернётся автоматически.'),
+    ).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Да, отменить' }))
-    await waitFor(() => expect(server.calls.some((call) => call.path === '/api/v1/rides/ride-1/cancel')).toBe(true))
+    await waitFor(() =>
+      expect(server.calls.some((call) => call.path === '/api/v1/rides/ride-1/cancel')).toBe(true),
+    )
   })
 
   it('sends the rating: stars, tags and the comment', async () => {
@@ -101,7 +123,12 @@ describe('RidePage picks the screen from the ride status', () => {
 describe('HomePage and the active ride', () => {
   it('stays home after a finished ride instead of following the cached active ride back', async () => {
     let active = [makeRide({ status: 'in_progress', driver: DRIVER })]
-    server.routes.set('GET /api/v1/rides', () => ({ items: active, limit: 1, offset: 0, total: active.length }))
+    server.routes.set('GET /api/v1/rides', () => ({
+      items: active,
+      limit: 1,
+      offset: 0,
+      total: active.length,
+    }))
     serveRide(makeRide({ status: 'completed', payment_status: 'paid', driver: DRIVER }))
     renderRoutes([{ path: '/', element: <HomePage /> }, rideRoutes[0]!], '/')
     expect(await screen.findByRole('heading', { name: 'Поездка завершена' })).toBeInTheDocument()
@@ -119,26 +146,35 @@ describe('HomePage orders a ride', () => {
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
     server.routes.set('POST /api/v1/rides/quotes', () => QUOTE)
     server.routes.set('POST /api/v1/rides', () => {
-      expect(open).toHaveBeenCalledWith('https://pay.kaspi.kz/pay/test', '_blank', 'noopener,noreferrer')
+      expect(open).toHaveBeenCalledWith(
+        'https://pay.kaspi.kz/pay/test',
+        '_blank',
+        'noopener,noreferrer',
+      )
       return makeRide()
     })
     renderRoutes([{ path: '/', element: <HomePage /> }], '/')
 
     await userEvent.click(await screen.findByRole('button', { name: /Esentai Mall/ }))
     const tariffs = await screen.findByRole('radiogroup', { name: 'Тариф' })
-    expect(within(tariffs).getAllByRole('radio').map((radio) => radio.textContent)).toEqual([
-      '2 200 ₸Эконом',
-      '2 925 ₸Комфорт',
-      '3 650 ₸Комфорт+',
-      '4 800 ₸Бизнес',
-    ])
+    expect(
+      within(tariffs)
+        .getAllByRole('radio')
+        .map((radio) => radio.textContent),
+    ).toEqual(['2 200 ₸Эконом', '2 925 ₸Комфорт', '3 650 ₸Комфорт+', '4 800 ₸Бизнес'])
     await userEvent.click(within(tariffs).getByRole('radio', { name: /Комфорт\+/ }))
     await userEvent.click(screen.getByRole('radio', { name: /Kaspi/ }))
     await userEvent.click(screen.getByRole('button', { name: 'Заказать Комфорт+ · Kaspi' }))
 
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/ride/ride-1'))
-    const order = server.calls.find((call) => call.method === 'POST' && call.path === '/api/v1/rides')
-    expect(order?.body).toEqual({ quote_id: 'quote-1', payment_method: 'kaspi_link', tariff: 'comfort_plus' })
+    const order = server.calls.find(
+      (call) => call.method === 'POST' && call.path === '/api/v1/rides',
+    )
+    expect(order?.body).toEqual({
+      quote_id: 'quote-1',
+      payment_method: 'kaspi_link',
+      tariff: 'comfort_plus',
+    })
   })
 
   it('does not open Kaspi for cash', async () => {
@@ -153,17 +189,38 @@ describe('HomePage orders a ride', () => {
   })
 
   it('shows the route error with a retry', async () => {
-    server.routes.set('POST /api/v1/rides/quotes', () =>
-      new Response(JSON.stringify({ error: { code: 'routing_unavailable', message: 'x', details: {} } }), {
-        status: 503,
-        headers: { 'Content-Type': 'application/json' },
-      }),
+    server.routes.set(
+      'POST /api/v1/rides/quotes',
+      () =>
+        new Response(
+          JSON.stringify({ error: { code: 'routing_unavailable', message: 'x', details: {} } }),
+          {
+            status: 503,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        ),
     )
     renderRoutes([{ path: '/', element: <HomePage /> }], '/')
     await userEvent.click(await screen.findByRole('button', { name: /Esentai Mall/ }))
-    expect(await screen.findByRole('heading', { name: 'Не удалось построить маршрут' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Не удалось построить маршрут' }),
+    ).toBeInTheDocument()
     server.routes.set('POST /api/v1/rides/quotes', () => QUOTE)
     await userEvent.click(screen.getByRole('button', { name: 'Повторить' }))
-    expect(await screen.findByRole('button', { name: 'Заказать Эконом · Наличные' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: 'Заказать Эконом · Наличные' }),
+    ).toBeInTheDocument()
   })
+})
+
+it('translates the passenger driver-search screen and keeps the ride loaded', async () => {
+  setLocale('en')
+  serveRide(makeRide())
+  renderRoutes(rideRoutes, '/ride/ride-1')
+  expect(
+    await screen.findByRole('heading', { name: 'Finding the nearest driver' }),
+  ).toBeInTheDocument()
+  act(() => setLocale('kk'))
+  expect(screen.getByRole('heading', { name: 'Ең жақын жүргізуші ізделуде' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Сапардан бас тарту' })).toBeInTheDocument()
 })

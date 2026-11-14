@@ -1,8 +1,8 @@
+import { t, useLocale } from '@/i18n/core'
 import type { CSSProperties, ReactNode } from 'react'
 import { Car, Power } from 'lucide-react'
 import pulseUrl from '@/assets/driver/pulse.svg'
 import { cn } from '@/lib/utils'
-
 /**
  * Driver map screens: full-screen map, a card or banner 56px from the frame top (9px below the
  * mockup status bar), the sheet at the bottom. `immersive` screens (offer, ride) cover the nav.
@@ -18,6 +18,7 @@ export function DriverMapLayout({
   children: ReactNode
   immersive?: boolean
 }) {
+  useLocale()
   return (
     <div
       className={cn(
@@ -35,12 +36,10 @@ export function DriverMapLayout({
     </div>
   )
 }
-
 /** Places a floating element `gap` px above the measured sheet (mobile); bottom-right of the map at ≥1024px. */
 function aboveSheet(sheetHeight: number, gap: number): CSSProperties {
   return { '--above-sheet': `${sheetHeight + gap}px` } as CSSProperties
 }
-
 /** Figma GoOnline (6:69) / GoOnline/Disabled (25:74): 96px circle, 4px white ring, 20px above the sheet. */
 export function GoOnlineButton({
   sheetHeight,
@@ -53,12 +52,13 @@ export function GoOnlineButton({
   loading?: boolean
   onClick: () => void
 }) {
+  useLocale()
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled || loading}
-      aria-label="Выйти на линию"
+      aria-label={t('Выйти на линию')}
       style={aboveSheet(sheetHeight, 20)}
       className={cn(
         'absolute bottom-[calc(var(--sheet-offset)+var(--above-sheet))] left-1/2 z-10 flex size-24 -translate-x-1/2 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-full border-4 border-solid border-bg-canvas',
@@ -69,13 +69,13 @@ export function GoOnlineButton({
       )}
     >
       <Power className="size-6" strokeWidth={2} aria-hidden />
-      <span className="text-label">ВЫЙТИ</span>
+      <span className="text-label">{t('ВЫЙТИ')}</span>
     </button>
   )
 }
-
 /** Figma Pulse (25:216): the waiting driver — green halos around a black car dot, 27px above the sheet. */
 export function SearchingPulse({ sheetHeight }: { sheetHeight: number }) {
+  useLocale()
   return (
     <div
       aria-hidden
@@ -84,7 +84,10 @@ export function SearchingPulse({ sheetHeight }: { sheetHeight: number }) {
       className="pointer-events-none absolute bottom-[calc(var(--sheet-offset)+var(--above-sheet))] left-1/2 z-10 size-[220px] -translate-x-1/2 lg:top-1/2 lg:bottom-auto lg:left-[calc(50%+216px)] lg:-translate-y-1/2"
     >
       <img src={pulseUrl} alt="" width={220} height={220} className="block size-[220px]" />
-      <Car className="absolute top-1/2 left-1/2 size-5 -translate-1/2 text-text-inverse" strokeWidth={2} />
+      <Car
+        className="absolute top-1/2 left-1/2 size-5 -translate-1/2 text-text-inverse"
+        strokeWidth={2}
+      />
     </div>
   )
 }

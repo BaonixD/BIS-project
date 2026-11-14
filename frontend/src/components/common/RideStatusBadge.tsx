@@ -1,7 +1,7 @@
+import { useLocale } from '@/i18n/core'
 import type { RideStatus } from '@/api'
 import { Badge } from '@/components/ui/badge'
 import { RIDE_STATUS_LABELS } from '@/lib/labels'
-
 const VARIANT: Record<RideStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   searching: 'secondary',
   assigned: 'default',
@@ -11,7 +11,7 @@ const VARIANT: Record<RideStatus, 'default' | 'secondary' | 'destructive' | 'out
   cancelled: 'destructive',
   no_driver: 'destructive',
 }
-
 export function RideStatusBadge({ status }: { status: RideStatus }) {
-  return <Badge variant={VARIANT[status]}>{RIDE_STATUS_LABELS[status]}</Badge>
+  useLocale()
+  return <Badge variant={VARIANT[status]}>{RIDE_STATUS_LABELS()[status]}</Badge>
 }

@@ -1,3 +1,4 @@
+import { t, useLocale } from '@/i18n/core'
 import { ADMIN_PAGE_SIZE, adminDate, useAdminFilters } from './admin-model'
 import { Link } from 'react-router'
 import { ChevronRight } from 'lucide-react'
@@ -15,18 +16,18 @@ import {
   AdminSearch,
   AdminSelect,
 } from './admin-controls'
-
-const ROLES = [
-  ['all', 'Все'],
-  ['passenger', 'Пассажиры'],
-  ['driver', 'Водители'],
-  ['admin', 'Администраторы'],
-] as const
-
+const ROLES = () =>
+  [
+    ['all', t('Все')],
+    ['passenger', t('Пассажиры')],
+    ['driver', t('Водители')],
+    ['admin', t('Администраторы')],
+  ] as const
 export function AdminUsersPage() {
+  useLocale()
   const { params, offset, update, reset } = useAdminFilters()
   const role = params.get('role') ?? 'all'
-  const filter = ROLES.some(([id]) => id === role) ? role : 'all'
+  const filter = ROLES().some(([id]) => id === role) ? role : 'all'
   const q = params.get('q') ?? ''
   const blocked = params.get('blocked')
   const users = useAdminUsers(filter === 'all' ? undefined : (filter as UserRole), {
@@ -37,13 +38,13 @@ export function AdminUsersPage() {
   })
   return (
     <AdminLayout
-      title="Пользователи"
-      description="Найдите аккаунт, проверьте его поездки и управляйте доступом к сервису."
+      title={t('Пользователи')}
+      description={t('Найдите аккаунт, проверьте его поездки и управляйте доступом к сервису.')}
       refreshing={users.isFetching}
       onRefresh={() => void users.refetch()}
     >
       <div className="flex gap-2 overflow-x-auto">
-        {ROLES.map(([id, text]) => (
+        {ROLES().map(([id, text]) => (
           <Chip key={id} selected={filter === id} onClick={() => update({ role: id })}>
             {text}
           </Chip>
@@ -53,21 +54,21 @@ export function AdminUsersPage() {
         <AdminSearch
           key={q}
           value={q}
-          placeholder="Поиск по имени, логину или телефону"
+          placeholder={t('Поиск по имени, логину или телефону')}
           onSearch={(value) => update({ q: value })}
         />
         <AdminSelect
-          label="Доступ к сервису"
+          label={t('Доступ к сервису')}
           value={blocked ?? ''}
           options={[
-            ['', 'Все аккаунты'],
-            ['false', 'Активные'],
-            ['true', 'Заблокированные'],
+            ['', t('Все аккаунты')],
+            ['false', t('Активные')],
+            ['true', t('Заблокированные')],
           ]}
           onChange={(value) => update({ blocked: value })}
         />
         <Button variant="ghost" size="md" onClick={reset}>
-          Сбросить
+          {t('Сбросить')}
         </Button>
       </div>
       <ErrorAlert error={users.error} />
@@ -90,14 +91,17 @@ export function AdminUsersPage() {
                 </p>
                 <p className="truncate text-caption text-text-secondary">
                   @{user.username}
-                  <span className="hidden sm:inline"> · с {adminDate(user.created_at)}</span>
+                  <span className="hidden sm:inline">
+                    {t(' · с ')}
+                    {adminDate(user.created_at)}
+                  </span>
                 </p>
               </div>
               <div className="flex flex-col items-end gap-1 sm:flex-row">
-                <StatusPill tone={ROLE_PILL[user.role].tone}>
-                  {ROLE_PILL[user.role].label}
+                <StatusPill tone={ROLE_PILL()[user.role].tone}>
+                  {ROLE_PILL()[user.role].label}
                 </StatusPill>
-                {user.blocked_at && <StatusPill tone="danger">Заблокирован</StatusPill>}
+                {user.blocked_at && <StatusPill tone="danger">{t('Заблокирован')}</StatusPill>}
               </div>
               <ChevronRight className="size-4 text-text-tertiary" />
             </Link>
