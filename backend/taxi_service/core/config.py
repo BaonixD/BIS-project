@@ -21,6 +21,8 @@ class Settings(BaseSettings):
         hide_input_in_errors=True,
     )
 
+    support_tickets_per_10_min: int = Field(default=5, ge=1)
+    support_messages_per_min: int = Field(default=30, ge=1)
     document_storage_dir: Path = Path("private_uploads/driver-documents")
     log_level: LogLevel = "INFO"
     database_url: str = Field(repr=False)

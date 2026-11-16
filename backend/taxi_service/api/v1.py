@@ -11,6 +11,7 @@ from taxi_service.modules.payments.router import router as payments_router
 from taxi_service.modules.ratings.router import router as ratings_router
 from taxi_service.modules.rides.router import offers_router
 from taxi_service.modules.rides.router import router as rides_router
+from taxi_service.modules.support.router import router as support_router
 from taxi_service.modules.users.router import router as users_router
 from taxi_service.schemas.errors import error_responses
 
@@ -32,3 +33,5 @@ v1_router.include_router(offers_router)
 v1_router.include_router(documents_router)
 
 v1_router.include_router(achievements_router)
+
+v1_router.include_router(support_router)

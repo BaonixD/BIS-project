@@ -1,8 +1,9 @@
 import hashlib
 import json
 import uuid
+from datetime import datetime
 
-from sqlalchemy import ColumnElement, func, select
+from sqlalchemy import ColumnElement, Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from taxi_service.core.clock import Clock
@@ -53,7 +54,11 @@ async def lock_ticket(db: AsyncSession, ticket_id: uuid.UUID, user: Authenticate
     return ticket
 
 
-def ticket_select(user: AuthenticatedUser):
+def ticket_select(
+    user: AuthenticatedUser,
+) -> Select[
+    uuid.UUID, uuid.UUID, str, uuid.UUID | None, str, str, str, datetime, datetime, int, int, str
+]:
     last_read = (
         select(ReadPosition.last_read_seq)
         .where(ReadPosition.ticket_id == Ticket.id, ReadPosition.user_id == user.id)

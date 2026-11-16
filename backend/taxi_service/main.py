@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -52,6 +54,18 @@ def create_app(
     clock = clock or SystemClock()
     app.state.settings = settings
     app.state.clock = clock
+    app.state.support_ticket_limiter = LoginAttemptLimiter(
+        clock=clock,
+        max_attempts=settings.support_tickets_per_10_min,
+        window=timedelta(minutes=10),
+        max_keys=10000,
+    )
+    app.state.support_message_limiter = LoginAttemptLimiter(
+        clock=clock,
+        max_attempts=settings.support_messages_per_min,
+        window=timedelta(minutes=1),
+        max_keys=10000,
+    )
     app.state.routing_provider_override = routing_provider
     app.state.password_hasher = PasswordHasher.from_settings(settings)
     app.state.login_limiter = LoginAttemptLimiter.from_settings(settings, clock)
