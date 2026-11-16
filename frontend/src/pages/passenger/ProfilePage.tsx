@@ -1,3 +1,4 @@
+import { Achievements } from '@/components/common/Achievements'
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
 import { t, useLocale } from '@/i18n/core'
 import { KeyRound, LogOut, Phone, Settings, Star } from 'lucide-react'
@@ -65,6 +66,7 @@ export function ProfilePage() {
             />
           </GroupedSection>
         )}
+        <Achievements />
         <GroupedSection>
           <GroupedRow
             icon={Settings}

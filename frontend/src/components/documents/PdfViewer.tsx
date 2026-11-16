@@ -22,7 +22,7 @@ export default function PdfViewer({ id, filename, onClose }: { id: string; filen
     void (async () => {
       const response = await fetch(`/api/v1/documents/${id}/content`, { credentials: 'include', signal: controller.signal, cache: 'no-store' })
       if (!response.ok) throw new Error('PDF unavailable')
-      task = getDocument({ data: await response.arrayBuffer(), isEvalSupported: false })
+      task = getDocument({ data: await response.arrayBuffer() })
       const pdf = await task.promise
       if (!destroyed) setDocument(pdf)
     })().catch(() => { if (!destroyed) { setError(true); setLoading(false) } })

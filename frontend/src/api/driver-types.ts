@@ -42,6 +42,7 @@ export function postPassengerRating(rideId: string, body: PassengerRatingRequest
 export function postApproveDriver(
   driverId: string,
   carClass: Tariff | null,
+  review?: { package_id: string; version: number },
 ): Promise<NextAdminDriver> {
   return unwrap(
     api.POST('/api/v1/admin/drivers/{driver_id}/approve', {

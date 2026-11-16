@@ -127,6 +127,7 @@ function useInvalidateRide(rideId: string) {
       queryClient.invalidateQueries({ queryKey: queryKeys.rides.detail(rideId) }),
       queryClient.invalidateQueries({ queryKey: ['rides', 'active'] }),
       queryClient.invalidateQueries({ queryKey: ['rides', 'history'] }),
+      queryClient.invalidateQueries({ queryKey: ['achievements'] }),
     ])
 }
 

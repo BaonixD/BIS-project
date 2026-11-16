@@ -1,3 +1,4 @@
+import { Achievements } from '@/components/common/Achievements'
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
 import { t, useLocale } from '@/i18n/core'
 import {
@@ -112,6 +113,7 @@ export function DriverProfilePage() {
             </GroupedSection>
           </>
         )}
+        <Achievements />
         <GroupedSection>
           <GroupedRow icon={CreditCard} tone="bg-accent-info" title={t("Документы")} to="/driver/documents" />
           <GroupedRow
