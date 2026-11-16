@@ -14,7 +14,7 @@ MAX_SIZE = 10 * 1024 * 1024
 async def store_upload(
     file: UploadFile, root: Path, limit: asyncio.Semaphore
 ) -> tuple[str, int, str, int]:
-    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    await asyncio.to_thread(root.mkdir, parents=True, exist_ok=True, mode=0o700)
     key = uuid.uuid4().hex + ".pdf"
     path = root / key
     try:

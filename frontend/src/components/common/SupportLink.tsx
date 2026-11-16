@@ -9,6 +9,22 @@ export function SupportLink({ rideId, compact = false }: { rideId?: string; comp
   useLocale()
   const { user } = useSession()
   const unread = useSupportUnread()
-  const base = user?.role === 'admin' ? '/admin/support' : user?.role === 'driver' ? '/driver/support' : '/support'
-  return <Link to={rideId ? `${base}?new=1&ride_id=${rideId}` : base} className={`inline-flex items-center gap-2 rounded-md outline-none focus-visible:ring-2 ${compact ? 'px-3 py-2 text-caption' : 'bg-bg-canvas p-4 text-callout'}`}><MessageCircle className="size-5 shrink-0" /><span>{t(rideId ? 'Проблема с поездкой' : 'Поддержка')}</span>{!rideId && (unread.data?.count ?? 0) > 0 && <StatusPill tone="info">{unread.data!.count}</StatusPill>}</Link>
+  const base =
+    user?.role === 'admin'
+      ? '/admin/support'
+      : user?.role === 'driver'
+        ? '/driver/support'
+        : '/support'
+  return (
+    <Link
+      to={rideId ? `${base}?new=1&ride_id=${rideId}` : base}
+      className={`inline-flex items-center gap-2 rounded-md outline-none focus-visible:ring-2 ${compact ? 'px-3 py-2 text-caption' : 'bg-bg-canvas p-4 text-callout'}`}
+    >
+      <MessageCircle className="size-5 shrink-0" />
+      <span>{t(rideId ? 'Проблема с поездкой' : 'Поддержка')}</span>
+      {!rideId && (unread.data?.count ?? 0) > 0 && (
+        <StatusPill tone="info">{unread.data!.count}</StatusPill>
+      )}
+    </Link>
+  )
 }

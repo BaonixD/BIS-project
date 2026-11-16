@@ -23,7 +23,9 @@ def inspect(value,depth=0):
  if identity in seen:return
  seen.add(identity)
  if isinstance(value,dict):
-  if any(k in value for k in ['/JS','/JavaScript','/OpenAction','/AA','/Launch','/EmbeddedFiles','/XFA','/RichMedia','/URI','/SubmitForm','/ImportData']):raise ValueError('active content')
+  blocked=['/JS','/JavaScript','/OpenAction','/AA','/Launch','/EmbeddedFiles','/XFA']
+  blocked+=['/RichMedia','/URI','/SubmitForm','/ImportData']
+  if any(k in value for k in blocked):raise ValueError('active content')
   for v in value.values():inspect(v,depth+1)
  elif isinstance(value,list):
   for v in value:inspect(v,depth+1)

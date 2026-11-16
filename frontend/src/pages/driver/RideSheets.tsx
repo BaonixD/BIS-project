@@ -46,9 +46,9 @@ export function RideSheet({ ride, onRelease }: { ride: NextRide; onRelease: () =
     <>
       <PassengerRow ride={ride} />
       <Stepper steps={RIDE_STEPS()} current={rideStep(ride.status)} />
+      <SupportLink rideId={ride.id} compact />
       {next && (
-        <SupportLink rideId={ride.id} compact />
-      <Button
+        <Button
           className="w-full"
           loading={command.isPending}
           onClick={() =>

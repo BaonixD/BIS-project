@@ -246,7 +246,12 @@ export function RidePage() {
       sheet={
         <>
           {sheet}
-          {!confirmCancel && <RideEstimate ride={ride} /><SupportLink rideId={ride.id} compact />}
+          {!confirmCancel && (
+            <>
+              <RideEstimate ride={ride} />
+              <SupportLink rideId={ride.id} compact />
+            </>
+          )}
         </>
       }
       sheetLabel={t('Поездка')}

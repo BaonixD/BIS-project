@@ -14,7 +14,8 @@ class DocumentPackage(Base):
         CheckConstraint("version > 0 AND profile_revision > 0", name="version"),
         CheckConstraint("status <> 'pending' OR submitted_at IS NOT NULL", name="submitted"),
         CheckConstraint(
-            "status NOT IN ('approved','rejected') OR (reviewed_at IS NOT NULL AND reviewed_by IS NOT NULL)",
+            "status NOT IN ('approved','rejected') OR (reviewed_at IS NOT NULL "
+            "AND reviewed_by IS NOT NULL)",
             name="reviewed",
         ),
         CheckConstraint(

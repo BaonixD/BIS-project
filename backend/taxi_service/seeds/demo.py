@@ -1,6 +1,3 @@
-from taxi_service.core.config import Settings
-from taxi_service.modules.documents.demo import submit_demo_package
-
 """Demo accounts keyed by username: existing ones are left as they are (``scripts/seed.py``)."""
 
 import uuid
@@ -11,8 +8,10 @@ from typing import Literal
 from sqlalchemy import select
 
 from taxi_service.core.clock import Clock
+from taxi_service.core.config import Settings
 from taxi_service.database.session import SessionFactory, read_transaction
 from taxi_service.modules.auth.passwords import PasswordHasher
+from taxi_service.modules.documents.demo import submit_demo_package
 from taxi_service.modules.drivers import service as driver_service
 from taxi_service.modules.drivers.exceptions import (
     DriverNotApprovedError,

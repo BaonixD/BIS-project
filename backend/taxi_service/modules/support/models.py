@@ -18,7 +18,8 @@ class Ticket(Base):
         CheckConstraint("length(subject) BETWEEN 1 AND 120", name="subject"),
         CheckConstraint("last_message_seq >= 1", name="last_seq"),
         CheckConstraint(
-            "(status = 'resolved' AND resolved_at IS NOT NULL AND resolved_by IS NOT NULL) OR (status <> 'resolved' AND resolved_at IS NULL AND resolved_by IS NULL)",
+            "(status = 'resolved' AND resolved_at IS NOT NULL AND resolved_by IS NOT NULL)"
+            " OR (status <> 'resolved' AND resolved_at IS NULL AND resolved_by IS NULL)",
             name="resolution",
         ),
         Index("ix_support_tickets_owner_updated", "owner_id", "updated_at"),
