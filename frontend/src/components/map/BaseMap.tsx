@@ -20,7 +20,10 @@ const ATTRIBUTION =
 function VectorBasemap() {
   const map = useMap()
   useEffect(() => {
-    const layer = L.maplibreGL({ style: STYLE_URL, attributionControl: false } as L.LeafletMaplibreGLOptions).addTo(map)
+    const layer = L.maplibreGL({
+      style: STYLE_URL,
+      attributionControl: false,
+    } as L.LeafletMaplibreGLOptions).addTo(map)
     return () => {
       layer.remove()
     }
@@ -55,12 +58,20 @@ interface BaseMapProps {
 }
 
 /** OpenFreeMap Positron basemap centred on Almaty; `isolate` keeps Leaflet z-indexes inside the map. */
-export function BaseMap({ className, center = ALMATY_CENTER, zoom = DEFAULT_ZOOM, onPick, children }: BaseMapProps) {
+export function BaseMap({
+  className,
+  center = ALMATY_CENTER,
+  zoom = DEFAULT_ZOOM,
+  onPick,
+  children,
+}: BaseMapProps) {
   return (
     <MapContainer
       center={toLatLng(center)}
       zoom={zoom}
       zoomControl={false}
+      // Avoid delayed Leaflet CSS zoom callbacks after a ride screen unmounts.
+      zoomAnimation={false}
       className={cn('isolate h-full w-full', className)}
     >
       <VectorBasemap />

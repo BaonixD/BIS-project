@@ -32,6 +32,7 @@ interface Shot {
 }
 
 const shots: Shot[] = []
+let pageErrors: string[] = []
 
 async function settle(page: Page, ms = 1500) {
   await page.evaluate('document.fonts.ready')
@@ -48,7 +49,9 @@ async function shoot(page: Page, step: string, figma: string) {
 
 /** Figma | e2e, both 390×844 (the Figma frames include a 47px phone status bar the page does not have). */
 async function compose(browser: Browser) {
-  const page = await browser.newPage({ viewport: { width: VIEWPORT.width * 2 + 24, height: VIEWPORT.height + 20 } })
+  const page = await browser.newPage({
+    viewport: { width: VIEWPORT.width * 2 + 24, height: VIEWPORT.height + 20 },
+  })
   for (const { file, figma } of shots.splice(0)) {
     const app = readFileSync(path.join(SHOTS, file)).toString('base64')
     const reference = readFileSync(path.join(FIGMA, figma)).toString('base64')
@@ -64,9 +67,18 @@ async function compose(browser: Browser) {
   await page.close()
 }
 
-async function phone(browser: Browser, geolocation: typeof PICKUP): Promise<{ context: BrowserContext; page: Page }> {
-  const context = await browser.newContext({ viewport: VIEWPORT, geolocation, permissions: ['geolocation'] })
-  return { context, page: await context.newPage() }
+async function phone(
+  browser: Browser,
+  geolocation: typeof PICKUP,
+): Promise<{ context: BrowserContext; page: Page }> {
+  const context = await browser.newContext({
+    viewport: VIEWPORT,
+    geolocation,
+    permissions: ['geolocation'],
+  })
+  const page = await context.newPage()
+  page.on('pageerror', (error) => pageErrors.push(error.message))
+  return { context, page }
 }
 
 async function login(page: Page, username: string, home: RegExp) {
@@ -86,7 +98,10 @@ async function driverOnline(page: Page, step: string | null) {
   if (step === null) {
     if (await goOnline.isVisible()) {
       await goOnline.click()
-      await page.getByRole('dialog', { name: 'Тарифы смены' }).getByRole('button', { name: 'Выйти на линию' }).click()
+      await page
+        .getByRole('dialog', { name: 'Тарифы смены' })
+        .getByRole('button', { name: 'Выйти на линию' })
+        .click()
     }
     await expect(page.getByText('Ищем заказы рядом')).toBeVisible()
     return
@@ -95,7 +110,10 @@ async function driverOnline(page: Page, step: string | null) {
   await expect(goOnline).toBeEnabled()
   await shoot(page, `${step}a`, 'driver-offline-6-2')
   await goOnline.click()
-  await page.getByRole('dialog', { name: 'Тарифы смены' }).getByRole('button', { name: 'Выйти на линию' }).click()
+  await page
+    .getByRole('dialog', { name: 'Тарифы смены' })
+    .getByRole('button', { name: 'Выйти на линию' })
+    .click()
   await expect(page.getByText('Ищем заказы рядом')).toBeVisible()
   await shoot(page, `${step}b`, 'driver-online-25-149')
 }
@@ -114,9 +132,13 @@ async function expectFourTariffs(page: Page) {
 }
 
 test.describe.configure({ mode: 'serial' })
+test.beforeEach(() => {
+  pageErrors = []
+})
 
 test.afterEach(async ({ browser }) => {
   await compose(browser)
+  expect(pageErrors).toEqual([])
 })
 
 test('cash ride: order, offer, the whole trip, cash and ratings', async ({ browser }) => {
@@ -182,7 +204,10 @@ test('cash ride: order, offer, the whole trip, cash and ratings', async ({ brows
 
   await d.getByRole('button', { name: 'Наличные получены' }).click()
   await expect(d.getByText('Получено наличными')).toBeVisible(STEP)
-  await d.getByRole('radiogroup', { name: 'Оценка пассажира' }).getByRole('radio', { name: '5 из 5' }).click()
+  await d
+    .getByRole('radiogroup', { name: 'Оценка пассажира' })
+    .getByRole('radio', { name: '5 из 5' })
+    .click()
   await shoot(d, '11', 'driver-completed-kaspi-25-464')
   await d.getByRole('button', { name: 'Оценить и к новым заказам' }).click()
   await expect(d.getByText('Ищем заказы рядом')).toBeVisible(STEP)
@@ -252,7 +277,10 @@ test('Kaspi ride: the link opens, paid at assignment, refunded on cancel', async
   await shoot(p, '16', 'passenger-cancelled-24-633')
   const route = p.getByRole('definition').filter({ hasText: '→' })
   const routeBox = await route.boundingBox()
-  expect(routeBox && routeBox.x + routeBox.width, 'the route fits the receipt card').toBeLessThanOrEqual(VIEWPORT.width - 36)
+  expect(
+    routeBox && routeBox.x + routeBox.width,
+    'the route fits the receipt card',
+  ).toBeLessThanOrEqual(VIEWPORT.width - 36)
 
   await expect(d.getByText('Пассажир отменил поездку')).toBeVisible(STEP)
   await shoot(d, '17', 'driver-cancelled-26-425')

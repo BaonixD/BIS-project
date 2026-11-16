@@ -1,3 +1,4 @@
+import { useHideBottomNav } from '@/components/layout/nav-visibility'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -33,6 +34,7 @@ export function SupportThreadPage() {
 
 function SupportThread() {
   useLocale()
+  useHideBottomNav(true)
   const { ticketId = '' } = useParams()
   const { user } = useSession()
   const admin = user?.role === 'admin'
@@ -262,6 +264,7 @@ function SupportThread() {
               </label>
               <textarea
                 id="support-message"
+                disabled={action.isPending}
                 required
                 maxLength={2000}
                 placeholder={t('Ваш ответ')}

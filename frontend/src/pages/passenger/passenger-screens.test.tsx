@@ -49,7 +49,7 @@ describe('RidePage picks the screen from the ride status', () => {
     ],
     [
       makeRide({ status: 'in_progress', driver: DRIVER, started_at: new Date().toISOString() }),
-      'В пути',
+      'До места назначения',
     ],
     [
       makeRide({ status: 'completed', payment_method: 'cash', payment_status: 'unpaid' }),

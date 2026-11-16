@@ -67,7 +67,9 @@ function DriverRequest({ driver, onApprove }: { driver: NextAdminDriver; onAppro
             <StatusPill key={category}>{TARIFF_LABELS()[category]}</StatusPill>
           ))}
       </div>
-      <p className="text-caption text-text-secondary">{documentStatusLabel(driver.documents_summary)}</p>
+      <p className="text-caption text-text-secondary">
+        {documentStatusLabel(driver.documents_summary)}
+      </p>
       <p className="text-callout text-text-secondary">{vehicleLine(driver)}</p>
       {driver.missing_fields.length > 0 && (
         <p className="flex items-center gap-2 text-caption text-accent-danger">
@@ -100,7 +102,7 @@ export function AdminDriversPage() {
     q: q || undefined,
     online: online === 'true' ? true : online === 'false' ? false : undefined,
   })
-  const waiting = useAdminDrivers('pending', { limit: 1 })
+  const waiting = useAdminDrivers('pending', { limit: 1, document_status: 'pending' })
   const flow = useApproveFlow()
   return (
     <AdminLayout
@@ -142,7 +144,17 @@ export function AdminDriversPage() {
           ]}
           onChange={(value) => update({ online: value })}
         />
-        <AdminSelect label={t("Документы")} value={documentFilter} options={[["", t("Все")], ...["pending", "missing", "draft", "rejected", "approved", "legacy"].map((value) => [value, documentStatusLabel(value)] as const)]} onChange={(value) => update({ documents: value })} />
+        <AdminSelect
+          label={t('Документы')}
+          value={documentFilter}
+          options={[
+            ['', t('Все')],
+            ...['pending', 'missing', 'draft', 'rejected', 'approved', 'legacy'].map(
+              (value) => [value, documentStatusLabel(value)] as const,
+            ),
+          ]}
+          onChange={(value) => update({ documents: value })}
+        />
         <Button variant="ghost" size="md" onClick={reset}>
           {t('Сбросить')}
         </Button>

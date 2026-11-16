@@ -2,21 +2,22 @@ import { t, useLocale } from '@/i18n/core'
 import { Link } from 'react-router'
 import { ArrowUpRight, Car, Clock, Users, Wallet } from 'lucide-react'
 import { ErrorAlert } from '@/components/common/ErrorAlert'
-import { useAdminOverview } from '@/hooks/use-admin'
+import { useAdminDrivers, useAdminOverview } from '@/hooks/use-admin'
 import { formatMoney } from '@/lib/format'
 import { AdminLayout, AdminLoading } from './admin-controls'
 export function AdminOverviewPage() {
   useLocale()
   const query = useAdminOverview()
+  const waiting = useAdminDrivers('pending', { limit: 1, document_status: 'pending' })
   const data = query.data
   const metrics = data
     ? [
         {
           label: t('Ждут проверки'),
-          value: data.pending_drivers,
+          value: waiting.data?.total ?? '—',
           icon: Clock,
-          to: '/admin?status=pending',
-          note: t('Заявки водителей'),
+          to: '/admin?status=pending&documents=pending',
+          note: t('Пакет документов'),
         },
         {
           label: t('Активные поездки'),

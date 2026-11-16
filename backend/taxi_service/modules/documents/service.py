@@ -193,6 +193,8 @@ async def approve_package(
     if profile.document_requirement_exempt and package_id is None:
         return
     package = await current(db, profile.user_id)
+    if package is None or package_id is None or version is None:
+        raise fail("document_package_not_submitted")
     if (
         package is None
         or package.id != package_id

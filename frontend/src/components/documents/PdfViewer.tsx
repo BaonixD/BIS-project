@@ -34,7 +34,11 @@ export default function PdfViewer({
         cache: 'no-store',
       })
       if (!response.ok) throw new Error('PDF unavailable')
-      task = getDocument({ data: await response.arrayBuffer() })
+      task = getDocument({
+        data: await response.arrayBuffer(),
+        maxImageSize: 64_000_000,
+        canvasMaxAreaInBytes: 16_000_000,
+      })
       const pdf = await task.promise
       if (!destroyed) setDocument(pdf)
     })().catch(() => {
@@ -57,7 +61,14 @@ export default function PdfViewer({
       .getPage(page)
       .then((pdfPage) => {
         if (cancelled || !canvas.current) return
-        const viewport = pdfPage.getViewport({ scale })
+        const original = pdfPage.getViewport({ scale: 1 })
+        const boundedScale = Math.min(
+          scale,
+          2000 / original.width,
+          3000 / original.height,
+          Math.sqrt(6_000_000 / (original.width * original.height)),
+        )
+        const viewport = pdfPage.getViewport({ scale: boundedScale })
         const node = canvas.current
         node.width = viewport.width
         node.height = viewport.height

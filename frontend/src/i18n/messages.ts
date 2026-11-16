@@ -1,5 +1,6 @@
 // Shared interface messages. Keep placeholders unchanged in each translation.
 export const en: Record<string, string> = {
+"До места назначения": "To your destination",
   Поддержка: 'Support',
   'Вопросы пользователей и ответы команды': 'User questions and team replies',
   'Напишите нам, если что-то пошло не так. Ответ появится здесь.':
@@ -713,6 +714,7 @@ export const en: Record<string, string> = {
 }
 
 export const kk: Record<string, string> = {
+"До места назначения": "Бару орнына дейін",
   Поддержка: 'Қолдау',
   'Вопросы пользователей и ответы команды': 'Пайдаланушы сұрақтары мен жауаптар',
   'Напишите нам, если что-то пошло не так. Ответ появится здесь.':

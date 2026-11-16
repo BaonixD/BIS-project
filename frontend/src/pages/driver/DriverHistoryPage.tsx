@@ -1,3 +1,4 @@
+import { SupportLink } from '@/components/common/SupportLink'
 import { t, useLocale } from '@/i18n/core'
 import { useState } from 'react'
 import type { RideSummary } from '@/api'
@@ -39,6 +40,7 @@ function RideRow({ ride, now }: { ride: RideSummary; now: Date }) {
         <p className="truncate text-caption text-text-secondary">
           {formatRideTime(ride.created_at, now)} · {method}
         </p>
+        <SupportLink rideId={ride.id} compact />
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">
         <p className="text-callout whitespace-nowrap text-text-primary">

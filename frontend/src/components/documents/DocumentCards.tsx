@@ -2,7 +2,7 @@ import { lazy, Suspense, useState } from 'react'
 import { FileText, Upload } from 'lucide-react'
 import { Button, Skeleton, StatusPill } from '@/components/ui-kit'
 import type { DocumentsSummary, DriverDocument, DocumentKind } from '@/hooks/use-documents'
-import { t, useLocale } from '@/i18n/core'
+import { t, useLocale, getIntlLocale } from '@/i18n/core'
 import { formatDateTime } from '@/lib/format'
 const PdfViewer = lazy(() => import('./PdfViewer'))
 
@@ -23,7 +23,10 @@ export function DocumentCards({
   const [viewing, setViewing] = useState<DriverDocument | null>(null)
   return (
     <>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div
+        className="grid gap-3"
+        style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))' }}
+      >
         {(['identity_card', 'driver_license'] as const).map((kind) => {
           const doc = data.documents.find((item) => item.kind === kind)
           return (
@@ -41,7 +44,12 @@ export function DocumentCards({
                 <>
                   <p className="break-all text-callout">{doc.filename}</p>
                   <p className="text-caption text-text-secondary">
-                    {(doc.size_bytes / 1024 / 1024).toFixed(2)} MB · {doc.page_count} {t('стр.')}
+                    {new Intl.NumberFormat(getIntlLocale(), { maximumFractionDigits: 2 }).format(
+                      doc.size_bytes < 1048576
+                        ? Math.max(1, Math.round(doc.size_bytes / 1024))
+                        : doc.size_bytes / 1048576,
+                    )}{' '}
+                    {doc.size_bytes < 1048576 ? 'KB' : 'MB'} · {doc.page_count} {t('стр.')}
                     <br />
                     {formatDateTime(doc.created_at)}
                   </p>

@@ -202,7 +202,7 @@ export function InProgressSheet({
     <>
       <div className="flex w-full flex-col items-start gap-1">
         <StatusPill tone="info">{t('В пути')}</StatusPill>
-        <h1 className="w-full text-title text-text-primary">{t('В пути')}</h1>
+        <h1 className="w-full text-title text-text-primary">{t('До места назначения')}</h1>
       </div>
       {driver && <RideDriverCard driver={driver} tariff={ride.tariff} />}
       <div className="flex w-full items-center gap-2.5 text-callout text-text-primary">

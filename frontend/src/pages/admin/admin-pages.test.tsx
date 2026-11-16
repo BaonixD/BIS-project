@@ -265,7 +265,7 @@ describe('admin management workflows', () => {
     expect(await screen.findByText('543')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Ждут проверки/ })).toHaveAttribute(
       'href',
-      '/admin?status=pending',
+      '/admin?status=pending&documents=pending',
     )
     expect(screen.getByRole('link', { name: /Ожидают наличных/ })).toHaveAttribute(
       'href',

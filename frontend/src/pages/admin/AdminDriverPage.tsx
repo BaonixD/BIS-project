@@ -93,7 +93,7 @@ export function AdminDriverPage() {
   const approved = driver?.approval_status === 'approved'
   return (
     <Screen overNav>
-      <ScreenColumn className="gap-4 pt-[calc(56px+env(safe-area-inset-top))] pb-32">
+      <ScreenColumn className="gap-4 pt-[calc(56px+env(safe-area-inset-top))] pb-32 lg:max-w-5xl">
         <BackHeader
           title={t('Заявка водителя')}
           fallback="/admin"
@@ -108,8 +108,12 @@ export function AdminDriverPage() {
         <ErrorAlert error={drivers.error} />
         {driver ? (
           <>
-            <DriverDetails driver={driver} />
-            <AdminDocuments driverId={driver.id} />
+            <div className="grid w-full items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+              <div className="flex min-w-0 flex-col gap-4">
+                <DriverDetails driver={driver} />
+              </div>
+              <AdminDocuments driverId={driver.id} />
+            </div>
             {driver.blocked_at && (
               <StatusPill tone="danger">{t('Аккаунт заблокирован')}</StatusPill>
             )}
@@ -133,7 +137,10 @@ export function AdminDriverPage() {
         <ScreenFooter>
           <Button
             className="w-full"
-            disabled={Boolean(driver.blocked_at) || (!approved && !["pending", "legacy"].includes(driver.documents_summary))}
+            disabled={
+              Boolean(driver.blocked_at) ||
+              (!approved && !['pending', 'legacy'].includes(driver.documents_summary))
+            }
             onClick={() => flow.open(driver)}
           >
             {approved ? t('Сменить класс машины') : t('Одобрить водителя')}

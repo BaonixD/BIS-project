@@ -5,6 +5,8 @@ A taxi app for Almaty, built by our team as a course project for Basics of Infor
 
 Passengers choose where to go, compare prices across four tariffs, and pay in cash or through Kaspi. The nearest free driver gets the order and has 30 seconds to accept it. After the ride, both sides rate each other. An admin approves new drivers and can see all rides.
 
+Drivers can upload their ID and license as private PDFs for admin review. Profiles show ride achievements, and passengers and drivers can contact support inside the app. Passengers also see updated pickup and arrival estimates. See the [feature guide](docs/service-expansion.md).
+
 This is a student project, so the Kaspi payment is only simulated: no real money moves.
 
 ## Team

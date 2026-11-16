@@ -14,7 +14,7 @@ async function login(page: Page, username: string, password: string) {
 
 test('documents are reviewed by admin and support replies reach the driver', async ({
   browser,
-}) => {
+}, testInfo) => {
   const directory = path.dirname(DB_FILE)
   mkdirSync(directory, { recursive: true })
   const filename = path.join(directory, 'synthetic-document.pdf')
@@ -71,8 +71,10 @@ test('documents are reviewed by admin and support replies reach the driver', asy
     await expect(driver.getByRole('button', { name: 'Отправить на проверку' })).toBeEnabled()
     await driver.getByRole('button', { name: 'Отправить на проверку' }).click()
     await expect(driver.getByText('На проверке', { exact: true })).toBeVisible()
+    await driver.screenshot({ path: testInfo.outputPath('documents-driver.png'), fullPage: true })
     await login(admin, 'admin', ADMIN_PASSWORD)
     await admin.goto(`/admin/drivers/${user.id}`)
+    await admin.screenshot({ path: testInfo.outputPath('documents-admin.png'), fullPage: true })
     await admin.getByRole('button', { name: 'Посмотреть', exact: true }).first().click()
     const pdf = admin.getByRole('dialog', { name: 'synthetic-document.pdf' })
     await expect(pdf.getByRole('link', { name: 'Скачать PDF' })).toBeVisible()
@@ -129,6 +131,7 @@ test('documents are reviewed by admin and support replies reach the driver', asy
     await driver.getByRole('button', { name: 'Отправить', exact: true }).click()
     await admin.bringToFront()
     await expect(admin.getByText('Открыто', { exact: true })).toBeVisible()
+    await driver.screenshot({ path: testInfo.outputPath('support-driver.png'), fullPage: true })
   } finally {
     await driverContext.close()
     await adminContext.close()
