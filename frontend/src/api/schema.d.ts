@@ -774,6 +774,127 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/support/tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Mine */
+        get: operations["mine_api_v1_support_tickets_get"];
+        put?: never;
+        /** Create */
+        post: operations["create_api_v1_support_tickets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/support/tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Tickets */
+        get: operations["admin_tickets_api_v1_admin_support_tickets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/support/unread": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Unread */
+        get: operations["unread_api_v1_support_unread_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/support/tickets/{ticket_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ticket */
+        get: operations["ticket_api_v1_support_tickets__ticket_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/support/tickets/{ticket_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Messages */
+        get: operations["messages_api_v1_support_tickets__ticket_id__messages_get"];
+        put?: never;
+        /** Send */
+        post: operations["send_api_v1_support_tickets__ticket_id__messages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/support/tickets/{ticket_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read */
+        post: operations["read_api_v1_support_tickets__ticket_id__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/support/tickets/{ticket_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Status */
+        patch: operations["status_api_v1_admin_support_tickets__ticket_id__patch"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1008,6 +1129,25 @@ export interface components {
              */
             latitude: number;
         };
+        /** CreateTicket */
+        CreateTicket: {
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "ride" | "payment" | "documents" | "account" | "other";
+            /** Subject */
+            subject: string;
+            /** Body */
+            body: string;
+            /** Ride Id */
+            ride_id?: string | null;
+        };
         /** DocumentView */
         DocumentView: {
             /**
@@ -1195,6 +1335,44 @@ export interface components {
              */
             password: string;
         };
+        /** MarkRead */
+        MarkRead: {
+            /** Last Read Seq */
+            last_read_seq: number;
+        };
+        /** MessagePage */
+        MessagePage: {
+            /** Items */
+            items: components["schemas"]["MessageView"][];
+            /** Has More */
+            has_more: boolean;
+        };
+        /** MessageView */
+        MessageView: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Seq */
+            seq: number;
+            /**
+             * Author Id
+             * Format: uuid
+             */
+            author_id: string;
+            /** Author Name */
+            author_name: string;
+            /** Author Role */
+            author_role: string;
+            /** Body */
+            body: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /**
          * MyProfileResponse
          * @description The caller's account and contact details; empty until set by PATCH.
@@ -1375,6 +1553,17 @@ export interface components {
         Page_RideSummary_: {
             /** Items */
             items: components["schemas"]["RideSummary"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[TicketView] */
+        Page_TicketView_: {
+            /** Items */
+            items: components["schemas"]["TicketView"][];
             /** Limit */
             limit: number;
             /** Offset */
@@ -1851,6 +2040,16 @@ export interface components {
             /** Provider */
             provider: string;
         };
+        /** SendMessage */
+        SendMessage: {
+            /**
+             * Client Message Id
+             * Format: uuid
+             */
+            client_message_id: string;
+            /** Body */
+            body: string;
+        };
         /** SessionResponse */
         SessionResponse: {
             user: components["schemas"]["UserResponse"];
@@ -1866,6 +2065,14 @@ export interface components {
              */
             expires_at: string;
         };
+        /** SetStatus */
+        SetStatus: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "in_progress" | "resolved";
+        };
         /**
          * Tariff
          * @enum {string}
@@ -1876,6 +2083,51 @@ export interface components {
             tariff: components["schemas"]["Tariff"];
             /** Amount Kzt */
             amount_kzt: number;
+        };
+        /** TicketView */
+        TicketView: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Owner Id
+             * Format: uuid
+             */
+            owner_id: string;
+            /** Owner Name */
+            owner_name: string;
+            /** Ride Id */
+            ride_id: string | null;
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "ride" | "payment" | "documents" | "account" | "other";
+            /** Subject */
+            subject: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "in_progress" | "resolved";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Last Message Seq */
+            last_message_seq: number;
+            /** Unread Count */
+            unread_count: number;
+            /** Last Message */
+            last_message: string;
         };
         /** UserResponse */
         UserResponse: {
@@ -4985,6 +5237,392 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Progress"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    mine_api_v1_support_tickets_get: {
+        parameters: {
+            query?: {
+                status?: ("open" | "in_progress" | "resolved") | null;
+                /** @description Page size. */
+                limit?: number;
+                /** @description Items to skip. */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_TicketView_"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_api_v1_support_tickets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTicket"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketView"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_tickets_api_v1_admin_support_tickets_get: {
+        parameters: {
+            query?: {
+                status?: ("open" | "in_progress" | "resolved") | null;
+                category?: ("ride" | "payment" | "documents" | "account" | "other") | null;
+                q?: string;
+                /** @description Page size. */
+                limit?: number;
+                /** @description Items to skip. */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_TicketView_"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    unread_api_v1_support_unread_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: number;
+                    };
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    ticket_api_v1_support_tickets__ticket_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticket_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketView"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    messages_api_v1_support_tickets__ticket_id__messages_get: {
+        parameters: {
+            query?: {
+                after_seq?: number | null;
+                before_seq?: number | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                ticket_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagePage"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    send_api_v1_support_tickets__ticket_id__messages_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticket_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendMessage"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageView"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    read_api_v1_support_tickets__ticket_id__read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticket_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkRead"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    status_api_v1_admin_support_tickets__ticket_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticket_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetStatus"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketView"];
                 };
             };
             /** @description Request validation failed; details.errors lists loc, msg and type */
