@@ -100,6 +100,10 @@ async def set_availability(
         if online:
             await require_account_access(db, driver_id)
             _ensure_can_go_online(profile)
+            if profile is not None:
+                from taxi_service.modules.documents.service import require_reviewed
+
+                await require_reviewed(db, profile)
             if profile is not None and categories is not None:
                 await _set_enabled_categories(db, profile, categories, clock.now())
         else:

@@ -1,4 +1,3 @@
-from taxi_service.modules.documents.middleware import DocumentBodyLimit
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -13,6 +12,7 @@ from taxi_service.modules.auth.dependencies import CSRF_HEADER_NAME
 from taxi_service.modules.auth.google import GoogleIdTokenVerifier, GoogleTokenVerifier
 from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.auth.rate_limit import LoginAttemptLimiter
+from taxi_service.modules.documents.middleware import DocumentBodyLimit
 from taxi_service.modules.geo.client import RoutingProvider
 from taxi_service.modules.payments.config import PaymentSettings
 from taxi_service.modules.rides.idempotency import IDEMPOTENCY_HEADER, REPLAYED_HEADER

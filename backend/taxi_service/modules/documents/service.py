@@ -229,3 +229,51 @@ async def change_revision_in_transaction(
                 created_at=now,
             )
         )
+
+
+async def save_document(
+    db: AsyncSession,
+    driver_id: uuid.UUID,
+    *,
+    kind: str,
+    key: str,
+    filename: str,
+    size: int,
+    sha256: str,
+    pages: int,
+    now: datetime,
+) -> None:
+    async with db.begin():
+        package = await editable(db, driver_id, now)
+        existing = await db.scalar(
+            select(DriverDocument).where(
+                DriverDocument.package_id == package.id, DriverDocument.kind == kind
+            )
+        )
+        if existing is not None:
+            await db.delete(existing)
+            await db.flush()
+        db.add(
+            DriverDocument(
+                package_id=package.id,
+                kind=kind,
+                storage_key=key,
+                original_filename=filename,
+                size_bytes=size,
+                sha256=sha256,
+                page_count=pages,
+                created_at=now,
+            )
+        )
+
+
+async def require_reviewed(db: AsyncSession, profile: DriverProfile) -> None:
+    if profile.document_requirement_exempt:
+        return
+    package = await current(db, profile.user_id)
+    if (
+        package is None
+        or package.status != "approved"
+        or package.profile_revision != profile.profile_revision
+    ):
+        raise fail("document_package_not_approved")

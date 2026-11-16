@@ -1,3 +1,6 @@
+from taxi_service.core.config import Settings
+from taxi_service.modules.documents.demo import submit_demo_package
+
 """Demo accounts keyed by username: existing ones are left as they are (``scripts/seed.py``)."""
 
 import uuid
@@ -271,8 +274,19 @@ async def _create_driver(accounts: _Accounts, driver: DemoDriver, admin_id: uuid
             session, user_id, _profile(driver), clock=accounts.clock
         )
     async with accounts.session_factory() as session:
+        settings = Settings(database_url=str(accounts.session_factory.kw["bind"].url))
+        package = await submit_demo_package(
+            session, user_id, accounts.clock, settings.document_storage_dir
+        )
+    async with accounts.session_factory() as session:
         await driver_service.approve_driver(
-            session, user_id, admin_id, car_class=driver.car_class, clock=accounts.clock
+            session,
+            user_id,
+            admin_id,
+            car_class=driver.car_class,
+            clock=accounts.clock,
+            package_id=package.package_id,
+            version=package.version,
         )
     await _place_online(accounts, user_id, driver.location)
 

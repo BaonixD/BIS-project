@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import ColumnElement, Exists, Select, and_, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from taxi_service.modules.documents.models import DocumentPackage
 from taxi_service.modules.drivers.geodesy import BoundingBox, bounding_box, haversine_m
 from taxi_service.modules.drivers.models import (
     ApprovalStatus,
@@ -88,6 +89,14 @@ def eligible_drivers(fresh_since: datetime) -> Select[uuid.UUID, float | None, f
         .join(User, User.id == DriverProfile.user_id)
         .where(
             User.blocked_at.is_(None),
+            or_(
+                DriverProfile.document_requirement_exempt.is_(True),
+                exists().where(
+                    DocumentPackage.driver_id == DriverProfile.user_id,
+                    DocumentPackage.status == "approved",
+                    DocumentPackage.profile_revision == DriverProfile.profile_revision,
+                ),
+            ),
             DriverProfile.approval_status == ApprovalStatus.APPROVED,
             DriverProfile.is_online.is_(True),
             DriverProfile.location_updated_at >= fresh_since,

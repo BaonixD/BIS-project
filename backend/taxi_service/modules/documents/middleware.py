@@ -1,5 +1,5 @@
 from starlette.responses import JSONResponse
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 
 class DocumentBodyLimit:
@@ -41,7 +41,7 @@ class DocumentBodyLimit:
                 break
         sent = False
 
-        async def bounded_receive():
+        async def bounded_receive() -> Message:
             nonlocal sent
             if not sent:
                 sent = True

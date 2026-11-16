@@ -14,9 +14,11 @@ from taxi_service.modules.documents.schemas import (
     DocumentKind,
     DocumentsSummary,
     PackageCommand,
+    RequestDocuments,
     ReviewCommand,
 )
 from taxi_service.modules.documents.storage import document_path, store_upload
+from taxi_service.modules.drivers.models import DriverProfile
 from taxi_service.modules.drivers.router import DriverUser
 from taxi_service.modules.users.models import UserRole
 
@@ -51,28 +53,17 @@ async def upload(
     )
     path = root / key
     try:
-        async with db.begin():
-            package = await service.editable(db, user.id, clock.now())
-            existing = await db.scalar(
-                select(DriverDocument).where(
-                    DriverDocument.package_id == package.id, DriverDocument.kind == kind
-                )
-            )
-            if existing is not None:
-                await db.delete(existing)
-                await db.flush()
-            db.add(
-                DriverDocument(
-                    package_id=package.id,
-                    kind=kind,
-                    storage_key=key,
-                    original_filename=filename,
-                    size_bytes=size,
-                    sha256=sha256,
-                    page_count=pages,
-                    created_at=clock.now(),
-                )
-            )
+        await service.save_document(
+            db,
+            user.id,
+            kind=kind,
+            key=key,
+            filename=filename,
+            size=size,
+            sha256=sha256,
+            pages=pages,
+            now=clock.now(),
+        )
     except BaseException:
         path.unlink(missing_ok=True)
         raise
