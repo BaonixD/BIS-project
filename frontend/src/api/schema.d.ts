@@ -620,6 +620,143 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/drivers/me/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Mine */
+        get: operations["mine_api_v1_drivers_me_documents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/drivers/{driver_id}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Documents */
+        get: operations["admin_documents_api_v1_admin_drivers__driver_id__documents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/drivers/me/documents/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Upload */
+        put: operations["upload_api_v1_drivers_me_documents__kind__put"];
+        post?: never;
+        /** Remove */
+        delete: operations["remove_api_v1_drivers_me_documents__kind__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/drivers/me/documents/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit */
+        post: operations["submit_api_v1_drivers_me_documents_submit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/drivers/me/documents/revise": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revise */
+        post: operations["revise_api_v1_drivers_me_documents_revise_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Content */
+        get: operations["content_api_v1_documents__document_id__content_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/drivers/{driver_id}/documents/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject */
+        post: operations["reject_api_v1_admin_drivers__driver_id__documents_reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/drivers/{driver_id}/documents/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Request Documents */
+        post: operations["request_documents_api_v1_admin_drivers__driver_id__documents_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -668,6 +805,11 @@ export interface components {
             missing_fields: string[];
             /** @description Stars the driver received from passengers. */
             rating: components["schemas"]["RatingSummaryResponse"];
+            /**
+             * Documents Summary
+             * @default missing
+             */
+            documents_summary: string;
             /** Blocked At */
             blocked_at: string | null;
             /** Username */
@@ -779,6 +921,10 @@ export interface components {
          */
         ApprovalRequest: {
             car_class?: components["schemas"]["Tariff"] | null;
+            /** Package Id */
+            package_id?: string | null;
+            /** Version */
+            version?: number | null;
         };
         /**
          * ApprovalStatus
@@ -799,6 +945,11 @@ export interface components {
             online: boolean;
             /** Categories */
             categories?: components["schemas"]["Tariff"][] | null;
+        };
+        /** Body_upload_api_v1_drivers_me_documents__kind__put */
+        Body_upload_api_v1_drivers_me_documents__kind__put: {
+            /** File */
+            file: string;
         };
         /** CancelRequest */
         CancelRequest: {
@@ -824,6 +975,44 @@ export interface components {
              * @example 43.2389
              */
             latitude: number;
+        };
+        /** DocumentView */
+        DocumentView: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "identity_card" | "driver_license";
+            /** Filename */
+            filename: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Page Count */
+            page_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** DocumentsSummary */
+        DocumentsSummary: {
+            package: components["schemas"]["PackageView"] | null;
+            /** Documents */
+            documents: components["schemas"]["DocumentView"][];
+            /** History */
+            history?: components["schemas"]["PackageView"][];
+            /** Missing Fields */
+            missing_fields: string[];
+            /** Legacy Exempt */
+            legacy_exempt: boolean;
+            /** Can Submit */
+            can_submit: boolean;
         };
         /**
          * DriverCard
@@ -1075,6 +1264,37 @@ export interface components {
          * @enum {string}
          */
         OfferStatus: "pending" | "accepted" | "rejected" | "expired" | "revoked";
+        /** PackageCommand */
+        PackageCommand: {
+            /**
+             * Package Id
+             * Format: uuid
+             */
+            package_id: string;
+            /** Version */
+            version: number;
+        };
+        /** PackageView */
+        PackageView: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Version */
+            version: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "pending" | "approved" | "rejected" | "superseded";
+            /** Review Note */
+            review_note: string | null;
+            /** Submitted At */
+            submitted_at: string | null;
+            /** Reviewed At */
+            reviewed_at: string | null;
+        };
         /** Page[AdminDriverResponse] */
         Page_AdminDriverResponse_: {
             /** Items */
@@ -1307,6 +1527,23 @@ export interface components {
              * Reason
              * @description Plain text, 1 to 200 characters after trimming, no control characters.
              */
+            reason: string;
+        };
+        /** RequestDocuments */
+        RequestDocuments: {
+            /** Reason */
+            reason: string;
+        };
+        /** ReviewCommand */
+        ReviewCommand: {
+            /**
+             * Package Id
+             * Format: uuid
+             */
+            package_id: string;
+            /** Version */
+            version: number;
+            /** Reason */
             reason: string;
         };
         /** RideCreateRequest */
@@ -4294,6 +4531,382 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    mine_api_v1_drivers_me_documents_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentsSummary"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_documents_api_v1_admin_drivers__driver_id__documents_get: {
+        parameters: {
+            query?: {
+                package_id?: string | null;
+            };
+            header?: never;
+            path: {
+                driver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentsSummary"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    upload_api_v1_drivers_me_documents__kind__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: "identity_card" | "driver_license";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_api_v1_drivers_me_documents__kind__put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentsSummary"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    remove_api_v1_drivers_me_documents__kind__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: "identity_card" | "driver_license";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentsSummary"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    submit_api_v1_drivers_me_documents_submit_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageCommand"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentsSummary"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    revise_api_v1_drivers_me_documents_revise_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageCommand"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentsSummary"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    content_api_v1_documents__document_id__content_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reject_api_v1_admin_drivers__driver_id__documents_reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                driver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewCommand"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentsSummary"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    request_documents_api_v1_admin_drivers__driver_id__documents_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                driver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RequestDocuments"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentsSummary"];
                 };
             };
             /** @description Request validation failed; details.errors lists loc, msg and type */
