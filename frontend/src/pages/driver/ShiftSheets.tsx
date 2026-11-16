@@ -125,6 +125,7 @@ export function PendingSheet({ driver }: { driver: NextDriver }) {
           'Администратор проверяет данные. Заполните профиль и машину полностью, чтобы ускорить проверку.',
         )}
       />
+      <Button asChild variant="secondary" size="md"><Link to="/driver/documents">{t("Загрузить документы")}</Link></Button>
       <div className="flex w-full flex-col">
         <ListRow
           icon={User}

@@ -113,6 +113,7 @@ export function DriverProfilePage() {
           </>
         )}
         <GroupedSection>
+          <GroupedRow icon={CreditCard} tone="bg-accent-info" title={t("Документы")} to="/driver/documents" />
           <GroupedRow
             icon={Settings}
             tone="bg-text-tertiary"

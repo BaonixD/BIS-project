@@ -1,5 +1,5 @@
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
 
@@ -71,9 +71,17 @@ async def list_drivers(
     ] = None,
     q: Annotated[str, Query(max_length=100)] = "",
     online: bool | None = None,
+    document_status: Literal["pending", "approved", "rejected", "draft", "missing", "legacy"]
+    | None = None,
 ) -> Page[AdminDriverResponse]:
     result = await service.list_drivers(
-        db, approval_status, limit=page.limit, offset=page.offset, query=q, online=online
+        db,
+        approval_status,
+        limit=page.limit,
+        offset=page.offset,
+        query=q,
+        online=online,
+        document_status=document_status,
     )
     return Page(
         items=[

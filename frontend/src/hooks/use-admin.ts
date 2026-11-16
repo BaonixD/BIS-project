@@ -10,7 +10,7 @@ import { queryKeys, type AdminRideFilters } from './query-keys'
 
 export function useAdminDrivers(
   approvalStatus: ApprovalStatus | undefined,
-  page: PageParams & { q?: string; online?: boolean } = {},
+  page: PageParams & { q?: string; online?: boolean; document_status?: "pending" | "approved" | "rejected" | "draft" | "missing" | "legacy" } = {},
 ) {
   return useQuery({
     queryKey: queryKeys.admin.drivers(approvalStatus, page),

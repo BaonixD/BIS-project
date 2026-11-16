@@ -201,12 +201,21 @@ async def list_drivers(
     offset: int,
     query: str = "",
     online: bool | None = None,
+    document_status: str | None = None,
 ) -> DriverPage:
     async with read_transaction(db):
         rows = await _driver_rows(
-            db, status, limit=limit, offset=offset, query=query, online=online
+            db,
+            status,
+            limit=limit,
+            offset=offset,
+            query=query,
+            online=online,
+            document_status=document_status,
         )
-        total = await _count_drivers(db, status, query=query, online=online)
+        total = await _count_drivers(
+            db, status, query=query, online=online, document_status=document_status
+        )
         ratings = await rating_records.summaries(db, [user.id for user, _ in rows])
         from taxi_service.modules.documents.models import DocumentPackage
 
@@ -375,9 +384,10 @@ async def _driver_rows(
     offset: int,
     query: str = "",
     online: bool | None = None,
+    document_status: str | None = None,
 ) -> list[tuple[User, DriverProfile | None]]:
     rows = await db.execute(
-        _drivers_query(status, query=query, online=online)
+        _drivers_query(status, query=query, online=online, document_status=document_status)
         .order_by(User.created_at.desc(), User.id.desc())
         .limit(limit)
         .offset(offset)
@@ -386,18 +396,29 @@ async def _driver_rows(
 
 
 async def _count_drivers(
-    db: AsyncSession, status: ApprovalStatus | None, *, query: str = "", online: bool | None = None
+    db: AsyncSession,
+    status: ApprovalStatus | None,
+    *,
+    query: str = "",
+    online: bool | None = None,
+    document_status: str | None = None,
 ) -> int:
     total = await db.scalar(
         select(func.count()).select_from(
-            _drivers_query(status, query=query, online=online).subquery()
+            _drivers_query(
+                status, query=query, online=online, document_status=document_status
+            ).subquery()
         )
     )
     return total or 0
 
 
 def _drivers_query(
-    status: ApprovalStatus | None, *, query: str = "", online: bool | None = None
+    status: ApprovalStatus | None,
+    *,
+    query: str = "",
+    online: bool | None = None,
+    document_status: str | None = None,
 ) -> Select[User, DriverProfile]:
     statement = (
         select(User, DriverProfile)
@@ -422,6 +443,27 @@ def _drivers_query(
             if online
             else or_(DriverProfile.is_online.is_(False), DriverProfile.user_id.is_(None))
         )
+    if document_status is not None:
+        from taxi_service.modules.documents.models import DocumentPackage
+        from sqlalchemy import exists
+
+        current_package = select(DocumentPackage.id).where(
+            DocumentPackage.driver_id == User.id, DocumentPackage.status != "superseded"
+        )
+        if document_status == "legacy":
+            statement = statement.where(DriverProfile.document_requirement_exempt.is_(True))
+        elif document_status == "missing":
+            statement = statement.where(
+                ~exists(current_package),
+                or_(
+                    DriverProfile.document_requirement_exempt.is_(False),
+                    DriverProfile.user_id.is_(None),
+                ),
+            )
+        else:
+            statement = statement.where(
+                exists(current_package.where(DocumentPackage.status == document_status))
+            )
     return statement
 
 

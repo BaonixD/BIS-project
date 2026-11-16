@@ -1,3 +1,4 @@
+import { documentStatusLabel } from '@/lib/document-labels'
 import { t, useLocale } from '@/i18n/core'
 import { ADMIN_PAGE_SIZE, useAdminFilters } from './admin-model'
 import { Link } from 'react-router'
@@ -66,6 +67,7 @@ function DriverRequest({ driver, onApprove }: { driver: NextAdminDriver; onAppro
             <StatusPill key={category}>{TARIFF_LABELS()[category]}</StatusPill>
           ))}
       </div>
+      <p className="text-caption text-text-secondary">{documentStatusLabel(driver.documents_summary)}</p>
       <p className="text-callout text-text-secondary">{vehicleLine(driver)}</p>
       {driver.missing_fields.length > 0 && (
         <p className="flex items-center gap-2 text-caption text-accent-danger">
@@ -90,6 +92,7 @@ export function AdminDriversPage() {
   const status = params.get('status') ?? 'pending'
   const filter = status === 'approved' ? 'approved' : status === 'all' ? 'all' : 'pending'
   const q = params.get('q') ?? ''
+  const documentFilter = params.get('documents') ?? ''
   const online = params.get('online')
   const drivers = useAdminDrivers(filter === 'all' ? undefined : (filter as ApprovalStatus), {
     limit: ADMIN_PAGE_SIZE,
@@ -122,7 +125,7 @@ export function AdminDriversPage() {
           </StatusPill>
         )}
       </div>
-      <div className="grid items-end gap-3 rounded-lg bg-bg-canvas p-4 sm:grid-cols-[minmax(0,1fr)_180px_auto]">
+      <div className="grid items-end gap-3 rounded-lg bg-bg-canvas p-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_160px_220px_auto]">
         <AdminSearch
           key={q}
           value={q}
@@ -139,6 +142,7 @@ export function AdminDriversPage() {
           ]}
           onChange={(value) => update({ online: value })}
         />
+        <AdminSelect label={t("Документы")} value={documentFilter} options={[["", t("Все")], ...["pending", "missing", "draft", "rejected", "approved", "legacy"].map((value) => [value, documentStatusLabel(value)] as const)]} onChange={(value) => update({ documents: value })} />
         <Button variant="ghost" size="md" onClick={reset}>
           {t('Сбросить')}
         </Button>
