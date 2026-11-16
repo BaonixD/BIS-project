@@ -1,5 +1,6 @@
 from taxi_service.database.base import Base
 from taxi_service.modules.auth import models as auth_models
+from taxi_service.modules.documents import models as documents_models
 from taxi_service.modules.drivers import models as drivers_models
 from taxi_service.modules.payments import models as payments_models
 from taxi_service.modules.ratings import models as ratings_models
@@ -10,6 +11,7 @@ from taxi_service.modules.users import models as users_models
 MODEL_MODULES = (
     auth_models,
     drivers_models,
+    documents_models,
     payments_models,
     ratings_models,
     rides_models,

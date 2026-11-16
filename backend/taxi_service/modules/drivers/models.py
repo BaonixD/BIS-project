@@ -72,6 +72,8 @@ class DriverProfile(Base):
     )
     approved_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
     approved_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    profile_revision: Mapped[int] = mapped_column(default=1, server_default="1")
+    document_requirement_exempt: Mapped[bool] = mapped_column(default=False, server_default="0")
     is_online: Mapped[bool] = mapped_column(Boolean())
     longitude: Mapped[float | None] = mapped_column(Float())
     latitude: Mapped[float | None] = mapped_column(Float())
