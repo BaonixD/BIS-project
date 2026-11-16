@@ -1,3 +1,4 @@
+from taxi_service.modules.documents.middleware import DocumentBodyLimit
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -60,6 +61,7 @@ def create_app(
     app.state.ride_completion_hook = on_ride_completed
     app.state.payment_settings = payment_settings or PaymentSettings()
     # Added first, so RequestIdMiddleware wraps it: preflight answers get an ID too.
+    app.add_middleware(DocumentBodyLimit)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_allowed_origins,
