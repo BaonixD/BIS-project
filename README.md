@@ -92,3 +92,5 @@ The app is built for phones first. On a computer, it looks best in your browser'
 ## More
 
 Want the technical details? See the [developer guide](docs/development.md) (in Russian).
+
+Маршруты с дорожной ситуацией через Mapbox: [настройка](docs/development.md#mapbox-маршрут-и-прогноз-с-дорожной-ситуацией), [план](docs/plans/mapbox-eta.md), [реальная проверка](docs/reports/mapbox-eta.md).
