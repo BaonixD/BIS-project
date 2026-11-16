@@ -1,5 +1,5 @@
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "bdcfcb98a096"
 down_revision = "a3267d91e0b4"
@@ -33,7 +33,8 @@ def upgrade() -> None:
             name=op.f("ck_driver_document_packages_submitted"),
         ),
         sa.CheckConstraint(
-            "status NOT IN ('approved','rejected') OR (reviewed_at IS NOT NULL AND reviewed_by IS NOT NULL)",
+            "status NOT IN ('approved','rejected') OR (reviewed_at IS NOT NULL "
+            "AND reviewed_by IS NOT NULL)",
             name=op.f("ck_driver_document_packages_reviewed"),
         ),
         sa.ForeignKeyConstraint(
@@ -98,7 +99,8 @@ def upgrade() -> None:
 
     # ### end Alembic commands ###
     op.execute(
-        "UPDATE driver_profiles SET document_requirement_exempt = true WHERE approval_status = 'approved'"
+        "UPDATE driver_profiles SET document_requirement_exempt = true "
+        "WHERE approval_status = 'approved'"
     )
 
 

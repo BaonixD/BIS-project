@@ -214,3 +214,8 @@ async def available_driver(driver_factory: DriverFactory) -> uuid.UUID:
     offer; without any driver dispatch ends the search at once (``no_driver``).
     """
     return await driver_factory.driver("available_driver", location=PICKUP)
+
+
+@pytest.fixture(autouse=True)
+def isolated_document_storage(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("DOCUMENT_STORAGE_DIR", str(tmp_path / "private-documents"))

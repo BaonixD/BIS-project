@@ -17,6 +17,7 @@ vi.mock('@/api/client', async (importOriginal) => {
   fake.current = create()
   return { ...original, api: fake.current.api }
 })
+vi.mock('@/auth/use-session', () => ({ useSession: () => ({ user: { id: 'driver-1', role: 'driver', username: 'driver' } }) }))
 vi.mock('@/components/map/MapView', () => ({ MapView: () => <div data-testid="map" /> }))
 vi.mock('@/hooks/use-geocoding', () => ({
   useReverseGeocode: (point: unknown) => ({ data: point ? { title: 'ул. Абая, 52' } : undefined }),

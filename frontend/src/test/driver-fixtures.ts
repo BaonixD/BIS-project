@@ -104,6 +104,7 @@ export function adminDriverFixture(overrides: Partial<NextAdminDriver> = {}): Ne
     ...driverFixture({ approval_status: 'pending', approved_at: null }),
     vehicle: { ...driverFixture().vehicle!, car_class: 'economy', categories: ['economy'] },
     enabled_categories: ['economy'],
+    documents_summary: overrides.approval_status === 'approved' ? 'approved' : 'pending',
     username: 'arman',
     created_at: '2026-11-03T04:00:00Z',
     approved_by: null,

@@ -1,11 +1,18 @@
 import { execFileSync } from 'node:child_process'
 import { rmSync } from 'node:fs'
-import { ADMIN_PASSWORD, BACKEND_DIR, DATABASE_URL, DB_FILES, DEMO_PASSWORD } from './env.ts'
+import {
+  ADMIN_PASSWORD,
+  BACKEND_DIR,
+  DATABASE_URL,
+  DB_FILES,
+  DEMO_PASSWORD,
+  DOCUMENT_STORAGE_DIR,
+} from './env.ts'
 
 function backend(args: string[], extra: Record<string, string> = {}) {
   execFileSync('uv', ['run', ...args], {
     cwd: BACKEND_DIR,
-    env: { ...process.env, DATABASE_URL, ...extra },
+    env: { ...process.env, DATABASE_URL, DOCUMENT_STORAGE_DIR, ...extra },
     stdio: ['ignore', 'inherit', 'inherit'],
   })
 }

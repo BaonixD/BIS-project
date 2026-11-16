@@ -18,6 +18,13 @@ vi.mock('@/api/client', async (importOriginal) => {
   fake.current = create()
   return { ...original, api: fake.current.api }
 })
+vi.mock('@/api/request', () => ({
+  request: async (path: string) => {
+    if (path.endsWith('/documents')) return { package: { id: 'review-package', version: 1, status: 'pending', review_note: null, submitted_at: '2026-11-16T00:00:00Z', reviewed_at: null }, documents: [], missing_fields: [], history: [], legacy_exempt: false, can_submit: false }
+    if (path === '/support/unread') return { count: 0 }
+    throw new Error(path)
+  }, jsonBody: (body: unknown) => ({ body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } }),
+}))
 const logout = vi.hoisted(() => ({ mutate: vi.fn(), isPending: false }))
 vi.mock('@/auth/use-session', () => ({ useSession: () => ({ logout }) }))
 vi.mock('@/hooks/use-geocoding', () => ({
@@ -74,7 +81,7 @@ describe('driver approval with the car class', () => {
     const call = api.calls.find((item) => item.path.endsWith('/approve'))
     expect(call?.init).toEqual({
       params: { path: { driver_id: 'd-1' } },
-      body: { car_class: 'comfort' },
+      body: { car_class: 'comfort', package_id: 'review-package', version: 1 },
     })
   })
 

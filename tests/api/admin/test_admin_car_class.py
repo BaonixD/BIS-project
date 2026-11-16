@@ -71,7 +71,9 @@ async def test_approval_sets_the_class(client: httpx.AsyncClient) -> None:
     headers = await as_admin(client)
 
     response = await client.post(
-        approve_url(driver.id), json={"car_class": "comfort"}, headers=headers
+        approve_url(driver.id),
+        json={"car_class": "comfort", **await review_tokens(client, driver.id)},
+        headers=headers,
     )
 
     assert response.status_code == 200, response.text
@@ -90,7 +92,11 @@ async def test_approval_without_a_class_keeps_it(
     driver = await registered_driver(client, "dana", profile=complete_profile())
     headers = await as_admin(client)
 
-    response = await client.post(approve_url(driver.id), json=body, headers=headers)
+    response = await client.post(
+        approve_url(driver.id),
+        json={**await review_tokens(client, driver.id), **(body or {})},
+        headers=headers,
+    )
 
     assert response.status_code == 200, response.text
     assert response.json()["vehicle"]["car_class"] == "economy"
@@ -203,3 +209,8 @@ async def test_lowering_the_class_revokes_offers_above_it(
     assert still_pending.status is OfferStatus.PENDING
     [revoked] = await dispatcher.offers(uuid.UUID(ride["id"]))
     assert revoked.status is OfferStatus.REVOKED
+
+
+async def review_tokens(client: httpx.AsyncClient, driver_id: uuid.UUID) -> dict[str, Any]:
+    package = (await client.get(f"{ADMIN_DRIVERS_URL}/{driver_id}/documents")).json()["package"]
+    return {"package_id": package["id"], "version": package["version"]}

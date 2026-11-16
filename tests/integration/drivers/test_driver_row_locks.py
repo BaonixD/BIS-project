@@ -10,13 +10,16 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql.base import PGDialect
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
 from support.clock import ManualClock
+from support.documents import pending_package
 from support.drivers import DriverFactory
-from taxi_service.database.session import SessionFactory
+from taxi_service.database.session import SessionFactory, read_transaction
+from taxi_service.modules.documents.models import DocumentPackage
 from taxi_service.modules.drivers import service as driver_service
 from taxi_service.modules.drivers.schemas import DriverProfileUpdate
 from taxi_service.modules.geo.schemas import Coordinates
@@ -46,7 +49,14 @@ async def move(session: AsyncSession, clock: ManualClock, driver: uuid.UUID, _: 
 async def approve(
     session: AsyncSession, clock: ManualClock, driver: uuid.UUID, admin: uuid.UUID
 ) -> object:
-    return await driver_service.approve_driver(session, driver, admin, clock=clock)
+    async with read_transaction(session):
+        package = await session.scalar(
+            select(DocumentPackage).where(DocumentPackage.driver_id == driver)
+        )
+        assert package is not None
+    return await driver_service.approve_driver(
+        session, driver, admin, clock=clock, package_id=package.id, version=package.version
+    )
 
 
 @pytest.fixture
@@ -76,6 +86,8 @@ async def test_write_paths_lock_the_driver_profile(
 ) -> None:
     driver = await driver_factory.driver("dana", approved=False)
     admin = await driver_factory.admin_id()
+    if command is approve:
+        await pending_package(session_factory, driver, clock)
     driver_profile_selects.clear()
 
     async with session_factory() as session:

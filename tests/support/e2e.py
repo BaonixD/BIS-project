@@ -30,6 +30,7 @@ from fastapi import FastAPI
 from support.auth import LoggedInUser, current_session, login, register
 from support.clock import ManualClock
 from support.dispatch import OFFERS_URL, accept_url, reject_url
+from support.documents import submit_http
 from support.drivers import (
     ADMIN_USERNAME,
     AVAILABILITY_URL,
@@ -154,8 +155,13 @@ class Town:
         self._plates += 1
         profile = complete_profile(f"{self._plates:03d}ETE02")
         assert expect(await driver.patch(DRIVERS_ME_URL, profile))["missing_fields"] == []
+        package = await submit_http(driver.client, driver.user.csrf_headers)
         admin = await self.admin()
-        approved = expect(await admin.post(approve_url(driver.id)))
+        approved = expect(
+            await admin.post(
+                approve_url(driver.id), {"package_id": package["id"], "version": package["version"]}
+            )
+        )
         assert approved["approval_status"] == "approved"
         expect(await driver.put(LOCATION_URL, location))
         if online:

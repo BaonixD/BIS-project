@@ -10,6 +10,7 @@ import { RidePage } from './RidePage'
 
 const server = await vi.hoisted(async () => (await import('./test/fake-server')).installFakeFetch())
 
+vi.mock('@/auth/use-session', () => ({ useSession: () => ({ user: { id: 'p1', role: 'passenger', username: 'passenger' } }) }))
 vi.mock('@/components/map/MapView', () => ({ MapView: () => <div data-testid="map" /> }))
 
 beforeEach(async () => {

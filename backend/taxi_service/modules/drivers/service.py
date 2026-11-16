@@ -444,8 +444,9 @@ def _drivers_query(
             else or_(DriverProfile.is_online.is_(False), DriverProfile.user_id.is_(None))
         )
     if document_status is not None:
-        from taxi_service.modules.documents.models import DocumentPackage
         from sqlalchemy import exists
+
+        from taxi_service.modules.documents.models import DocumentPackage
 
         current_package = select(DocumentPackage.id).where(
             DocumentPackage.driver_id == User.id, DocumentPackage.status != "superseded"

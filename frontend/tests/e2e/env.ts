@@ -1,5 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
+import { mkdirSync, realpathSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 
 /**
  * The real backend runs from the main checkout (the parent of the shared `.git`, also from a worktree):
@@ -14,12 +16,19 @@ function mainCheckout(): string {
 }
 
 export const BACKEND_DIR = process.env.E2E_BACKEND_DIR ?? mainCheckout()
-export const DB_FILE =
-  process.env.E2E_DB_FILE ??
-  '/private/tmp/claude-501/-Users-baonix-BIS-project/1ae3258e-aff6-400e-858d-b2e0c04ac3d6/scratchpad/e2e.db'
+export const DB_FILE = process.env.E2E_DB_FILE ?? '/private/tmp/bis-taxi-e2e/state/e2e.db'
+mkdirSync(path.dirname(DB_FILE), { recursive: true })
+if (
+  !realpathSync(path.dirname(DB_FILE)).startsWith(
+    realpathSync(tmpdir()).replace(/\/$/, '') + '/',
+  ) &&
+  !realpathSync(path.dirname(DB_FILE)).startsWith('/private/tmp/')
+)
+  throw new Error('E2E database must stay in a temporary directory')
+export const DOCUMENT_STORAGE_DIR = path.join(path.dirname(DB_FILE), 'private-documents')
 export const DATABASE_URL = `sqlite+aiosqlite:///${DB_FILE}`
-export const BACKEND_PORT = 8000
-export const FRONTEND_PORT = 5173
+export const BACKEND_PORT = Number(process.env.E2E_BACKEND_PORT ?? 8100)
+export const FRONTEND_PORT = Number(process.env.E2E_FRONTEND_PORT ?? 5190)
 
 /** Accounts of a throwaway database. */
 export const DEMO_PASSWORD = 'e2e-demo-password'

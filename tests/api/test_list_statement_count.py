@@ -128,6 +128,6 @@ async def test_admin_drivers_with_their_ratings(
     large = await statements_for_page(app, client, ADMIN_DRIVERS_URL, 30)
 
     assert len(small) == len(large)
-    # One grouped ratings query and one select-in for all vehicle categories.
-    assert large.queries <= MAX_QUERIES + 2
+    # Grouped ratings, select-in vehicle categories and one bulk document-status query.
+    assert large.queries <= MAX_QUERIES + 3
     assert any("ride_ratings" in statement for statement in large.statements)

@@ -46,7 +46,7 @@ export default function PdfViewer({
     return () => {
       destroyed = true
       controller.abort()
-      void task?.destroy()
+      void task?.destroy().catch(() => undefined)
     }
   }, [id])
   useEffect(() => {

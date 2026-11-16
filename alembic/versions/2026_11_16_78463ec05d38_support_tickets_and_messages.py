@@ -25,7 +25,8 @@ def upgrade() -> None:
         sa.Column("resolved_by", sa.Uuid(), nullable=True),
         sa.Column("last_message_seq", sa.Integer(), nullable=False),
         sa.CheckConstraint(
-            "(status = 'resolved' AND resolved_at IS NOT NULL AND resolved_by IS NOT NULL) OR (status <> 'resolved' AND resolved_at IS NULL AND resolved_by IS NULL)",
+            "(status = 'resolved' AND resolved_at IS NOT NULL AND resolved_by IS NOT NULL)"
+            " OR (status <> 'resolved' AND resolved_at IS NULL AND resolved_by IS NULL)",
             name=op.f("ck_support_tickets_resolution"),
         ),
         sa.CheckConstraint(

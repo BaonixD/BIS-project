@@ -1,7 +1,14 @@
 import { defineConfig } from '@playwright/test'
-import { BACKEND_DIR, BACKEND_PORT, DATABASE_URL, DB_FILES, FRONTEND_PORT } from './env.ts'
+import {
+  BACKEND_DIR,
+  BACKEND_PORT,
+  DATABASE_URL,
+  DB_FILES,
+  DOCUMENT_STORAGE_DIR,
+  FRONTEND_PORT,
+} from './env.ts'
 
-const backendEnv = { DATABASE_URL, SESSION_COOKIE_SECURE: 'false' }
+const backendEnv = { DATABASE_URL, DOCUMENT_STORAGE_DIR, SESSION_COOKIE_SECURE: 'false' }
 const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`
 
 /**
@@ -42,7 +49,8 @@ export default defineConfig({
       stderr: 'pipe',
     },
     {
-      command: 'npm run dev',
+      command: `npm run dev -- --port ${FRONTEND_PORT}`,
+      env: { VITE_BACKEND_URL: `http://127.0.0.1:${BACKEND_PORT}` },
       cwd: '../..',
       url: `http://localhost:${FRONTEND_PORT}/login`,
       reuseExistingServer: false,

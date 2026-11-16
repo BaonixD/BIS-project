@@ -10,7 +10,11 @@ import { queryKeys, type AdminRideFilters } from './query-keys'
 
 export function useAdminDrivers(
   approvalStatus: ApprovalStatus | undefined,
-  page: PageParams & { q?: string; online?: boolean; document_status?: "pending" | "approved" | "rejected" | "draft" | "missing" | "legacy" } = {},
+  page: PageParams & {
+    q?: string
+    online?: boolean
+    document_status?: 'pending' | 'approved' | 'rejected' | 'draft' | 'missing' | 'legacy'
+  } = {},
 ) {
   return useQuery({
     queryKey: queryKeys.admin.drivers(approvalStatus, page),
@@ -33,7 +37,11 @@ export interface ApproveDriverVariables {
 
 function useInvalidateDrivers() {
   const queryClient = useQueryClient()
-  return () => queryClient.invalidateQueries({ queryKey: ['admin', 'drivers'] })
+  return () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['admin', 'drivers'] }),
+      queryClient.invalidateQueries({ queryKey: ['documents'] }),
+    ])
 }
 
 export function useApproveDriver() {

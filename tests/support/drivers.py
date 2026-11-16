@@ -20,6 +20,7 @@ from fastapi import FastAPI
 
 from support.auth import PASSWORD, LoggedInUser, current_session, login, register_and_login
 from support.clock import ManualClock
+from support.documents import pending_package, submit_http
 from taxi_service.database.session import SessionFactory
 from taxi_service.modules.auth.passwords import PasswordHasher
 from taxi_service.modules.drivers import service as driver_service
@@ -96,6 +97,8 @@ async def registered_driver(
     if profile is not None:
         response = await client.patch(DRIVERS_ME_URL, json=profile, headers=driver.csrf_headers)
         assert response.status_code == 200, response.text
+        if not response.json()["missing_fields"]:
+            await submit_http(client, driver.csrf_headers)
     return driver
 
 
@@ -104,7 +107,10 @@ async def approve(
 ) -> httpx.Response:
     """Log in as the admin and approve; the client stays logged in as the admin."""
     admin = await login_as(client, admin_username)
-    return await client.post(approve_url(driver_id), headers=admin.csrf_headers)
+    response = await client.get(f"{ADMIN_DRIVERS_URL}/{driver_id}/documents")
+    package = response.json().get("package") if response.status_code == 200 else None
+    body = {"package_id": package["id"], "version": package["version"]} if package else None
+    return await client.post(approve_url(driver_id), json=body, headers=admin.csrf_headers)
 
 
 async def approved_driver(
@@ -172,10 +178,17 @@ class DriverFactory:
         async with self.session_factory() as session:
             await driver_service.update_profile(session, driver_id, profile, clock=self.clock)
         if approved:
+            package_id, version = await pending_package(self.session_factory, driver_id, self.clock)
             admin_id = await self.admin_id()
             async with self.session_factory() as session:
                 await driver_service.approve_driver(
-                    session, driver_id, admin_id, car_class=car_class, clock=self.clock
+                    session,
+                    driver_id,
+                    admin_id,
+                    car_class=car_class,
+                    clock=self.clock,
+                    package_id=package_id,
+                    version=version,
                 )
         if location is not None:
             await self.move(driver_id, location)
