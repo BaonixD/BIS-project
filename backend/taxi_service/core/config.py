@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import Depends, Request
@@ -20,6 +21,7 @@ class Settings(BaseSettings):
         hide_input_in_errors=True,
     )
 
+    document_storage_dir: Path = Path("private_uploads/driver-documents")
     log_level: LogLevel = "INFO"
     database_url: str = Field(repr=False)
 

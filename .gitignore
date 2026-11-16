@@ -33,3 +33,6 @@ jar.txt
 
 # OSRM map data built by scripts/osrm_prepare.sh
 infra/osrm/data/
+
+# Private driver documents
+private_uploads/

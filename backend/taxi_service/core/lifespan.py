@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -29,6 +30,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.session_factory = create_session_factory(engine)
     app.state.migration_heads = expected_heads()
     provider, routing_http = _routing_provider(app.state.routing_provider_override)
+    app.state.document_validation_limit = asyncio.Semaphore(2)
     app.state.estimate_cache = EstimateCache()
     app.state.routing_provider = provider
     app.state.routing_http_client = routing_http
