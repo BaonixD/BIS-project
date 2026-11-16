@@ -77,7 +77,12 @@ async def list_drivers(
     )
     return Page(
         items=[
-            AdminDriverResponse.from_rows(user, profile, result.ratings[user.id])
+            AdminDriverResponse.from_rows(
+                user,
+                profile,
+                result.ratings[user.id],
+                result.document_statuses.get(user.id, "missing"),
+            )
             for user, profile in result.rows
         ],
         limit=page.limit,
@@ -96,7 +101,13 @@ async def approve_driver(
 ) -> AdminDriverResponse:
     car_class = body.car_class if body is not None else None
     user, profile = await service.approve_driver(
-        db, driver_id, admin.id, car_class=car_class, clock=clock
+        db,
+        driver_id,
+        admin.id,
+        car_class=car_class,
+        package_id=body.package_id if body else None,
+        version=body.version if body else None,
+        clock=clock,
     )
     return AdminDriverResponse.from_rows(
         user, profile, await ratings_service.rating_of(db, user.id)
@@ -118,4 +129,12 @@ async def read_driver(
     driver_id: uuid.UUID, _admin: AdminUser, db: DbSession
 ) -> AdminDriverResponse:
     user, profile, rating = await service.read_admin_driver(db, driver_id)
-    return AdminDriverResponse.from_rows(user, profile, rating)
+    from taxi_service.modules.documents.service import summary
+
+    documents = await summary(db, driver_id) if profile else None
+    return AdminDriverResponse.from_rows(
+        user,
+        profile,
+        rating,
+        documents.package.status if documents and documents.package else "missing",
+    )

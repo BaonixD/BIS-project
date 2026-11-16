@@ -149,6 +149,8 @@ class ApprovalRequest(PatchRequest):
     """Optional body of an approval; without ``car_class`` the class stays as it is."""
 
     car_class: Tariff | None = None
+    package_id: uuid.UUID | None = None
+    version: int | None = Field(default=None, ge=1)
 
 
 class CarClassUpdate(BaseModel):
@@ -184,6 +186,7 @@ class DriverResponse(BaseModel):
 
 
 class AdminDriverResponse(DriverResponse):
+    documents_summary: str = "missing"
     blocked_at: datetime | None
     username: str
     created_at: datetime = Field(description="Registration time of the account.")
@@ -191,11 +194,18 @@ class AdminDriverResponse(DriverResponse):
 
     @classmethod
     def from_rows(
-        cls, user: User, profile: DriverProfile | None, rating: RatingSummary
+        cls,
+        user: User,
+        profile: DriverProfile | None,
+        rating: RatingSummary,
+        document_status: str = "missing",
     ) -> "AdminDriverResponse":
         return cls(
             **_driver_fields(user.id, profile),
             rating=RatingSummaryResponse.build(rating),
+            documents_summary="legacy"
+            if profile and profile.document_requirement_exempt
+            else document_status,
             blocked_at=user.blocked_at,
             username=user.username,
             created_at=user.created_at,

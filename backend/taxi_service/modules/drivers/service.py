@@ -70,6 +70,10 @@ async def update_profile(
                 profile.phone = update.phone
             if vehicle is not None:
                 changed = _apply_vehicle(profile, vehicle, now) or changed
+            if changed:
+                from taxi_service.modules.documents.service import profile_changed
+
+                await profile_changed(db, profile, now)
             if changed and profile.approval_status is ApprovalStatus.APPROVED:
                 _revoke_approval(profile)
                 await revoke_driver_offers(db, driver_id, now)
@@ -182,6 +186,7 @@ class DriverPage:
     rows: list[tuple[User, DriverProfile | None]]
     total: int
     ratings: Mapping[uuid.UUID, RatingSummary]
+    document_statuses: Mapping[uuid.UUID, str]
 
 
 async def list_drivers(
@@ -199,7 +204,19 @@ async def list_drivers(
         )
         total = await _count_drivers(db, status, query=query, online=online)
         ratings = await rating_records.summaries(db, [user.id for user, _ in rows])
-    return DriverPage(rows=rows, total=total, ratings=ratings)
+        from taxi_service.modules.documents.models import DocumentPackage
+
+        statuses = dict(
+            (
+                await db.execute(
+                    select(DocumentPackage.driver_id, DocumentPackage.status).where(
+                        DocumentPackage.driver_id.in_([user.id for user, _ in rows]),
+                        DocumentPackage.status != "superseded",
+                    )
+                )
+            ).all()
+        )
+    return DriverPage(rows=rows, total=total, ratings=ratings, document_statuses=statuses)
 
 
 async def approve_driver(
@@ -208,6 +225,8 @@ async def approve_driver(
     admin_id: uuid.UUID,
     *,
     car_class: Tariff | None = None,
+    package_id: uuid.UUID | None = None,
+    version: int | None = None,
     clock: Clock,
 ) -> tuple[User, DriverProfile]:
     """Approving an approved driver again keeps the first approval; ``car_class`` still applies."""
@@ -220,6 +239,9 @@ async def approve_driver(
         if profile is None or missing:
             raise DriverProfileIncompleteError(missing)
         now = clock.now()
+        from taxi_service.modules.documents.service import approve_package
+
+        await approve_package(db, profile, package_id, version, admin_id, now)
         if profile.approval_status is not ApprovalStatus.APPROVED:
             profile.approval_status = ApprovalStatus.APPROVED
             profile.approved_at = now
