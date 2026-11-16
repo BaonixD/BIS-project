@@ -1,0 +1,157 @@
+import uuid
+from pathlib import Path
+
+from fastapi import APIRouter, Request, UploadFile
+from fastapi.responses import FileResponse
+from sqlalchemy import select
+
+from taxi_service.core.clock import ClockDep
+from taxi_service.database.session import DbSession, read_transaction
+from taxi_service.modules.auth.dependencies import AdminUser, CurrentUser
+from taxi_service.modules.documents import service
+from taxi_service.modules.documents.models import DocumentPackage, DriverDocument
+from taxi_service.modules.documents.schemas import (
+    DocumentKind,
+    DocumentsSummary,
+    PackageCommand,
+    ReviewCommand,
+)
+from taxi_service.modules.documents.storage import document_path, store_upload
+from taxi_service.modules.drivers.router import DriverUser
+from taxi_service.modules.users.models import UserRole
+
+router = APIRouter(tags=["documents"])
+
+
+@router.get("/drivers/me/documents")
+async def mine(user: DriverUser, db: DbSession) -> DocumentsSummary:
+    return await service.summary(db, user.id)
+
+
+@router.get("/admin/drivers/{driver_id}/documents")
+async def admin_documents(
+    driver_id: uuid.UUID, _admin: AdminUser, db: DbSession
+) -> DocumentsSummary:
+    return await service.summary(db, driver_id, include_history=True)
+
+
+@router.put("/drivers/me/documents/{kind}")
+async def upload(
+    kind: DocumentKind,
+    file: UploadFile,
+    user: DriverUser,
+    db: DbSession,
+    clock: ClockDep,
+    request: Request,
+) -> DocumentsSummary:
+    root: Path = request.app.state.settings.document_storage_dir
+    filename = Path((file.filename or "document.pdf").replace("\\", "/")).name[:255]
+    key, size, sha256, pages = await store_upload(
+        file, root, request.app.state.document_validation_limit
+    )
+    path = root / key
+    try:
+        async with db.begin():
+            package = await service.editable(db, user.id, clock.now())
+            existing = await db.scalar(
+                select(DriverDocument).where(
+                    DriverDocument.package_id == package.id, DriverDocument.kind == kind
+                )
+            )
+            if existing is not None:
+                await db.delete(existing)
+                await db.flush()
+            db.add(
+                DriverDocument(
+                    package_id=package.id,
+                    kind=kind,
+                    storage_key=key,
+                    original_filename=filename,
+                    size_bytes=size,
+                    sha256=sha256,
+                    page_count=pages,
+                    created_at=clock.now(),
+                )
+            )
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+    return await service.summary(db, user.id)
+
+
+@router.delete("/drivers/me/documents/{kind}")
+async def remove(
+    kind: DocumentKind, user: DriverUser, db: DbSession, clock: ClockDep
+) -> DocumentsSummary:
+    async with db.begin():
+        package = await service.editable(db, user.id, clock.now())
+        doc = await db.scalar(
+            select(DriverDocument).where(
+                DriverDocument.package_id == package.id, DriverDocument.kind == kind
+            )
+        )
+        if doc is not None:
+            await db.delete(doc)
+    return await service.summary(db, user.id)
+
+
+@router.post("/drivers/me/documents/submit")
+async def submit(
+    body: PackageCommand, user: DriverUser, db: DbSession, clock: ClockDep
+) -> DocumentsSummary:
+    await service.change_package(db, user.id, body.package_id, body.version, "submit", clock.now())
+    return await service.summary(db, user.id)
+
+
+@router.post("/drivers/me/documents/revise")
+async def revise(
+    body: PackageCommand, user: DriverUser, db: DbSession, clock: ClockDep
+) -> DocumentsSummary:
+    await service.change_package(db, user.id, body.package_id, body.version, "revise", clock.now())
+    return await service.summary(db, user.id)
+
+
+@router.get("/documents/{document_id}/content")
+async def content(
+    document_id: uuid.UUID, user: CurrentUser, db: DbSession, request: Request
+) -> FileResponse:
+    async with read_transaction(db):
+        found = (
+            await db.execute(
+                select(DriverDocument, DocumentPackage.driver_id)
+                .join(DocumentPackage, DocumentPackage.id == DriverDocument.package_id)
+                .where(DriverDocument.id == document_id)
+            )
+        ).one_or_none()
+        if found is None or (user.role is not UserRole.ADMIN and found[1] != user.id):
+            raise service.fail("document_not_found", 404)
+        doc = found[0]
+    path = document_path(request.app.state.settings.document_storage_dir, doc.storage_key)
+    return FileResponse(
+        path,
+        media_type="application/pdf",
+        filename="document.pdf",
+        content_disposition_type="attachment",
+        headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"},
+    )
+
+
+@router.post("/admin/drivers/{driver_id}/documents/reject")
+async def reject(
+    driver_id: uuid.UUID, body: ReviewCommand, admin: AdminUser, db: DbSession, clock: ClockDep
+) -> DocumentsSummary:
+    reason = body.reason.strip()
+    if not 3 <= len(reason) <= 500:
+        raise service.fail("validation_error", 422)
+    async with db.begin():
+        package = await service.current(db, driver_id)
+        if package is None or package.id != body.package_id or package.version != body.version:
+            raise service.fail("document_version_conflict")
+        if package.status == "rejected" and package.review_note == reason:
+            pass
+        elif package.status != "pending":
+            raise service.fail("document_package_locked")
+        else:
+            package.status, package.review_note = "rejected", reason
+            package.reviewed_at, package.reviewed_by = clock.now(), admin.id
+    return await service.summary(db, driver_id)
