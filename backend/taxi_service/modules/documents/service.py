@@ -65,7 +65,13 @@ async def summary(
     async with read_transaction(db):
         profile = await db.get(DriverProfile, driver_id)
         if profile is None:
-            raise fail("driver_profile_incomplete")
+            return DocumentsSummary(
+                package=None,
+                documents=[],
+                missing_fields=missing_fields(None),
+                legacy_exempt=False,
+                can_submit=False,
+            )
         packages = list(
             await db.scalars(
                 select(DocumentPackage)
