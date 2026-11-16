@@ -1,3 +1,4 @@
+import { RideEstimate } from '@/components/passenger/RideEstimate'
 import { t, useLocale } from '@/i18n/core'
 import { ROUTE_COLOR } from '@/components/map/layers'
 import { useEffect, useState } from 'react'
@@ -241,7 +242,12 @@ export function RidePage() {
   return (
     <MapLayout
       map={<RideMap ride={ride} screen={screen} insets={insets} ready={sheetHeight > 0} />}
-      sheet={sheet}
+      sheet={
+        <>
+          {sheet}
+          {!confirmCancel && <RideEstimate ride={ride} />}
+        </>
+      }
       sheetLabel={t('Поездка')}
       sheetClassName={sheetClassName}
       centered={centered}

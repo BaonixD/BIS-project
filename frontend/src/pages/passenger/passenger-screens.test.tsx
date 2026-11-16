@@ -40,7 +40,7 @@ describe('RidePage picks the screen from the ride status', () => {
     [makeRide(), 'Подбираем ближайшего водителя'],
     [
       makeRide({ status: 'assigned', payment_method: 'cash', driver: DRIVER }),
-      'Приедет через ~4 мин',
+      'Водитель едет к вам',
     ],
     [
       makeRide({ status: 'arrived', driver: DRIVER, arrived_at: new Date().toISOString() }),
@@ -48,7 +48,7 @@ describe('RidePage picks the screen from the ride status', () => {
     ],
     [
       makeRide({ status: 'in_progress', driver: DRIVER, started_at: new Date().toISOString() }),
-      /Прибытие ~/,
+      'В пути',
     ],
     [
       makeRide({ status: 'completed', payment_method: 'cash', payment_status: 'unpaid' }),
@@ -69,7 +69,7 @@ describe('RidePage picks the screen from the ride status', () => {
     expect(await screen.findByRole('heading', { name: 'Водитель найден' })).toBeInTheDocument()
     expect(screen.getByText(/2 200 ₸ списано через Kaspi/)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Где мой водитель?' }))
-    expect(await screen.findByRole('heading', { name: 'Приедет через ~4 мин' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Водитель едет к вам' })).toBeInTheDocument()
     expect(sessionStorage.getItem('bis.driverFoundSeen:ride-1')).toBe('1')
   })
 
@@ -77,7 +77,7 @@ describe('RidePage picks the screen from the ride status', () => {
     let ride = makeRide({ status: 'assigned', payment_method: 'cash', driver: DRIVER })
     serveRide(() => ride)
     const { queryClient } = renderRoutes(rideRoutes, '/ride/ride-1')
-    await screen.findByRole('heading', { name: 'Приедет через ~4 мин' })
+    await screen.findByRole('heading', { name: 'Водитель едет к вам' })
     ride = makeRide({ payment_method: 'cash' })
     await queryClient.invalidateQueries()
     expect(
@@ -223,4 +223,29 @@ it('translates the passenger driver-search screen and keeps the ride loaded', as
   act(() => setLocale('kk'))
   expect(screen.getByRole('heading', { name: 'Ең жақын жүргізуші ізделуде' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Сапардан бас тарту' })).toBeInTheDocument()
+})
+
+it('shows the server pickup estimate separately from the passenger trip length', async () => {
+  serveRide(makeRide({ status: 'assigned', payment_method: 'cash', driver: DRIVER }))
+  server.routes.set('GET /api/v1/rides/ride-1/estimate', () => ({
+    ride_id: 'ride-1',
+    ride_status: 'assigned',
+    driver_id: 'driver-1',
+    generated_at: new Date().toISOString(),
+    trip_distance_m: 10000,
+    trip_duration_s: 1500,
+    target: 'pickup',
+    distance_m: 1800,
+    duration_s: 300,
+    arrival_at: new Date(Date.now() + 300000).toISOString(),
+    source: 'road',
+    stale: false,
+    location_updated_at: new Date().toISOString(),
+  }))
+  renderRoutes(rideRoutes, '/ride/ride-1')
+  const panel = await screen.findByRole('region', { name: 'Время и расстояние' })
+  expect(await within(panel).findByText('1,8 км')).toBeInTheDocument()
+  expect(within(panel).getByText('5 мин')).toBeInTheDocument()
+  expect(within(panel).getByText('До подачи')).toBeInTheDocument()
+  expect(within(panel).queryByText('10,0 км')).not.toBeInTheDocument()
 })

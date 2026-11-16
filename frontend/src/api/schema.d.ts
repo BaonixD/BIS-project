@@ -416,6 +416,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/rides/{ride_id}/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Estimate */
+        get: operations["read_estimate_api_v1_rides__ride_id__estimate_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/rides/{ride_id}/payment": {
         parameters: {
             query?: never;
@@ -1371,6 +1388,47 @@ export interface components {
             driver: components["schemas"]["DriverCard"] | null;
             /** @description The rating the caller gave this ride; null until they rate it (always null for an admin). */
             my_rating: components["schemas"]["MyRating"] | null;
+        };
+        /** RideEstimateResponse */
+        RideEstimateResponse: {
+            /**
+             * Ride Id
+             * Format: uuid
+             */
+            ride_id: string;
+            ride_status: components["schemas"]["RideStatus"];
+            /** Driver Id */
+            driver_id: string | null;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Trip Distance M */
+            trip_distance_m: number;
+            /** Trip Duration S */
+            trip_duration_s: number;
+            /** Target */
+            target?: ("pickup" | "dropoff") | null;
+            /** Distance M */
+            distance_m?: number | null;
+            /** Duration S */
+            duration_s?: number | null;
+            /** Arrival At */
+            arrival_at?: string | null;
+            /**
+             * Source
+             * @default unavailable
+             * @enum {string}
+             */
+            source: "road" | "approximate" | "unavailable";
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+            /** Location Updated At */
+            location_updated_at?: string | null;
         };
         /** RideResponse */
         RideResponse: {
@@ -3403,6 +3461,64 @@ export interface operations {
             };
             /** @description Conflict with the current state */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    read_estimate_api_v1_rides__ride_id__estimate_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ride_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RideEstimateResponse"];
+                };
+            };
+            /** @description Not authenticated (no or expired session) or invalid credentials */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found or not accessible */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

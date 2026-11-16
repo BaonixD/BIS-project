@@ -1,5 +1,17 @@
 // Shared interface messages. Keep placeholders unchanged in each translation.
 export const en: Record<string, string> = {
+  Рядом: 'Nearby',
+  'Время и расстояние': 'Time and distance',
+  'До подачи': 'Until pickup',
+  'До прибытия': 'Until arrival',
+  'Маршрут поездки': 'Ride route',
+  Прибытие: 'Arrival',
+  'Время уточняется': 'Updating arrival time',
+  'Обновляем время': 'Updating estimate',
+  'Время недоступно': 'Time unavailable',
+  'Приблизительно по расстоянию': 'Rough estimate based on distance',
+  'Примерно, без учёта пробок': 'Estimate, without traffic',
+
   Эконом: 'Economy',
   Комфорт: 'Comfort',
   'Комфорт+': 'Comfort+',
@@ -604,6 +616,18 @@ export const en: Record<string, string> = {
 }
 
 export const kk: Record<string, string> = {
+  Рядом: 'Жақын',
+  'Время и расстояние': 'Уақыт пен қашықтық',
+  'До подачи': 'Көлік келгенге дейін',
+  'До прибытия': 'Жетуге дейін',
+  'Маршрут поездки': 'Сапар бағыты',
+  Прибытие: 'Келу уақыты',
+  'Время уточняется': 'Келу уақыты нақтылануда',
+  'Обновляем время': 'Уақыт жаңартылуда',
+  'Время недоступно': 'Уақыт қолжетімсіз',
+  'Приблизительно по расстоянию': 'Қашықтық бойынша болжам',
+  'Примерно, без учёта пробок': 'Кептеліс ескерілмеген болжам',
+
   Эконом: 'Эконом',
   Комфорт: 'Комфорт',
   'Комфорт+': 'Комфорт+',

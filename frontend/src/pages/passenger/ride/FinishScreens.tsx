@@ -80,7 +80,11 @@ function Divider() {
   return <div className="h-px w-full bg-border-default" />
 }
 function tripLine(ride: RideDetails): string {
-  return `${formatMinutes(ride.route.duration_s)} · ${formatKm(ride.route.distance_m)}`
+  const duration =
+    ride.started_at && ride.completed_at
+      ? Math.max(0, (Date.parse(ride.completed_at) - Date.parse(ride.started_at)) / 1000)
+      : ride.route.duration_s
+  return `${formatMinutes(duration)} · ${formatKm(ride.route.distance_m)}`
 }
 /** Figma 24:668 «Поездка завершена (наличные)»: waits for the driver to confirm the cash. */
 export function PayCashScreen({

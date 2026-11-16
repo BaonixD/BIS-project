@@ -11,14 +11,7 @@ import {
 } from '@/components/passenger/ride-parts'
 import { driverLine } from '@/components/passenger/ride-text'
 import { Button, StatusPill } from '@/components/ui-kit'
-import {
-  elapsedShare,
-  formatClock,
-  formatCountdown,
-  formatKm,
-  formatPrice,
-  pickupEtaMinutes,
-} from '@/pages/passenger/model/format'
+import { elapsedShare, formatCountdown, formatPrice } from '@/pages/passenger/model/format'
 import { cancelText, dropoffCaption, paymentLine } from './ride-text'
 /** The dispatcher looks for a driver for up to 3 minutes (SEARCH_BUDGET_S). */
 export const SEARCH_BUDGET_S = 180
@@ -70,11 +63,6 @@ export function SearchingSheet({
     </>
   )
 }
-function etaText(ride: RideDetails, driver: DriverCard): string | null {
-  return driver.location
-    ? t('~{p0} мин', { p0: pickupEtaMinutes(driver.location, ride.pickup) })
-    : null
-}
 /** Figma 23:256 «Водитель найден — оплата прошла» (Kaspi, shown once). */
 export function DriverFoundSheet({
   ride,
@@ -104,7 +92,6 @@ export function DriverFoundSheet({
         className="gap-2.5 rounded-lg bg-bg-subtle p-4"
         rows={[
           [t('Водитель'), driverLine(driver)],
-          [t('Подача'), etaText(ride, driver) ?? '—'],
           [t('Оплата'), `Kaspi · ${price}`],
         ]}
       />
@@ -136,14 +123,11 @@ export function OnTheWaySheet({
   onCancel: () => void
 }) {
   useLocale()
-  const eta = etaText(ride, driver)
   return (
     <>
       <div className="flex w-full flex-col items-start gap-1">
         <StatusPill tone="success">{t('Водитель едет')}</StatusPill>
-        <h1 className="w-full text-title text-text-primary">
-          {eta ? t('Приедет через {p0}', { p0: eta }) : t('Водитель едет к вам')}
-        </h1>
+        <h1 className="w-full text-title text-text-primary">{t('Водитель едет к вам')}</h1>
       </div>
       <RideDriverCard driver={driver} tariff={ride.tariff} />
       <div className="flex w-full items-center justify-between px-6">
@@ -209,35 +193,17 @@ export function ArrivedSheet({
 export function InProgressSheet({
   ride,
   driver,
-  now,
 }: SheetProps & {
   driver: DriverCard | null
 }) {
   useLocale()
-  const { distance_m, duration_s } = ride.route
-  const share = elapsedShare(ride.started_at, duration_s, now)
-  const arrival = ride.started_at
-    ? Date.parse(ride.started_at) + duration_s * 1000
-    : now + duration_s * 1000
-  const minutesLeft = Math.max(1, Math.round((duration_s * (1 - share)) / 60))
   const PayIcon = ride.payment_method === 'cash' ? Banknote : CreditCard
   return (
     <>
       <div className="flex w-full flex-col items-start gap-1">
         <StatusPill tone="info">{t('В пути')}</StatusPill>
-        <h1 className="w-full text-title text-text-primary">
-          {t('Прибытие ~')}
-          {formatClock(arrival)}
-        </h1>
-        <p className="w-full text-callout text-text-secondary">
-          {t('Осталось ')}
-          {formatKm(distance_m * (1 - share))}
-          {t(' · около ')}
-          {minutesLeft}
-          {t(' мин')}
-        </p>
+        <h1 className="w-full text-title text-text-primary">{t('В пути')}</h1>
       </div>
-      <ProgressBar value={share} label={t('Пройдено')} />
       {driver && <RideDriverCard driver={driver} tariff={ride.tariff} />}
       <div className="flex w-full items-center gap-2.5 text-callout text-text-primary">
         <PayIcon className="size-6 shrink-0" strokeWidth={2} aria-hidden />

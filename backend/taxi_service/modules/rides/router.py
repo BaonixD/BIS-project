@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Request, Response, status
 
 from taxi_service.core.clock import ClockDep
 from taxi_service.database.session import DbSession
@@ -8,7 +8,7 @@ from taxi_service.modules.auth.dependencies import CurrentUser
 from taxi_service.modules.geo.dependencies import RoutingProviderDep
 from taxi_service.modules.payments.dependencies import PaymentSettingsDep
 from taxi_service.modules.ratings import service as ratings_service
-from taxi_service.modules.rides import dispatch, history, lifecycle, service
+from taxi_service.modules.rides import dispatch, estimates, history, lifecycle, service
 from taxi_service.modules.rides.dependencies import (
     CompletionHookDep,
     DispatchPolicyDep,
@@ -18,6 +18,7 @@ from taxi_service.modules.rides.dependencies import (
     PassengerUser,
     RideFiltersDep,
 )
+from taxi_service.modules.rides.estimates import RideEstimateResponse
 from taxi_service.modules.rides.idempotency import REPLAYED_HEADER
 from taxi_service.modules.rides.schemas import (
     CancelRequest,
@@ -212,3 +213,23 @@ async def reject_offer(
 ) -> OfferResponse:
     offer, ride = await dispatch.reject_offer(db, offer_id, user.id, clock=clock, policy=policy)
     return OfferResponse.build(offer, ride, await ratings_service.rating_of(db, ride.passenger_id))
+
+
+@router.get("/{ride_id}/estimate", responses=error_responses(401, 404))
+async def read_estimate(
+    ride_id: uuid.UUID,
+    user: CurrentUser,
+    db: DbSession,
+    clock: ClockDep,
+    routing: RoutingProviderDep,
+    request: Request,
+) -> RideEstimateResponse:
+    return await estimates.estimate(
+        db,
+        ride_id,
+        user_id=user.id,
+        role=user.role,
+        clock=clock,
+        routing=routing,
+        cache=request.app.state.estimate_cache,
+    )

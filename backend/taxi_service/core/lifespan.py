@@ -14,6 +14,7 @@ from taxi_service.modules.geo.client import RoutingProvider, create_routing_http
 from taxi_service.modules.geo.config import RoutingSettings
 from taxi_service.modules.geo.providers import create_routing_provider
 from taxi_service.modules.rides.dispatch_loop import DispatchLoop
+from taxi_service.modules.rides.estimates import EstimateCache
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.session_factory = create_session_factory(engine)
     app.state.migration_heads = expected_heads()
     provider, routing_http = _routing_provider(app.state.routing_provider_override)
+    app.state.estimate_cache = EstimateCache()
     app.state.routing_provider = provider
     app.state.routing_http_client = routing_http
     dispatch_loop = _dispatch_loop(app, settings, engine)
@@ -40,6 +42,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     finally:
         if dispatch_loop is not None:
             await dispatch_loop.stop()
+        await app.state.estimate_cache.close()
         if routing_http is not None:
             await routing_http.aclose()
         await engine.dispose()
