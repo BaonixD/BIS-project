@@ -206,6 +206,9 @@ def route_snapshot(
         "duration_s": route.duration_s,
         "route_geometry": route.route_geometry.model_dump(mode="json"),
         "provider": route.provider,
+        "routing_metadata": route.model_dump(
+            mode="json", include={"traffic_mode", "duration_typical_s", "generated_at"}
+        ),
         "currency": fares.currency,
         "tariff_version": fares.tariff_version,
     }

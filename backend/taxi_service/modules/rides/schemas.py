@@ -352,5 +352,6 @@ def route_of(snapshot: RouteSnapshot) -> RouteResult:
             "duration_s": snapshot.duration_s,
             "route_geometry": snapshot.route_geometry,
             "provider": snapshot.provider,
+            **(snapshot.routing_metadata or {}),
         }
     )

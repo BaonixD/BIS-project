@@ -92,7 +92,17 @@ async def test_route_has_the_spec_shape_in_lon_lat_order(client: httpx.AsyncClie
 
     body = (await client.post(ROUTE_URL, json=ROUTE_BODY, headers=headers)).json()
 
-    assert set(body) == {"distance_m", "duration_s", "route_geometry", "provider"}
+    assert set(body) == {
+        "distance_m",
+        "duration_s",
+        "route_geometry",
+        "provider",
+        "traffic_mode",
+        "duration_typical_s",
+        "generated_at",
+    }
+    assert body["traffic_mode"] == "none"
+    assert body["duration_typical_s"] is None
     assert (body["distance_m"], body["duration_s"], body["provider"]) == (10_000, 1_500, "fake")
     geometry = body["route_geometry"]
     assert geometry["type"] == "LineString"
@@ -360,6 +370,9 @@ async def test_real_osrm_adapter_answers_through_the_endpoint(
         "duration_s": 611,
         "route_geometry": {"type": "LineString", "coordinates": line},
         "provider": "osrm",
+        "traffic_mode": "none",
+        "duration_typical_s": None,
+        "generated_at": None,
     }
     [request] = requests
     assert request.url.path == "/route/v1/driving/76.9572,43.2389;76.9286,43.2187"

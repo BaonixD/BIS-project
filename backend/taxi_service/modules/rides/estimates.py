@@ -19,7 +19,7 @@ from taxi_service.modules.geo.exceptions import (
     RoutingProviderError,
     RoutingUnavailableError,
 )
-from taxi_service.modules.geo.schemas import Coordinates
+from taxi_service.modules.geo.schemas import Coordinates, RouteResult
 from taxi_service.modules.rides.exceptions import RideNotFoundError
 from taxi_service.modules.rides.models import Ride
 from taxi_service.modules.rides.service import can_view_ride
@@ -41,6 +41,7 @@ class RideEstimateResponse(BaseModel):
     source: Literal["road", "approximate", "unavailable"] = "unavailable"
     stale: bool = False
     location_updated_at: datetime | None = None
+    route: RouteResult | None = None
 
 
 class EstimateCache:
@@ -163,6 +164,7 @@ async def estimate(
             else:
                 route = await routing.get_route(origin, destination)
                 value.distance_m, value.duration_s = route.distance_m, route.duration_s
+                value.route = route
             value.source = "road"
         except RouteNotFoundError:
             return value

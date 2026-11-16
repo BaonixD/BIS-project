@@ -13,7 +13,7 @@ SECRET = "eyJ-routing-secret-value"
 @pytest.fixture(autouse=True)
 def _isolate_routing_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in list(os.environ):
-        if name.startswith("ROUTING_") or name == "OSRM_BASE_URL":
+        if name.startswith("ROUTING_") or name in ("OSRM_BASE_URL", "MAPBOX_TOKEN"):
             monkeypatch.delenv(name)
 
 

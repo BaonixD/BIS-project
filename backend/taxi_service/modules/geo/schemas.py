@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -47,3 +48,6 @@ class RouteResult(BaseModel):
     duration_s: NonNegativeInt
     route_geometry: RouteGeometry
     provider: str = Field(min_length=1)
+    traffic_mode: Literal["none", "live_or_typical"] = "none"
+    duration_typical_s: NonNegativeInt | None = None
+    generated_at: datetime | None = None

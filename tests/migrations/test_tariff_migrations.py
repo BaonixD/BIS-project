@@ -140,3 +140,37 @@ def test_upgrade_downgrade_upgrade_leaves_no_schema_diff(old_rows: Config) -> No
 
     command.check(old_rows)
     assert execute(old_rows, "SELECT tariff FROM rides") == [("economy",)]
+
+
+def test_routing_metadata_upgrade_preserves_historical_quotes_prices_and_routes(
+    old_rows: Config,
+) -> None:
+    command.upgrade(old_rows, "78463ec05d38")
+    before_quotes = execute(
+        old_rows, "SELECT economy_amount_kzt, duration_s, provider, route_geometry FROM ride_quotes"
+    )
+    before_rides = execute(
+        old_rows, "SELECT amount_kzt, duration_s, provider, route_geometry FROM rides"
+    )
+    command.upgrade(old_rows, "head")
+    assert execute(old_rows, "SELECT routing_metadata FROM ride_quotes") == [("{}",)]
+    assert execute(old_rows, "SELECT routing_metadata FROM rides") == [("{}",)]
+    assert (
+        execute(
+            old_rows,
+            "SELECT economy_amount_kzt, duration_s, provider, route_geometry FROM ride_quotes",
+        )
+        == before_quotes
+    )
+    assert (
+        execute(old_rows, "SELECT amount_kzt, duration_s, provider, route_geometry FROM rides")
+        == before_rides
+    )
+    command.downgrade(old_rows, "78463ec05d38")
+    assert "routing_metadata" not in columns(old_rows, "rides")
+    command.upgrade(old_rows, "head")
+    command.check(old_rows)
+    assert (
+        execute(old_rows, "SELECT amount_kzt, duration_s, provider, route_geometry FROM rides")
+        == before_rides
+    )

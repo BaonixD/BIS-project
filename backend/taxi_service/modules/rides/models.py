@@ -115,6 +115,9 @@ class RouteSnapshot:
     duration_s: Mapped[int] = mapped_column(Integer())
     route_geometry: Mapped[dict[str, Any]] = mapped_column(JSON())
     provider: Mapped[str] = mapped_column(String(PROVIDER_MAX_LENGTH))
+    routing_metadata: Mapped[dict[str, Any]] = mapped_column(
+        JSON(), default=dict, server_default=text("'{}'")
+    )
     currency: Mapped[str] = mapped_column(String(3))
     tariff_version: Mapped[str] = mapped_column(String(TARIFF_VERSION_MAX_LENGTH))
 

@@ -11,6 +11,7 @@ from taxi_service.core.config import Settings
 from taxi_service.core.logging import configure_logging
 from taxi_service.database.migrations import expected_heads
 from taxi_service.database.session import create_database_engine, create_session_factory
+from taxi_service.modules.geo.cache import CachedRoutingProvider
 from taxi_service.modules.geo.client import RoutingProvider, create_routing_http_client
 from taxi_service.modules.geo.config import RoutingSettings
 from taxi_service.modules.geo.providers import create_routing_provider
@@ -45,6 +46,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if dispatch_loop is not None:
             await dispatch_loop.stop()
         await app.state.estimate_cache.close()
+        if isinstance(provider, CachedRoutingProvider):
+            await provider.aclose()
         if routing_http is not None:
             await routing_http.aclose()
         await engine.dispose()

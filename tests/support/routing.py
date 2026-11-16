@@ -27,6 +27,7 @@ def isolate_routing_environment(monkeypatch: pytest.MonkeyPatch) -> None:
         if name.startswith("ROUTING_"):
             monkeypatch.delenv(name)
     # An empty variable outranks a key or a local OSRM in a developer's .env file.
+    monkeypatch.setenv("MAPBOX_TOKEN", "")
     monkeypatch.setenv("ROUTING_API_KEY", "")
     monkeypatch.setenv("OSRM_BASE_URL", "")
 

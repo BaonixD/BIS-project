@@ -84,7 +84,9 @@ def _route(**overrides: Any) -> dict[str, Any]:
 def test_route_result_serializes_spec_shape() -> None:
     route = RouteResult.model_validate(_route())
 
-    assert route.model_dump(mode="json") == _route()
+    assert route.model_dump(mode="json") == _route(
+        traffic_mode="none", duration_typical_s=None, generated_at=None
+    )
 
 
 @pytest.mark.parametrize(
