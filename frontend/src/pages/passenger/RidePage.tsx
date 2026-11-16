@@ -1,3 +1,4 @@
+import { SupportLink } from '@/components/common/SupportLink'
 import { RideEstimate } from '@/components/passenger/RideEstimate'
 import { t, useLocale } from '@/i18n/core'
 import { ROUTE_COLOR } from '@/components/map/layers'
@@ -245,7 +246,7 @@ export function RidePage() {
       sheet={
         <>
           {sheet}
-          {!confirmCancel && <RideEstimate ride={ride} />}
+          {!confirmCancel && <RideEstimate ride={ride} /><SupportLink rideId={ride.id} compact />}
         </>
       }
       sheetLabel={t('Поездка')}

@@ -11,6 +11,8 @@ import { NotFoundPage } from '@/pages/NotFoundPage'
 const passenger = () => import('./passenger-pages')
 const driver = () => import('./driver-pages')
 const admin = () => import('./admin-pages')
+const supportList = () => import('@/pages/support/SupportListPage')
+const supportThread = () => import('@/pages/support/SupportThreadPage')
 
 function page<M>(load: () => Promise<M>, pick: (module: M) => ComponentType) {
   return {
@@ -37,6 +39,8 @@ export const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
+          { path: '/support', ...page(supportList, (m) => m.SupportListPage) },
+          { path: '/support/:ticketId', ...page(supportThread, (m) => m.SupportThreadPage) },
           { path: '/', ...page(passenger, (m) => m.HomePage) },
           { path: '/ride/:rideId', ...page(passenger, (m) => m.RidePage) },
           { path: '/history', ...page(passenger, (m) => m.HistoryPage) },
@@ -53,6 +57,8 @@ export const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
+          { path: '/driver/support', ...page(supportList, (m) => m.SupportListPage) },
+          { path: '/driver/support/:ticketId', ...page(supportThread, (m) => m.SupportThreadPage) },
           { path: '/driver', ...page(driver, (m) => m.DriverHomePage) },
           { path: '/driver/history', ...page(driver, (m) => m.DriverHistoryPage) },
           { path: '/driver/profile', ...page(driver, (m) => m.DriverProfilePage) },
@@ -68,6 +74,8 @@ export const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
+          { path: '/admin/support', ...page(supportList, (m) => m.SupportListPage) },
+          { path: '/admin/support/:ticketId', ...page(supportThread, (m) => m.SupportThreadPage) },
           { path: '/admin', ...page(admin, (m) => m.AdminDriversPage) },
           { path: '/admin/overview', ...page(admin, (m) => m.AdminOverviewPage) },
           { path: '/admin/users/:userId', ...page(admin, (m) => m.AdminUserPage) },

@@ -1,3 +1,4 @@
+import { SupportLink } from '@/components/common/SupportLink'
 import { t, useLocale } from '@/i18n/core'
 import { useState } from 'react'
 import { User, X } from 'lucide-react'
@@ -46,7 +47,8 @@ export function RideSheet({ ride, onRelease }: { ride: NextRide; onRelease: () =
       <PassengerRow ride={ride} />
       <Stepper steps={RIDE_STEPS()} current={rideStep(ride.status)} />
       {next && (
-        <Button
+        <SupportLink rideId={ride.id} compact />
+      <Button
           className="w-full"
           loading={command.isPending}
           onClick={() =>

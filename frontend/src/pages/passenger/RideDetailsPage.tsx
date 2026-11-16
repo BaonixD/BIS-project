@@ -1,3 +1,4 @@
+import { SupportLink } from '@/components/common/SupportLink'
 import { t, useLocale } from '@/i18n/core'
 import { useNavigate, useParams } from 'react-router'
 import { MapView } from '@/components/map/MapView'
@@ -56,6 +57,7 @@ export function RideDetailsPage() {
                   : t('Куда')
               }
             />
+            <SupportLink rideId={ride.id} />
             <SummaryRows
               className="rounded-lg bg-bg-subtle p-4"
               rows={[

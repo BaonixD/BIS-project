@@ -1,3 +1,4 @@
+import { SupportLink } from '@/components/common/SupportLink'
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
 import { t, useLocale } from '@/i18n/core'
 import { useState, type ReactNode } from 'react'
@@ -66,6 +67,7 @@ export function AdminLayout({
             </NavLink>
           ))}
         </nav>
+        <SupportLink compact />
         {children}
       </div>
     </div>

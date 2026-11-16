@@ -1,3 +1,4 @@
+import { SupportLink } from '@/components/common/SupportLink'
 import { Achievements } from '@/components/common/Achievements'
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
 import { t, useLocale } from '@/i18n/core'
@@ -66,6 +67,7 @@ export function ProfilePage() {
             />
           </GroupedSection>
         )}
+        <SupportLink />
         <Achievements />
         <GroupedSection>
           <GroupedRow
