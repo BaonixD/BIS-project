@@ -1,6 +1,5 @@
 import { t, useLocale } from '@/i18n/core'
-import { useEffect, useRef, useState, type ComponentProps } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useRef, type ComponentProps } from 'react'
 import carImage from '@/assets/car.png'
 import { cn } from '@/lib/utils'
 interface TariffCardProps extends Omit<ComponentProps<'button'>, 'children'> {
@@ -77,57 +76,9 @@ export function TariffCarousel({
 }: TariffCarouselProps) {
   useLocale()
   const strip = useRef<HTMLDivElement>(null)
-  const [edges, setEdges] = useState({ start: true, end: false })
-  useEffect(() => {
-    const node = strip.current
-    if (!node) return
-    const update = () =>
-      setEdges({
-        start: node.scrollLeft <= 1,
-        end: node.scrollLeft + node.clientWidth >= node.scrollWidth - 1,
-      })
-    update()
-    const observer = new ResizeObserver(update)
-    observer.observe(node)
-    node.addEventListener('scroll', update, { passive: true })
-    return () => {
-      observer.disconnect()
-      node.removeEventListener('scroll', update)
-    }
-  }, [options.length])
-  const scroll = (direction: number) => {
-    const node = strip.current
-    if (!node) return
-    node.scrollBy({
-      left: direction * Math.max(176, node.clientWidth - 24),
-      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
-        ? 'instant'
-        : 'smooth',
-    })
-  }
   return (
     <div className={cn('flex w-full min-w-0 flex-col gap-2', className)}>
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-caption text-text-secondary">{label}</p>
-        <div className="flex gap-1">
-          {([-1, 1] as const).map((direction) => (
-            <button
-              key={direction}
-              type="button"
-              aria-label={t(direction < 0 ? 'Предыдущие тарифы' : 'Следующие тарифы')}
-              disabled={direction < 0 ? edges.start : edges.end}
-              onClick={() => scroll(direction)}
-              className="flex size-9 items-center justify-center rounded-full bg-bg-subtle text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-bg-inverse disabled:opacity-30"
-            >
-              {direction < 0 ? (
-                <ChevronLeft className="size-5" aria-hidden />
-              ) : (
-                <ChevronRight className="size-5" aria-hidden />
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
+      <p className="text-caption text-text-secondary">{label}</p>
       <div
         ref={strip}
         role="radiogroup"
