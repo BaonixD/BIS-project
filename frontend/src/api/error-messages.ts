@@ -1,6 +1,14 @@
 import { t } from '@/i18n/core'
 import { ApiError } from './errors'
 const MESSAGES = (): Record<string, string> => ({
+  invalid_document: t('Загрузите обычный PDF без пароля, до 10 страниц.'),
+  document_too_large: t('Файл должен быть не больше 10 МБ.'),
+  document_version_conflict: t('Обновите карточку: версия документов изменилась.'),
+  document_package_locked: t('Для замены создайте новую версию документов.'),
+  document_package_incomplete: t('Заполните профиль и загрузите оба документа.'),
+  document_package_not_submitted: t('Сначала отправьте документы на проверку.'),
+  document_package_not_approved: t('Для выхода на линию нужны проверенные документы.'),
+  document_not_found: t('Документ не найден или недоступен.'),
   network_error: t('Нет связи с сервером. Проверьте подключение и попробуйте ещё раз.'),
   unknown_error: t('Сервер ответил неожиданно. Попробуйте ещё раз.'),
   internal_error: t('Внутренняя ошибка сервера. Попробуйте позже.'),
