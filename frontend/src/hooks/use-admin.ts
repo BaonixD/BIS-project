@@ -27,6 +27,7 @@ export function useAdminDrivers(
 export interface ApproveDriverVariables {
   driverId: string
   /** Optional: without it the backend keeps the current class (a new car is economy). */
+  review?: { package_id: string; version: number }
   carClass: Tariff | null
 }
 
@@ -38,8 +39,8 @@ function useInvalidateDrivers() {
 export function useApproveDriver() {
   const invalidate = useInvalidateDrivers()
   return useMutation({
-    mutationFn: ({ driverId, carClass }: ApproveDriverVariables) =>
-      postApproveDriver(driverId, carClass),
+    mutationFn: ({ driverId, carClass, review }: ApproveDriverVariables) =>
+      postApproveDriver(driverId, carClass, review),
     onSettled: invalidate,
   })
 }

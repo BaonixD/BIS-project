@@ -1,3 +1,4 @@
+import { AdminDocuments } from '@/components/documents/AdminDocuments'
 import { dateFormatter } from '@/i18n/date'
 import { t, useLocale } from '@/i18n/core'
 import { APPROVAL_STATUS_LABELS } from '@/lib/labels'
@@ -108,6 +109,7 @@ export function AdminDriverPage() {
         {driver ? (
           <>
             <DriverDetails driver={driver} />
+            <AdminDocuments driverId={driver.id} />
             {driver.blocked_at && (
               <StatusPill tone="danger">{t('Аккаунт заблокирован')}</StatusPill>
             )}
@@ -131,7 +133,7 @@ export function AdminDriverPage() {
         <ScreenFooter>
           <Button
             className="w-full"
-            disabled={Boolean(driver.blocked_at)}
+            disabled={Boolean(driver.blocked_at) || (!approved && !["pending", "legacy"].includes(driver.documents_summary))}
             onClick={() => flow.open(driver)}
           >
             {approved ? t('Сменить класс машины') : t('Одобрить водителя')}

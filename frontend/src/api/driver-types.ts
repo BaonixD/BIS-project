@@ -46,7 +46,7 @@ export function postApproveDriver(
   return unwrap(
     api.POST('/api/v1/admin/drivers/{driver_id}/approve', {
       params: { path: { driver_id: driverId } },
-      body: carClass ? { car_class: carClass } : undefined,
+      body: { ...(carClass ? { car_class: carClass } : {}), ...review },
     }),
   )
 }
