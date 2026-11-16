@@ -56,7 +56,11 @@ async def editable(db: AsyncSession, driver_id: uuid.UUID, now: datetime) -> Doc
 
 
 async def summary(
-    db: AsyncSession, driver_id: uuid.UUID, *, include_history: bool = False
+    db: AsyncSession,
+    driver_id: uuid.UUID,
+    *,
+    include_history: bool = False,
+    package_id: uuid.UUID | None = None,
 ) -> DocumentsSummary:
     async with read_transaction(db):
         profile = await db.get(DriverProfile, driver_id)
@@ -71,6 +75,11 @@ async def summary(
             )
         )
         package = next((item for item in packages if item.status != "superseded"), None)
+        if package_id is not None:
+            selected = next((item for item in packages if item.id == package_id), None)
+            if selected is None:
+                raise fail("document_not_found", 404)
+            package = selected
         documents = (
             []
             if package is None

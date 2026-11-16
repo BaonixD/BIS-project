@@ -30,7 +30,7 @@ class DocumentView(BaseModel):
 class DocumentsSummary(BaseModel):
     package: PackageView | None
     documents: list[DocumentView]
-    history: list[PackageView] = []
+    history: list[PackageView] = Field(default_factory=list)
     missing_fields: list[str]
     legacy_exempt: bool
     can_submit: bool

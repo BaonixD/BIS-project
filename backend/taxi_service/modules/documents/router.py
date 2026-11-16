@@ -30,9 +30,9 @@ async def mine(user: DriverUser, db: DbSession) -> DocumentsSummary:
 
 @router.get("/admin/drivers/{driver_id}/documents")
 async def admin_documents(
-    driver_id: uuid.UUID, _admin: AdminUser, db: DbSession
+    driver_id: uuid.UUID, _admin: AdminUser, db: DbSession, package_id: uuid.UUID | None = None
 ) -> DocumentsSummary:
-    return await service.summary(db, driver_id, include_history=True)
+    return await service.summary(db, driver_id, include_history=True, package_id=package_id)
 
 
 @router.put("/drivers/me/documents/{kind}")
@@ -155,3 +155,28 @@ async def reject(
             package.status, package.review_note = "rejected", reason
             package.reviewed_at, package.reviewed_by = clock.now(), admin.id
     return await service.summary(db, driver_id)
+
+
+@router.post("/admin/drivers/{driver_id}/documents/request")
+async def request_documents(
+    driver_id: uuid.UUID, body: RequestDocuments, _admin: AdminUser, db: DbSession, clock: ClockDep
+) -> DocumentsSummary:
+    from taxi_service.modules.drivers.models import ApprovalStatus
+    from taxi_service.modules.rides.dispatch import revoke_driver_offers
+    from taxi_service.modules.rides.service import driver_has_active_ride
+
+    async with db.begin():
+        profile = await db.get(DriverProfile, driver_id)
+        if profile is None:
+            raise service.fail("driver_not_found", 404)
+        if await driver_has_active_ride(db, driver_id):
+            raise service.fail("driver_on_active_ride")
+        await service.profile_changed(db, profile, clock.now())
+        package = await service.editable(db, driver_id, clock.now())
+        package.review_note = body.reason
+        profile.document_requirement_exempt = False
+        profile.approval_status = ApprovalStatus.PENDING
+        profile.approved_at = profile.approved_by = None
+        profile.is_online = False
+        await revoke_driver_offers(db, driver_id, clock.now())
+    return await service.summary(db, driver_id, include_history=True)
