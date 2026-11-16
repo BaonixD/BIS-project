@@ -1894,6 +1894,7 @@ export interface components {
             stale: boolean;
             /** Location Updated At */
             location_updated_at?: string | null;
+            route?: components["schemas"]["RouteResult"] | null;
         };
         /** RideResponse */
         RideResponse: {
@@ -2039,6 +2040,16 @@ export interface components {
             route_geometry: components["schemas"]["RouteGeometry"];
             /** Provider */
             provider: string;
+            /**
+             * Traffic Mode
+             * @default none
+             * @enum {string}
+             */
+            traffic_mode: "none" | "live_or_typical";
+            /** Duration Typical S */
+            duration_typical_s?: number | null;
+            /** Generated At */
+            generated_at?: string | null;
         };
         /** SendMessage */
         SendMessage: {

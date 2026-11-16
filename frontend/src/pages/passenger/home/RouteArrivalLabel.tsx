@@ -18,7 +18,14 @@ export function RouteArrivalLabel({ route }: { route: RouteResult }) {
       <p className="text-caption">
         {formatMinutes(route.duration_s)} · {formatKmCompact(route.distance_m)}
       </p>
-      <p className="text-[11px] leading-4 opacity-70">{t('Если выехать сейчас · без пробок')}</p>
+      <p className="text-[11px] leading-4 opacity-70">{t('Если выехать сейчас')}</p>
+      <p className="text-[11px] leading-4 opacity-70">
+        {t(
+          route.traffic_mode === 'live_or_typical'
+            ? 'С учётом дорожной ситуации'
+            : 'Без учёта актуальных пробок',
+        )}
+      </p>
     </section>
   )
 }

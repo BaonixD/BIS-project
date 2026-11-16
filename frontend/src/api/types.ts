@@ -18,6 +18,7 @@ export type RouteResult = Schemas['RouteResult']
 export type Quote = Schemas['QuoteResponse']
 export type Ride = Schemas['RideResponse']
 export type RideDetails = Schemas['RideDetailsResponse']
+export type RideEstimateData = Schemas['RideEstimateResponse']
 export type RideSummary = Schemas['RideSummary']
 export type DriverCard = Schemas['DriverCard']
 

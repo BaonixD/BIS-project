@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
-import { api, unwrap, type RideDetails } from '@/api'
+import type { RideDetails } from '@/api'
+import { useRideEstimate, estimateIsFresh } from '@/hooks/use-ride-estimate'
 import { t, useLocale } from '@/i18n/core'
 import { formatClock, formatKm, formatMinutes } from '@/pages/passenger/model/format'
 import { useNow } from '@/hooks/use-countdown'
@@ -8,23 +8,9 @@ export function RideEstimate({ ride }: { ride: RideDetails }) {
   useLocale()
   const active = ride.status === 'assigned' || ride.status === 'in_progress'
   const now = useNow(1000, active)
-  const query = useQuery({
-    queryKey: ['rides', 'estimate', ride.id, ride.driver_id, ride.status],
-    queryFn: () =>
-      unwrap(
-        api.GET('/api/v1/rides/{ride_id}/estimate', { params: { path: { ride_id: ride.id } } }),
-      ),
-    enabled: active,
-    refetchInterval: active ? 15_000 : false,
-    retry: false,
-  })
+  const query = useRideEstimate(ride)
   const data = query.data
-  const valid =
-    data &&
-    !query.isError &&
-    !data.stale &&
-    data.source !== 'unavailable' &&
-    now - Date.parse(data.generated_at) < 60_000
+  const valid = data && !query.isError && estimateIsFresh(data, now)
   const expired =
     valid && data.arrival_at && Date.parse(data.arrival_at) <= now && data.duration_s !== 0
   const seconds =
@@ -80,7 +66,9 @@ export function RideEstimate({ ride }: { ride: RideDetails }) {
                   : 'Время недоступно'
                 : data.source === 'approximate'
                   ? 'Приблизительно по расстоянию'
-                  : 'Примерно, без учёта пробок',
+                  : data.route?.traffic_mode === 'live_or_typical'
+                    ? 'Примерное время, с учётом дорожной ситуации'
+                    : 'Без учёта актуальных пробок',
           )}
         </p>
       )}

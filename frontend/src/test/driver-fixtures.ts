@@ -57,6 +57,7 @@ export function rideFixture(overrides: Partial<NextRide> = {}): NextRide {
       duration_s: 1500,
       route_geometry: { type: 'LineString', coordinates: [[PICKUP.longitude, PICKUP.latitude], [DROPOFF.longitude, DROPOFF.latitude]] },
       provider: 'test',
+      traffic_mode: 'none',
     },
     tariff: 'economy',
     amount_kzt: 2200,

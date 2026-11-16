@@ -1,12 +1,13 @@
-import type { DriverCard, Quote, RideDetails } from '@/api'
+import type { DriverCard, Quote, RideDetails, RouteResult } from '@/api'
 
 export const PICKUP = { latitude: 43.2545, longitude: 76.936 }
 export const DROPOFF = { latitude: 43.21834, longitude: 76.92763 }
 
-export const ROUTE = {
+export const ROUTE: RouteResult = {
   distance_m: 10_000,
   duration_s: 1500,
   provider: 'openrouteservice',
+  traffic_mode: 'none',
   route_geometry: { type: 'LineString', coordinates: [[PICKUP.longitude, PICKUP.latitude], [DROPOFF.longitude, DROPOFF.latitude]] },
 }
 

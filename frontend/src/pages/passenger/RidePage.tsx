@@ -1,6 +1,7 @@
 import { SupportLink } from '@/components/common/SupportLink'
 import { RideEstimate } from '@/components/passenger/RideEstimate'
 import { t, useLocale } from '@/i18n/core'
+import { useRideEstimate, estimateIsFresh } from '@/hooks/use-ride-estimate'
 import { ROUTE_COLOR } from '@/components/map/layers'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
@@ -79,6 +80,11 @@ function RideMap({
   ready: boolean
 }) {
   useLocale()
+  const estimateQuery = useRideEstimate(ride)
+  const estimate = estimateQuery.data
+  const now = useNow(1000, ride.status === 'assigned' || ride.status === 'in_progress')
+  const currentRoute =
+    estimate && !estimateQuery.isError && estimateIsFresh(estimate, now) ? estimate.route : null
   const driver = ride.driver?.location ?? null
   if (screen === 'searching' || screen === 'no_driver') {
     return (
@@ -89,16 +95,17 @@ function RideMap({
     )
   }
   if (screen === 'in_progress') {
+    const route = currentRoute ?? ride.route
     const ahead = [
       ...(driver ? [toLatLng(driver)] : []),
-      ...routeToLatLngs(ride.route),
+      ...routeToLatLngs(route),
       toLatLng(ride.dropoff),
     ]
     return (
       <MapView
         center={ride.pickup}
         dropoff={ride.dropoff}
-        route={ride.route}
+        route={route}
         driver={driver}
         fit={false}
       >
@@ -109,10 +116,25 @@ function RideMap({
   const approach: LatLngTuple[] | null =
     screen === 'on_the_way' && driver ? [toLatLng(driver), toLatLng(ride.pickup)] : null
   return (
-    <MapView center={ride.pickup} pickup={ride.pickup} driver={driver} fit={false}>
-      {approach && <Polyline positions={approach} pathOptions={APPROACH_LINE} />}
+    <MapView
+      center={ride.pickup}
+      pickup={ride.pickup}
+      driver={driver}
+      route={currentRoute}
+      fit={false}
+    >
+      {!currentRoute && approach && <Polyline positions={approach} pathOptions={APPROACH_LINE} />}
       {ready && (
-        <FitToPoints points={driver ? [driver, ride.pickup] : [ride.pickup]} insets={insets} />
+        <FitToPoints
+          points={
+            currentRoute
+              ? routeToLatLngs(currentRoute)
+              : driver
+                ? [driver, ride.pickup]
+                : [ride.pickup]
+          }
+          insets={insets}
+        />
       )}
     </MapView>
   )

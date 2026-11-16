@@ -18,6 +18,7 @@ const route: RouteResult = {
   distance_m: 2000,
   duration_s: 300,
   provider: 'osrm',
+  traffic_mode: 'none',
   route_geometry: {
     type: 'LineString',
     coordinates: [

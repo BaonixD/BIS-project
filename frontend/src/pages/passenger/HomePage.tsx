@@ -11,7 +11,7 @@ import { useMapInsets } from '@/components/map/use-map-insets'
 import { MapLayout, MapOverlay, RoundButton } from '@/components/passenger/layout'
 import { CenterPin, PIN_MAP_CLASS, PinTracker } from '@/components/passenger/map-layers'
 import { usePlaceTitle } from '@/components/passenger/ride-text'
-import { FloatingIconButton } from '@/components/ui-kit'
+import { FloatingIconButton, showToast } from '@/components/ui-kit'
 import { useReverseGeocode } from '@/hooks/use-geocoding'
 import { newIdempotencyKey, useActiveRide, useCreateRide, useRouteQuote } from '@/hooks/use-rides'
 import { useDebouncedValue } from '@/lib/geocoding'
@@ -107,8 +107,18 @@ export function HomePage() {
     const current = target === 'pickup' ? pickupPoint : dropoff?.point
     setStep({ name: 'map', target, start: start ?? current ?? pickupPoint })
   }
-  const order = () => {
-    if (!quote.data || !dropoff) return
+  const order = async () => {
+    if (!quote.data || !dropoff || quote.isFetching || createRide.isPending) return
+    if (
+      Date.now() - quote.dataUpdatedAt >= 60_000 ||
+      Date.now() >= Date.parse(quote.data.expires_at)
+    ) {
+      const refreshed = await quote.refetch()
+      if (refreshed.data && !refreshed.isError) {
+        showToast({ title: t('Расчёт обновлён. Проверьте цену и нажмите «Заказать» ещё раз.') })
+      }
+      return
+    }
     setLocalError(null)
     if (openKaspiLink(paymentMethod, quote.data.kaspi_payment_url) === 'unavailable') {
       setLocalError(passengerErrorMessage({ code: 'kaspi_unavailable' }))
@@ -153,7 +163,7 @@ export function HomePage() {
         choosing
           ? {
               ...insets,
-              top: (insets.top ?? 0) + 48,
+              top: (insets.top ?? 0) + 72,
               left: (insets.left ?? 0) + 80,
               right: (insets.right ?? 0) + 80,
             }
@@ -249,7 +259,7 @@ export function HomePage() {
                 setLocalError(null)
                 setPaymentMethod(method)
               }}
-              ordering={createRide.isPending}
+              ordering={createRide.isPending || quote.isFetching}
               error={orderError}
               onOrder={order}
               onEdit={(target) => setStep({ name: 'search', target })}

@@ -31,7 +31,7 @@ export function useRouteQuote(points: RoutePoints | null) {
       return unwrap(api.POST('/api/v1/rides/quotes', { body: { pickup, dropoff } }))
     },
     enabled: points !== null,
-    staleTime: Infinity,
+    staleTime: 60_000,
     gcTime: 0,
     retry: false,
   })

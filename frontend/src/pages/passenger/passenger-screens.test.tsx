@@ -10,7 +10,9 @@ import { RidePage } from './RidePage'
 
 const server = await vi.hoisted(async () => (await import('./test/fake-server')).installFakeFetch())
 
-vi.mock('@/auth/use-session', () => ({ useSession: () => ({ user: { id: 'p1', role: 'passenger', username: 'passenger' } }) }))
+vi.mock('@/auth/use-session', () => ({
+  useSession: () => ({ user: { id: 'p1', role: 'passenger', username: 'passenger' } }),
+}))
 vi.mock('@/components/map/MapView', () => ({ MapView: () => <div data-testid="map" /> }))
 
 beforeEach(async () => {
@@ -249,4 +251,35 @@ it('shows the server pickup estimate separately from the passenger trip length',
   expect(within(panel).getByText('5 мин')).toBeInTheDocument()
   expect(within(panel).getByText('До подачи')).toBeInTheDocument()
   expect(within(panel).queryByText('10,0 км')).not.toBeInTheDocument()
+})
+
+it('refreshes an expired quote before ordering and requires confirmation of the new fare', async () => {
+  const expired = { ...QUOTE, expires_at: new Date(Date.now() - 1000).toISOString() }
+  const fresh = {
+    ...QUOTE,
+    quote_id: 'quote-fresh',
+    expires_at: new Date(Date.now() + 300000).toISOString(),
+    options: QUOTE.options.map((item) => ({ ...item, amount_kzt: item.amount_kzt + 100 })),
+  }
+  let requests = 0
+  server.routes.set('POST /api/v1/rides/quotes', () => (++requests === 1 ? expired : fresh))
+  server.routes.set('POST /api/v1/rides', () => makeRide())
+  renderRoutes([{ path: '/', element: <HomePage /> }], '/')
+  await userEvent.click(await screen.findByRole('button', { name: /Esentai Mall/ }))
+  const button = await screen.findByRole('button', { name: 'Заказать Эконом · Наличные' })
+  await waitFor(() => expect(button).toBeEnabled())
+  await userEvent.click(button)
+  await waitFor(() => expect(requests).toBe(2))
+  expect(server.calls.some((call) => call.path === '/api/v1/rides' && call.method === 'POST')).toBe(
+    false,
+  )
+  expect(await screen.findByText('2 300 ₸')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Заказать Эконом · Наличные' }))
+  await waitFor(() =>
+    expect(
+      server.calls.some((call) => call.path === '/api/v1/rides' && call.method === 'POST'),
+    ).toBe(true),
+  )
+  const order = server.calls.find((call) => call.path === '/api/v1/rides' && call.method === 'POST')
+  expect(order?.body).toMatchObject({ quote_id: 'quote-fresh', tariff: 'economy' })
 })

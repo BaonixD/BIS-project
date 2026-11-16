@@ -1,5 +1,10 @@
 // Shared interface messages. Keep placeholders unchanged in each translation.
 export const en: Record<string, string> = {
+  'Если выехать сейчас': 'If you leave now',
+  'С учётом дорожной ситуации': 'Considering traffic conditions',
+  'Примерное время, с учётом дорожной ситуации': 'Estimated time, considering traffic conditions',
+  'Без учёта актуальных пробок': 'Without live traffic information',
+  'Расчёт обновлён. Проверьте цену и нажмите «Заказать» ещё раз.': 'Estimate updated. Check the fare and select “Book” again.',
   'Прогноз прибытия': 'Estimated arrival',
   'Прибытие ≈{p0}': 'Arrival ≈{p0}',
   'Если выехать сейчас · без пробок': 'Leaving now · without traffic',
@@ -718,6 +723,11 @@ export const en: Record<string, string> = {
 }
 
 export const kk: Record<string, string> = {
+  'Если выехать сейчас': 'Қазір жолға шықсаңыз',
+  'С учётом дорожной ситуации': 'Жол жағдайы ескерілген',
+  'Примерное время, с учётом дорожной ситуации': 'Жол жағдайы ескерілген болжамды уақыт',
+  'Без учёта актуальных пробок': 'Қазіргі кептеліс ескерілмеген',
+  'Расчёт обновлён. Проверьте цену и нажмите «Заказать» ещё раз.': 'Есеп жаңартылды. Бағаны тексеріп, «Тапсырыс беру» түймесін қайта басыңыз.',
   'Прогноз прибытия': 'Болжамды келу уақыты',
   'Прибытие ≈{p0}': 'Келу ≈{p0}',
   'Если выехать сейчас · без пробок': 'Қазір шыққанда · кептеліссіз',
