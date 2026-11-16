@@ -1,5 +1,8 @@
 // Shared interface messages. Keep placeholders unchanged in each translation.
 export const en: Record<string, string> = {
+  'Прогноз прибытия': 'Estimated arrival',
+  'Прибытие ≈{p0}': 'Arrival ≈{p0}',
+  'Если выехать сейчас · без пробок': 'Leaving now · without traffic',
   'Время в пути': 'Travel time',
 "До места назначения": "To your destination",
   Поддержка: 'Support',
@@ -715,6 +718,9 @@ export const en: Record<string, string> = {
 }
 
 export const kk: Record<string, string> = {
+  'Прогноз прибытия': 'Болжамды келу уақыты',
+  'Прибытие ≈{p0}': 'Келу ≈{p0}',
+  'Если выехать сейчас · без пробок': 'Қазір шыққанда · кептеліссіз',
   'Время в пути': 'Жол жүру уақыты',
 "До места назначения": "Бару орнына дейін",
   Поддержка: 'Қолдау',

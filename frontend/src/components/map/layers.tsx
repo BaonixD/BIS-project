@@ -1,6 +1,6 @@
 import { t, useLocale } from '@/i18n/core'
-import { useEffect } from 'react'
-import { Marker, Polyline, useMap } from 'react-leaflet'
+import { useEffect, type ReactNode } from 'react'
+import { Marker, Polyline, Tooltip, useMap } from 'react-leaflet'
 import {
   latLngBounds,
   type LatLngTuple,
@@ -19,7 +19,15 @@ const MARKERS = () =>
     driver: { icon: carIcon, label: t('Водитель') },
     me: { icon: myLocationIcon, label: t('Вы здесь') },
   }) as const
-export function PointMarker({ point, kind }: { point: Coordinates; kind: PointKind }) {
+export function PointMarker({
+  point,
+  kind,
+  children,
+}: {
+  point: Coordinates
+  kind: PointKind
+  children?: ReactNode
+}) {
   useLocale()
   const { icon, label } = MARKERS()[kind]
   return (
@@ -31,7 +39,19 @@ export function PointMarker({ point, kind }: { point: Coordinates; kind: PointKi
       keyboard={false}
       interactive={false}
       zIndexOffset={kind === 'driver' ? 1000 : 0}
-    />
+    >
+      {children && (
+        <Tooltip
+          permanent
+          direction="top"
+          offset={[0, -18]}
+          className="bis-arrival-label"
+          opacity={1}
+        >
+          {children}
+        </Tooltip>
+      )}
+    </Marker>
   )
 }
 /** Route lines use the brand green (accent/success). */

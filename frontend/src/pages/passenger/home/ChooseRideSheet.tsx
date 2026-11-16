@@ -4,7 +4,6 @@ import type { PaymentMethod, Quote } from '@/api'
 import type { Tariff } from '@/api/passenger-types'
 import { Button, PaymentMethodPicker, Skeleton, TariffCarousel } from '@/components/ui-kit'
 import routeRail from '@/assets/passenger/route-rail.svg'
-import { formatKmCompact, formatMinutes } from '@/pages/passenger/model/format'
 import { orderButtonLabel, tariffOptions } from '@/pages/passenger/model/order'
 interface ChooseRideSheetProps {
   pickupTitle: string
@@ -23,8 +22,7 @@ interface ChooseRideSheetProps {
 function RouteSummary({
   pickupTitle,
   dropoffTitle,
-  quote,
-}: Pick<ChooseRideSheetProps, 'pickupTitle' | 'dropoffTitle' | 'quote'>) {
+}: Pick<ChooseRideSheetProps, 'pickupTitle' | 'dropoffTitle'>) {
   useLocale()
   return (
     <div className="flex w-full items-center gap-3 overflow-hidden rounded-lg bg-bg-subtle px-4 py-3 lg:hidden">
@@ -33,13 +31,6 @@ function RouteSummary({
         <p className="truncate">{pickupTitle}</p>
         <p className="truncate">{dropoffTitle}</p>
       </div>
-      {quote ? (
-        <p className="shrink-0 text-caption whitespace-nowrap text-text-secondary">
-          {formatKmCompact(quote.route.distance_m)} · {formatMinutes(quote.route.duration_s)}
-        </p>
-      ) : (
-        <Skeleton className="h-4 w-20" />
-      )}
     </div>
   )
 }
@@ -47,9 +38,8 @@ function RouteSummary({
 function DesktopPoints({
   pickupTitle,
   dropoffTitle,
-  quote,
   onEdit,
-}: Pick<ChooseRideSheetProps, 'pickupTitle' | 'dropoffTitle' | 'quote' | 'onEdit'>) {
+}: Pick<ChooseRideSheetProps, 'pickupTitle' | 'dropoffTitle' | 'onEdit'>) {
   useLocale()
   const field = (Icon: typeof MapPin, text: string, target: 'pickup' | 'dropoff') => (
     <button
@@ -69,34 +59,6 @@ function DesktopPoints({
       <div className="hidden w-full flex-col gap-2 lg:flex">
         {field(CircleDot, pickupTitle, 'pickup')}
         {field(MapPin, dropoffTitle, 'dropoff')}
-        <section
-          aria-label={t('Время и расстояние')}
-          className="mt-1 rounded-md bg-bg-subtle px-4 py-3"
-        >
-          <dl className="grid grid-cols-2 gap-3">
-            <div>
-              <dt className="text-caption text-text-secondary">{t('Время в пути')}</dt>
-              <dd className="text-body-medium text-text-primary">
-                {quote ? (
-                  `~${formatMinutes(quote.route.duration_s)}`
-                ) : (
-                  <Skeleton className="mt-1 h-5 w-20" />
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-caption text-text-secondary">{t('Расстояние')}</dt>
-              <dd className="text-body-medium text-text-primary">
-                {quote ? (
-                  formatKmCompact(quote.route.distance_m)
-                ) : (
-                  <Skeleton className="mt-1 h-5 w-20" />
-                )}
-              </dd>
-            </div>
-          </dl>
-          <p className="mt-2 text-caption text-text-secondary">{t('Примерно, без учёта пробок')}</p>
-        </section>
       </div>
     </>
   )

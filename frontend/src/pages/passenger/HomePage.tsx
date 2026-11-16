@@ -17,6 +17,7 @@ import { newIdempotencyKey, useActiveRide, useCreateRide, useRouteQuote } from '
 import { useDebouncedValue } from '@/lib/geocoding'
 import { AddressSearchScreen } from './home/AddressSearchScreen'
 import { ChooseRideSheet } from './home/ChooseRideSheet'
+import { RouteArrivalLabel } from './home/RouteArrivalLabel'
 import { isReorderState, type ReorderState, type Step, type Target } from './home/flow'
 import { HomeSheet } from './home/HomeSheet'
 import { MapPointSheet } from './home/MapPointSheet'
@@ -143,7 +144,21 @@ export function HomePage() {
       pickup={choosing && !quote.isError ? pickupPoint : null}
       dropoff={choosing && !quote.isError ? dropoff.point : null}
       route={choosing ? quote.data?.route : null}
-      insets={insets}
+      dropoffLabel={
+        choosing && !quote.isError && quote.data ? (
+          <RouteArrivalLabel route={quote.data.route} />
+        ) : undefined
+      }
+      insets={
+        choosing
+          ? {
+              ...insets,
+              top: (insets.top ?? 0) + 48,
+              left: (insets.left ?? 0) + 80,
+              right: (insets.right ?? 0) + 80,
+            }
+          : insets
+      }
       fit={choosing && sheetHeight > 0}
       onPick={step.name === 'home' ? (point) => openMap('dropoff', point) : undefined}
     >

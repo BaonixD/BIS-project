@@ -11,6 +11,7 @@ export interface MapViewProps {
   zoom?: number
   pickup?: Coordinates | null
   dropoff?: Coordinates | null
+  dropoffLabel?: ReactNode
   driver?: Coordinates | null
   me?: Coordinates | null
   route?: RouteResult | LatLngTuple[] | null
@@ -23,8 +24,17 @@ export interface MapViewProps {
   children?: ReactNode
 }
 
-function fitPoints({ route, pickup, dropoff, driver }: Pick<MapViewProps, 'route' | 'pickup' | 'dropoff' | 'driver'>) {
-  const points: LatLngTuple[] = route ? (Array.isArray(route) ? [...route] : routeToLatLngs(route)) : []
+function fitPoints({
+  route,
+  pickup,
+  dropoff,
+  driver,
+}: Pick<MapViewProps, 'route' | 'pickup' | 'dropoff' | 'driver'>) {
+  const points: LatLngTuple[] = route
+    ? Array.isArray(route)
+      ? [...route]
+      : routeToLatLngs(route)
+    : []
   for (const point of [pickup, dropoff, driver]) if (point) points.push(toLatLng(point))
   return points
 }
@@ -39,6 +49,7 @@ export function MapView({
   zoom,
   pickup,
   dropoff,
+  dropoffLabel,
   driver,
   me,
   route,
@@ -52,9 +63,15 @@ export function MapView({
       {route && <RouteLine route={route} />}
       {me && <PointMarker point={me} kind="me" />}
       {pickup && <PointMarker point={pickup} kind="pickup" />}
-      {dropoff && <PointMarker point={dropoff} kind="dropoff" />}
+      {dropoff && (
+        <PointMarker point={dropoff} kind="dropoff">
+          {dropoffLabel}
+        </PointMarker>
+      )}
       {driver && <PointMarker point={driver} kind="driver" />}
-      {fit && <FitToPoints points={fitPoints({ route, pickup, dropoff, driver })} insets={insets} />}
+      {fit && (
+        <FitToPoints points={fitPoints({ route, pickup, dropoff, driver })} insets={insets} />
+      )}
       {children}
     </BaseMap>
   )
