@@ -1,5 +1,6 @@
 import { t, useLocale } from '@/i18n/core'
-import type { ComponentProps } from 'react'
+import { useEffect, useRef, useState, type ComponentProps } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import carImage from '@/assets/car.png'
 import { cn } from '@/lib/utils'
 interface TariffCardProps extends Omit<ComponentProps<'button'>, 'children'> {
@@ -75,24 +76,92 @@ export function TariffCarousel({
   className,
 }: TariffCarouselProps) {
   useLocale()
+  const strip = useRef<HTMLDivElement>(null)
+  const [edges, setEdges] = useState({ start: true, end: false })
+  useEffect(() => {
+    const node = strip.current
+    if (!node) return
+    const update = () =>
+      setEdges({
+        start: node.scrollLeft <= 1,
+        end: node.scrollLeft + node.clientWidth >= node.scrollWidth - 1,
+      })
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(node)
+    node.addEventListener('scroll', update, { passive: true })
+    return () => {
+      observer.disconnect()
+      node.removeEventListener('scroll', update)
+    }
+  }, [options.length])
+  const scroll = (direction: number) => {
+    const node = strip.current
+    if (!node) return
+    node.scrollBy({
+      left: direction * Math.max(176, node.clientWidth - 24),
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ? 'instant'
+        : 'smooth',
+    })
+  }
   return (
-    <div
-      role="radiogroup"
-      aria-label={label}
-      className={cn(
-        '-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-2.5 overflow-x-auto px-4 scrollbar-none lg:-mx-6 lg:scroll-px-6 lg:px-6',
-        className,
-      )}
-    >
-      {options.map((option) => (
-        <TariffCard
-          key={option.id}
-          name={option.name}
-          price={option.price}
-          selected={option.id === value}
-          onClick={() => onChange(option.id)}
-        />
-      ))}
+    <div className={cn('flex w-full min-w-0 flex-col gap-2', className)}>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-caption text-text-secondary">{label}</p>
+        <div className="flex gap-1">
+          {([-1, 1] as const).map((direction) => (
+            <button
+              key={direction}
+              type="button"
+              aria-label={t(direction < 0 ? 'Предыдущие тарифы' : 'Следующие тарифы')}
+              disabled={direction < 0 ? edges.start : edges.end}
+              onClick={() => scroll(direction)}
+              className="flex size-9 items-center justify-center rounded-full bg-bg-subtle text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-bg-inverse disabled:opacity-30"
+            >
+              {direction < 0 ? (
+                <ChevronLeft className="size-5" aria-hidden />
+              ) : (
+                <ChevronRight className="size-5" aria-hidden />
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div
+        ref={strip}
+        role="radiogroup"
+        aria-label={label}
+        className="flex w-full min-w-0 snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain px-0.5 py-1 scrollbar-none"
+        onKeyDown={(event) => {
+          const current = options.findIndex((option) => option.id === value)
+          let next: number
+          if (event.key === 'ArrowRight') next = (current + 1) % options.length
+          else if (event.key === 'ArrowLeft') next = (current - 1 + options.length) % options.length
+          else if (event.key === 'Home') next = 0
+          else if (event.key === 'End') next = options.length - 1
+          else return
+          const option = options[next]
+          if (!option) return
+          event.preventDefault()
+          onChange(option.id)
+          strip.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus()
+        }}
+      >
+        {options.map((option) => (
+          <TariffCard
+            key={option.id}
+            name={option.name}
+            price={option.price}
+            selected={option.id === value}
+            tabIndex={option.id === value || (!value && option === options[0]) ? 0 : -1}
+            onClick={() => onChange(option.id)}
+            onFocus={(event) =>
+              event.currentTarget.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+            }
+          />
+        ))}
+      </div>
     </div>
   )
 }

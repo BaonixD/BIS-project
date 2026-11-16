@@ -47,8 +47,9 @@ function RouteSummary({
 function DesktopPoints({
   pickupTitle,
   dropoffTitle,
+  quote,
   onEdit,
-}: Pick<ChooseRideSheetProps, 'pickupTitle' | 'dropoffTitle' | 'onEdit'>) {
+}: Pick<ChooseRideSheetProps, 'pickupTitle' | 'dropoffTitle' | 'quote' | 'onEdit'>) {
   useLocale()
   const field = (Icon: typeof MapPin, text: string, target: 'pickup' | 'dropoff') => (
     <button
@@ -68,6 +69,34 @@ function DesktopPoints({
       <div className="hidden w-full flex-col gap-2 lg:flex">
         {field(CircleDot, pickupTitle, 'pickup')}
         {field(MapPin, dropoffTitle, 'dropoff')}
+        <section
+          aria-label={t('Время и расстояние')}
+          className="mt-1 rounded-md bg-bg-subtle px-4 py-3"
+        >
+          <dl className="grid grid-cols-2 gap-3">
+            <div>
+              <dt className="text-caption text-text-secondary">{t('Время в пути')}</dt>
+              <dd className="text-body-medium text-text-primary">
+                {quote ? (
+                  `~${formatMinutes(quote.route.duration_s)}`
+                ) : (
+                  <Skeleton className="mt-1 h-5 w-20" />
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-caption text-text-secondary">{t('Расстояние')}</dt>
+              <dd className="text-body-medium text-text-primary">
+                {quote ? (
+                  formatKmCompact(quote.route.distance_m)
+                ) : (
+                  <Skeleton className="mt-1 h-5 w-20" />
+                )}
+              </dd>
+            </div>
+          </dl>
+          <p className="mt-2 text-caption text-text-secondary">{t('Примерно, без учёта пробок')}</p>
+        </section>
       </div>
     </>
   )
