@@ -1,5 +1,14 @@
 // Shared interface messages. Keep placeholders unchanged in each translation.
 export const en: Record<string, string> = {
+"Достижения": "Achievements",
+"Первая поездка": "First ride",
+"Частый пассажир": "Regular passenger",
+"Обратная связь": "Feedback",
+"Первый заказ": "First order",
+"Опытный водитель": "Experienced driver",
+"Высокая оценка": "High rating",
+"Оценок: {p0} из {p1}": "Ratings: {p0} of {p1}",
+
 "Документы": "Documents",
 "Удостоверение личности": "Identity card",
 "Водительские права": "Driver's license",
@@ -666,6 +675,15 @@ export const en: Record<string, string> = {
 }
 
 export const kk: Record<string, string> = {
+"Достижения": "Жетістіктер",
+"Первая поездка": "Алғашқы сапар",
+"Частый пассажир": "Тұрақты жолаушы",
+"Обратная связь": "Кері байланыс",
+"Первый заказ": "Алғашқы тапсырыс",
+"Опытный водитель": "Тәжірибелі жүргізуші",
+"Высокая оценка": "Жоғары баға",
+"Оценок: {p0} из {p1}": "Бағалар: {p1} ішінен {p0}",
+
 "Документы": "Құжаттар",
 "Удостоверение личности": "Жеке куәлік",
 "Водительские права": "Жүргізуші куәлігі",

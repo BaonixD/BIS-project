@@ -124,6 +124,7 @@ function useInvalidateRide(rideId: string) {
   const queryClient = useQueryClient()
   return () =>
     Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['achievements'] }),
       queryClient.invalidateQueries({ queryKey: queryKeys.rides.detail(rideId) }),
       queryClient.invalidateQueries({ queryKey: ['rides', 'active'] }),
       queryClient.invalidateQueries({ queryKey: ['rides', 'history'] }),
