@@ -13,6 +13,8 @@ dependencies = [
     "httpx>=0.28.1",
     "pydantic>=2.14.2",
     "pydantic-settings>=2.16.2",
+    "pypdf>=7.1.0",
+    "python-multipart>=0.0.33",
     "sqlalchemy[asyncio]>=2.1.6",
     "uvicorn>=0.54.0",
 ]
