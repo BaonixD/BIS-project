@@ -1,5 +1,7 @@
 // Shared interface messages. Keep placeholders unchanged in each translation.
 export const en: Record<string, string> = {
+  'Здесь появятся обращения пользователей.': 'User support requests will appear here.',
+  'Создайте обращение — мы ответим в этой переписке.': 'Create a request and we’ll reply in the conversation.',
   'Если выехать сейчас': 'If you leave now',
   'С учётом дорожной ситуации': 'Considering traffic conditions',
   'Примерное время, с учётом дорожной ситуации': 'Estimated time, considering traffic conditions',
@@ -723,6 +725,8 @@ export const en: Record<string, string> = {
 }
 
 export const kk: Record<string, string> = {
+  'Здесь появятся обращения пользователей.': 'Пайдаланушылардың өтініштері осы жерде көрсетіледі.',
+  'Создайте обращение — мы ответим в этой переписке.': 'Өтініш жіберіңіз — осы чатта жауап береміз.',
   'Если выехать сейчас': 'Қазір жолға шықсаңыз',
   'С учётом дорожной ситуации': 'Жол жағдайы ескерілген',
   'Примерное время, с учётом дорожной ситуации': 'Жол жағдайы ескерілген болжамды уақыт',
