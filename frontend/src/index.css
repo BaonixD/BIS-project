@@ -152,8 +152,16 @@
     -webkit-tap-highlight-color: transparent;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-app-ornament text-foreground;
   }
+}
+
+@utility bg-app-ornament {
+  background-color: var(--color-bg-subtle);
+  background-image: url('/brand/kazakh-ornament.jpeg');
+  background-position: top center;
+  background-repeat: repeat;
+  background-size: 591px auto;
 }
 
 @utility scrollbar-none {

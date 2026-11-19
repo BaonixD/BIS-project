@@ -13,7 +13,7 @@ export function FullScreen({ className, children }: { className?: string; childr
   return (
     <div
       className={cn(
-        'fixed inset-0 z-50 overflow-y-auto bg-bg-canvas [--sheet-offset:0px] lg:top-(--top-bar-height)',
+        'fixed inset-0 z-50 overflow-y-auto bg-app-ornament [--sheet-offset:0px] lg:top-(--top-bar-height)',
         className,
       )}
     >

@@ -17,7 +17,7 @@ export function DriverDocumentsPage() {
   const pkg = data?.package
   const editable = !pkg || pkg.status === 'draft'
   return (
-    <Screen tone="subtle" overNav>
+    <Screen overNav>
       <ScreenColumn className="gap-5 pt-[calc(56px+env(safe-area-inset-top))] pb-8 lg:max-w-3xl lg:pt-8">
         <BackHeader title={t('Документы')} fallback="/driver/profile" />
         <p className="text-callout text-text-secondary">

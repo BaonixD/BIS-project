@@ -5,7 +5,7 @@ export function FullScreenLoader() {
   useLocale()
   return (
     <div
-      className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-bg-canvas"
+      className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-app-ornament"
       aria-busy="true"
     >
       <span className="relative flex size-16 items-center justify-center">

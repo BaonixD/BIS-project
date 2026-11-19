@@ -21,7 +21,7 @@ export function AppShell() {
   return (
     <div
       className={cn(
-        "min-h-dvh bg-bg-canvas text-text-primary lg:[--sheet-offset:0px]",
+        "min-h-dvh text-text-primary lg:[--sheet-offset:0px]",
         navHidden ? "[--sheet-offset:0px]" : "[--sheet-offset:calc(var(--nav-height)-12px)]",
       )}
     >

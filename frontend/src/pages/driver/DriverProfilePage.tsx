@@ -31,7 +31,7 @@ export function DriverProfilePage() {
   const approved = data?.approval_status === 'approved'
   const vehicle = data?.vehicle
   return (
-    <div className="min-h-dvh bg-bg-subtle">
+    <div className="min-h-dvh bg-app-ornament">
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 pt-[calc(64px+env(safe-area-inset-top))] pb-6 lg:pt-8">
         <h1 className="px-1 text-display text-text-primary">{t('Профиль')}</h1>
         <div className="flex justify-end lg:hidden">
