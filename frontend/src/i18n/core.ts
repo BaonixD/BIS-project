@@ -27,7 +27,7 @@ export function getIntlLocale(): string {
 function updateDocument() {
   if (typeof document !== 'undefined') {
     document.documentElement.lang = locale
-    document.title = 'BIS Taxi'
+    document.title = 'TezJet'
   }
 }
 updateDocument()

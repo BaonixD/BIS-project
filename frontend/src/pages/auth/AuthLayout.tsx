@@ -1,3 +1,4 @@
+import { BrandLogo } from '@/components/common/BrandLogo'
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
 import type { ReactNode } from 'react'
 import { errorMessage } from '@/api'
@@ -20,6 +21,7 @@ export function AuthLayout({ children, top }: { children: ReactNode; top: 'login
             : 'pt-[calc(64px+env(safe-area-inset-top))]',
         )}
       >
+        <BrandLogo />
         {children}
       </main>
     </div>

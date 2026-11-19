@@ -88,7 +88,7 @@ export function RegisterPage() {
       </Link>
       <AuthHeading
         title={t('Создать аккаунт')}
-        subtitle={t('Выберите, как будете пользоваться BIS')}
+        subtitle={t('Выберите, как будете пользоваться TezJet')}
       />
       <RolePicker value={role} onChange={setRole} />
       <form className="flex flex-col gap-6" onSubmit={submit}>

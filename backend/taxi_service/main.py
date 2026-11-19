@@ -45,7 +45,7 @@ def create_app(
     google_verifier: GoogleTokenVerifier | None = None,
 ) -> FastAPI:
     app = FastAPI(
-        title="Mini Taxi Service",
+        title="TezJet Taxi Service",
         version="0.1.0",
         description=API_DESCRIPTION,
         lifespan=lifespan,

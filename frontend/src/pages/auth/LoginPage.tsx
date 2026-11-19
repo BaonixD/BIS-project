@@ -7,17 +7,6 @@ import { useSession } from '@/auth/use-session'
 import { Button, Input } from '@/components/ui-kit'
 import { AuthHeading, AuthLayout, FormError } from './AuthLayout'
 import { GoogleSignInButton } from './GoogleSignInButton'
-function Logo() {
-  useLocale()
-  return (
-    <div className="flex items-center gap-2">
-      <span className="flex size-10 items-center justify-center rounded-[10px] bg-bg-inverse text-headline text-text-inverse">
-        B
-      </span>
-      <span className="text-headline text-text-primary">BIS Taxi</span>
-    </div>
-  )
-}
 function OrDivider() {
   useLocale()
   return (
@@ -49,7 +38,6 @@ export function LoginPage() {
   }
   return (
     <AuthLayout top="login">
-      <Logo />
       <AuthHeading
         title={t('С возвращением')}
         subtitle={t('Войдите, чтобы заказать поездку по Алматы')}

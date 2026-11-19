@@ -1,3 +1,4 @@
+import { BrandLogo } from '@/components/common/BrandLogo'
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
 import { t, useLocale } from '@/i18n/core'
 import { LogOut } from 'lucide-react'
@@ -48,7 +49,7 @@ export function TopBar({
       )}
     >
       <Link to={ROLE_HOME[role]} className="text-headline whitespace-nowrap text-text-inverse">
-        BIS Taxi
+        <BrandLogo inverse />
       </Link>
       <nav aria-label={t('Разделы')} className="flex min-w-0 flex-1 items-center gap-6">
         {NAV_ITEMS()[role].map((item) => {
