@@ -23,7 +23,7 @@ class DocumentView(BaseModel):
     kind: DocumentKind
     filename: str
     size_bytes: int
-    page_count: int
+    page_count: int | None
     created_at: datetime
 
 

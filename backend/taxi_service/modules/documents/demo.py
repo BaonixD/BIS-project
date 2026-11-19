@@ -1,6 +1,5 @@
 """Synthetic blank demo PDFs, submitted through the same storage and package services."""
 
-import asyncio
 import io
 import uuid
 from pathlib import Path
@@ -31,7 +30,7 @@ async def submit_demo_package(
             filename="demo.pdf",
             headers=Headers({"content-type": "application/pdf"}),
         )
-        key, size, sha256, pages = await store_upload(file, root, asyncio.Semaphore(1))
+        key, size, sha256 = await store_upload(file, root)
         try:
             await service.save_document(
                 db,
@@ -41,7 +40,6 @@ async def submit_demo_package(
                 filename="demo.pdf",
                 size=size,
                 sha256=sha256,
-                pages=pages,
                 now=clock.now(),
             )
         except BaseException:

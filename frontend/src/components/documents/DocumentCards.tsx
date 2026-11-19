@@ -49,7 +49,8 @@ export function DocumentCards({
                         ? Math.max(1, Math.round(doc.size_bytes / 1024))
                         : doc.size_bytes / 1048576,
                     )}{' '}
-                    {doc.size_bytes < 1048576 ? 'KB' : 'MB'} · {doc.page_count} {t('стр.')}
+                    {doc.size_bytes < 1048576 ? 'KB' : 'MB'}
+                    {doc.page_count != null && ` · ${doc.page_count} ${t('стр.')}`}
                     <br />
                     {formatDateTime(doc.created_at)}
                   </p>

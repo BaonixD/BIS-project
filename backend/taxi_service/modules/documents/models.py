@@ -47,7 +47,6 @@ class DriverDocument(Base):
         UniqueConstraint("package_id", "kind"),
         CheckConstraint("kind IN ('identity_card','driver_license')", name="kind"),
         CheckConstraint("size_bytes > 0 AND size_bytes <= 10485760", name="size"),
-        CheckConstraint("page_count BETWEEN 1 AND 10", name="page_count"),
     )
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     package_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("driver_document_packages.id"))
@@ -56,5 +55,5 @@ class DriverDocument(Base):
     original_filename: Mapped[str] = mapped_column(String(255))
     size_bytes: Mapped[int]
     sha256: Mapped[str] = mapped_column(String(64))
-    page_count: Mapped[int]
+    page_count: Mapped[int | None]
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())

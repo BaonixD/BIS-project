@@ -22,7 +22,7 @@ export function DriverDocumentsPage() {
         <BackHeader title={t('Документы')} fallback="/driver/profile" />
         <p className="text-callout text-text-secondary">
           {t(
-            'Загрузите удостоверение и права. PDF, до 10 МБ и 10 страниц; обе стороны в одном файле.',
+            'Загрузите удостоверение и права. PDF, до 10 МБ; обе стороны в одном файле.',
           )}
         </p>
         <ErrorAlert error={query.error} />

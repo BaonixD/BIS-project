@@ -48,9 +48,7 @@ async def upload(
 ) -> DocumentsSummary:
     root: Path = request.app.state.settings.document_storage_dir
     filename = Path((file.filename or "document.pdf").replace("\\", "/")).name[:255]
-    key, size, sha256, pages = await store_upload(
-        file, root, request.app.state.document_validation_limit
-    )
+    key, size, sha256 = await store_upload(file, root)
     path = root / key
     try:
         await service.save_document(
@@ -61,7 +59,6 @@ async def upload(
             filename=filename,
             size=size,
             sha256=sha256,
-            pages=pages,
             now=clock.now(),
         )
     except BaseException:

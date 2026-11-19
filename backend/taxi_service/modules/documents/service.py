@@ -248,7 +248,6 @@ async def save_document(
     filename: str,
     size: int,
     sha256: str,
-    pages: int,
     now: datetime,
 ) -> None:
     async with db.begin():
@@ -269,7 +268,6 @@ async def save_document(
                 original_filename=filename,
                 size_bytes=size,
                 sha256=sha256,
-                page_count=pages,
                 created_at=now,
             )
         )

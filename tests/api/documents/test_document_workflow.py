@@ -84,8 +84,14 @@ async def test_upload_review_revision_and_private_access(
     assert (await client.get(f"/api/v1/documents/{file_id}/content")).status_code == 404
 
 
-@pytest.mark.parametrize("case", ["html", "active", "encrypted", "oversized"])
-async def test_invalid_pdf_is_rejected(client: httpx.AsyncClient, case: str) -> None:
+@pytest.mark.parametrize(
+    ("case", "code"),
+    [
+        ("html", "invalid_document"),
+        ("oversized", "document_too_large"),
+    ],
+)
+async def test_invalid_pdf_is_rejected(client: httpx.AsyncClient, case: str, code: str) -> None:
     driver = await register_and_login(client, "driver", role="driver")
     await client.patch("/api/v1/drivers/me", json=complete_profile(), headers=driver.csrf_headers)
     data = (
@@ -96,8 +102,33 @@ async def test_invalid_pdf_is_rejected(client: httpx.AsyncClient, case: str) -> 
         else pdf_bytes(active=case == "active", encrypted=case == "encrypted")
     )
     response = await client.put(
-        "/api/v1/drivers/me/documents/identity_card",
+        "/api/v1/drivers/me/documents/driver_license",
         files={"file": ("file.pdf", data, "application/pdf")},
         headers=driver.csrf_headers,
     )
     assert response.status_code == (413 if case == "oversized" else 422)
+    assert response.json()["error"]["code"] == code
+
+
+@pytest.mark.parametrize(
+    ("kind", "data"),
+    [
+        ("identity_card", pdf_bytes(encrypted=True)),
+        ("driver_license", pdf_bytes(active=True)),
+    ],
+)
+async def test_upload_does_not_parse_pdf(client: httpx.AsyncClient, kind: str, data: bytes) -> None:
+    driver = await register_and_login(client, "driver", role="driver")
+    profile = await client.patch(
+        "/api/v1/drivers/me", json=complete_profile(), headers=driver.csrf_headers
+    )
+    assert profile.status_code == 200
+    response = await client.put(
+        f"/api/v1/drivers/me/documents/{kind}",
+        files={"file": ("file.pdf", data, "application/pdf")},
+        headers=driver.csrf_headers,
+    )
+    assert response.status_code == 200, response.text
+    [document] = response.json()["documents"]
+    assert document["kind"] == kind
+    assert document["page_count"] is None

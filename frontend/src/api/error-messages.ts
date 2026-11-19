@@ -4,7 +4,7 @@ const MESSAGES = (): Record<string, string> => ({
   support_not_found: t('Обращение не найдено или недоступно.'),
   support_request_conflict: t('Сообщение изменилось. Попробуйте отправить снова.'),
   support_rate_limited: t('Слишком много сообщений. Немного подождите.'),
-  invalid_document: t('Загрузите обычный PDF без пароля, до 10 страниц.'),
+  invalid_document: t('Выберите файл в формате PDF.'),
   document_too_large: t('Файл должен быть не больше 10 МБ.'),
   document_version_conflict: t('Обновите карточку: версия документов изменилась.'),
   document_package_locked: t('Для замены создайте новую версию документов.'),

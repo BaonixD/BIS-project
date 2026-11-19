@@ -1165,7 +1165,7 @@ export interface components {
             /** Size Bytes */
             size_bytes: number;
             /** Page Count */
-            page_count: number;
+            page_count: number | null;
             /**
              * Created At
              * Format: date-time
