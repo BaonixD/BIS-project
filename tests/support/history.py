@@ -38,6 +38,7 @@ RIDE_SUMMARY_FIELDS = frozenset(
         "distance_m",
         "duration_s",
         "amount_kzt",
+        "bonus_kzt",
         "currency",
         "tariff",
         "created_at",

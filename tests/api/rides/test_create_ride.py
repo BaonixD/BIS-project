@@ -89,6 +89,7 @@ async def test_passenger_creates_a_searching_ride_from_the_quote(
         "quote_id",
         *SNAPSHOT_FIELDS,
         "amount_kzt",
+        "bonus_kzt",
         "tariff",
         "created_at",
         "updated_at",
