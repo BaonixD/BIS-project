@@ -3,7 +3,7 @@ import { TitleOrnament } from '@/components/common/Ornament'
 import { Achievements } from '@/components/common/Achievements'
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
 import { t, useLocale } from '@/i18n/core'
-import { KeyRound, LogOut, Phone, Settings, Star } from 'lucide-react'
+import { Gift, KeyRound, LogOut, Phone, Settings, Star } from 'lucide-react'
 import googleIcon from '@/assets/icons/google.svg'
 import { formatRating } from '@/api/driver-types'
 import { useSession } from '@/auth/use-session'
@@ -12,12 +12,14 @@ import { GroupedRow, GroupedSection, ProfileHeaderCard } from '@/components/comm
 import { Skeleton } from '@/components/ui-kit'
 import { useMyProfile } from '@/hooks/use-profile'
 import { ROLE_LABELS } from '@/lib/labels'
-import { initials } from './model/format'
+import { useBonusBalance } from '@/hooks/use-bonuses'
+import { formatPrice, initials } from './model/format'
 /** Figma Profile 5:623: grouped cards on the subtle background. */
 export function ProfilePage() {
   useLocale()
   const profile = useMyProfile()
   const { logout } = useSession()
+  const bonuses = useBonusBalance()
   const data = profile.data
   const name = data?.display_name || data?.username || ''
   const google = data?.login_method === 'google'
@@ -68,6 +70,19 @@ export function ProfilePage() {
               tone="bg-accent-warning"
               title={t('Рейтинг')}
               value={formatRating(data.rating) ?? t('Пока нет оценок')}
+            />
+            <GroupedRow
+              icon={Gift}
+              tone="bg-brand-sky-ink"
+              title={t('Бонусы')}
+              value={
+                bonuses.data
+                  ? t('{p0} · {p1}% с поездки', {
+                      p0: formatPrice(bonuses.data.balance_kzt),
+                      p1: bonuses.data.earn_percent,
+                    })
+                  : '—'
+              }
             />
           </GroupedSection>
         )}

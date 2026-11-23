@@ -49,6 +49,7 @@ export interface CreateRideVariables {
   paymentMethod: PaymentMethod
   tariff: Tariff
   idempotencyKey: string
+  useBonus?: boolean
 }
 
 export function newIdempotencyKey(): string {
@@ -59,15 +60,29 @@ export function newIdempotencyKey(): string {
 export function useCreateRide() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ quoteId, paymentMethod, tariff, idempotencyKey }: CreateRideVariables) =>
+    mutationFn: ({
+      quoteId,
+      paymentMethod,
+      tariff,
+      idempotencyKey,
+      useBonus = false,
+    }: CreateRideVariables) =>
       unwrap(
         api.POST('/api/v1/rides', {
           params: { header: { 'Idempotency-Key': idempotencyKey } },
-          body: { quote_id: quoteId, payment_method: paymentMethod, tariff },
+          body: {
+            quote_id: quoteId,
+            payment_method: paymentMethod,
+            tariff,
+            use_bonus: useBonus,
+          },
         }),
       ),
     retry: (failureCount, error) => isApiError(error, NETWORK_ERROR_CODE) && failureCount < 2,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.rides.all }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.rides.all })
+      void queryClient.invalidateQueries({ queryKey: ['bonuses'] })
+    },
   })
 }
 

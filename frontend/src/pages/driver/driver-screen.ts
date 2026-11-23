@@ -1,4 +1,5 @@
 import { t } from '@/i18n/core'
+import { moneyDue } from '@/lib/money'
 import type { PaymentStatus } from '@/api'
 import { formatMoney } from '@/lib/format'
 import type { NextDriver, NextOffer, NextRide } from '@/api/driver-types'
@@ -81,7 +82,7 @@ export function rideStep(status: NextRide['status']): number {
 }
 /** «Наличные · 2 200 ₸ · получить после поездки» / «Kaspi · уже оплачено · 2 200 ₸». */
 export function paymentSummary(ride: NextRide): string {
-  const amount = formatMoney(ride.amount_kzt)
+  const amount = formatMoney(moneyDue(ride))
   if (ride.payment_method === 'kaspi_link') return t('Kaspi · уже оплачено · {p0}', { p0: amount })
   return t('Наличные · {p0} · получить после поездки', { p0: amount })
 }

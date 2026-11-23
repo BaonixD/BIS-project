@@ -32,7 +32,7 @@ export function buildRideOrder({
   tariff: Tariff
   paymentMethod: PaymentMethod
 }): RideCreateRequest {
-  return { quote_id: quoteId, payment_method: paymentMethod, tariff }
+  return { quote_id: quoteId, payment_method: paymentMethod, tariff, use_bonus: false }
 }
 export type KaspiCheck = 'not_needed' | 'opened' | 'unavailable'
 /**

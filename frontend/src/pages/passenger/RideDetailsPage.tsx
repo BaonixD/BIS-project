@@ -73,6 +73,9 @@ export function RideDetailsPage() {
                   t('Оплата'),
                   `${ride.payment_method ? PAYMENT_LABELS()[ride.payment_method] : '—'} · ${formatPrice(ride.amount_kzt)}`,
                 ],
+                ...(ride.bonus_kzt > 0
+                  ? ([[t('Бонусами'), `−${formatPrice(ride.bonus_kzt)}`]] as [string, string][])
+                  : []),
               ]}
             />
             {ride.status === 'completed' && !ride.my_rating && (

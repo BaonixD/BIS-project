@@ -1,4 +1,5 @@
 import { t, useLocale } from '@/i18n/core'
+import { moneyDue } from '@/lib/money'
 import { useState } from 'react'
 import { Banknote, Check, CircleDot, MapPin } from 'lucide-react'
 import { errorMessage } from '@/api'
@@ -65,11 +66,17 @@ export function CollectCashScreen({ ride }: { ride: NextRide }) {
         </span>
         <Heading
           title={t('Получите оплату')}
-          text={t('Пассажир платит наличными. Подтвердите, когда получите деньги.')}
+          text={
+            ride.bonus_kzt > 0
+              ? t('Часть поездки ({p0}) оплачена бонусами. Получите остаток наличными.', {
+                  p0: formatMoney(ride.bonus_kzt),
+                })
+              : t('Пассажир платит наличными. Подтвердите, когда получите деньги.')
+          }
         />
         <AmountCard
           label={t('Сумма')}
-          amount={ride.amount_kzt}
+          amount={moneyDue(ride)}
           className="py-5"
           pill={<StatusPill tone="warning">{t('Ожидает оплаты')}</StatusPill>}
         />

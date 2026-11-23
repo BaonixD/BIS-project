@@ -16,6 +16,8 @@
   --animate-loader-ring: loader-ring 1.6s ease-out infinite;
   --animate-fade-up: fade-up 260ms ease-out both;
   --animate-typing-dot: typing-dot 1.2s ease-in-out infinite;
+  --animate-sun-spin: sun-spin 60s linear infinite;
+  --animate-car-glide: car-glide 2.8s ease-in-out infinite;
 
   @keyframes page-in {
     from { opacity: 0; }
@@ -32,6 +34,14 @@
   @keyframes typing-dot {
     0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
     30% { transform: translateY(-4px); opacity: 1; }
+  }
+  @keyframes sun-spin {
+    to { transform: rotate(360deg); }
+  }
+  @keyframes car-glide {
+    0% { left: 0; opacity: 0; }
+    15%, 80% { opacity: 1; }
+    100% { left: calc(100% - 44px); opacity: 0; }
   }
   @keyframes loader-ring {
     0% { transform: scale(0.6); opacity: 0.5; }

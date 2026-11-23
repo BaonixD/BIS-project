@@ -1,4 +1,5 @@
 import { t, useLocale } from '@/i18n/core'
+import { moneyDue } from '@/lib/money'
 import { Banknote, Car, Check, CreditCard, Navigation, Phone, Wallet, X } from 'lucide-react'
 import type { DriverCard, RideDetails } from '@/api'
 import {
@@ -13,6 +14,7 @@ import { driverLine } from '@/components/passenger/ride-text'
 import { Button, StatusPill } from '@/components/ui-kit'
 import { elapsedShare, formatCountdown, formatPrice } from '@/pages/passenger/model/format'
 import { cancelText, dropoffCaption, paymentLine } from './ride-text'
+import { UpgradeCard } from './UpgradeCard'
 /** The dispatcher looks for a driver for up to 3 minutes (SEARCH_BUDGET_S). */
 export const SEARCH_BUDGET_S = 180
 /** Free waiting after «Водитель на месте». */
@@ -36,7 +38,8 @@ export function SearchingSheet({
   onCancel: () => void
 }) {
   useLocale()
-  const since = declinedAt ? new Date(declinedAt).toISOString() : ride.created_at
+  // An upgrade restarts the search, and updated_at marks its start.
+  const since = declinedAt ? new Date(declinedAt).toISOString() : ride.updated_at
   return (
     <>
       <StatusPill tone="inverse">{t('Ищем водителя')}</StatusPill>
@@ -57,6 +60,7 @@ export function SearchingSheet({
         dropoffSubtitle={dropoffCaption(ride, { searching: true })}
         trailing={<Price ride={ride} />}
       />
+      <UpgradeCard ride={ride} />
       <Button variant="danger" className="w-full" onClick={onCancel}>
         {t('Отменить поездку')}
       </Button>
@@ -283,7 +287,7 @@ export function NoDriverSheet({
           </p>
         </div>
         <StatusPill tone="info">
-          {refunded ? formatPrice(ride.amount_kzt) : formatPrice(0)}
+          {refunded ? formatPrice(moneyDue(ride)) : formatPrice(0)}
         </StatusPill>
       </div>
       <Button className="w-full" onClick={onRetry}>

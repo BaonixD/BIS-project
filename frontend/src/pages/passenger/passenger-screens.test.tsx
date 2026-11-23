@@ -177,6 +177,7 @@ describe('HomePage orders a ride', () => {
       quote_id: 'quote-1',
       payment_method: 'kaspi_link',
       tariff: 'comfort_plus',
+      use_bonus: false,
     })
   })
 

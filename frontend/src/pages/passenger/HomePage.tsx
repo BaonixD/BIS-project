@@ -14,6 +14,7 @@ import { usePlaceTitle } from '@/components/passenger/ride-text'
 import { FloatingIconButton, showToast } from '@/components/ui-kit'
 import { useReverseGeocode } from '@/hooks/use-geocoding'
 import { newIdempotencyKey, useActiveRide, useCreateRide, useRouteQuote } from '@/hooks/use-rides'
+import { useBonusBalance } from '@/hooks/use-bonuses'
 import { useDebouncedValue } from '@/lib/geocoding'
 import { AddressSearchScreen } from './home/AddressSearchScreen'
 import { ChooseRideSheet } from './home/ChooseRideSheet'
@@ -76,6 +77,7 @@ export function HomePage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(
     reorder?.paymentMethod ?? 'cash',
   )
+  const [useBonus, setUseBonus] = useState(false)
   const [pinPoint, setPinPoint] = useState<Coordinates | null>(null)
   const [localError, setLocalError] = useState<string | null>(null)
   const [sheetHeight, setSheetHeight] = useState(0)
@@ -88,6 +90,8 @@ export function HomePage() {
   const choosing = step.name === 'choose' && dropoff !== null
   const quote = useRouteQuote(choosing ? { pickup: pickupPoint, dropoff: dropoff.point } : null)
   const createRide = useCreateRide()
+  const bonuses = useBonusBalance(choosing)
+  const bonusBalance = bonuses.data?.balance_kzt ?? 0
   const pinPlace = useReverseGeocode(
     useDebouncedValue(step.name === 'map' ? pinPoint : null, 400),
   ).data
@@ -125,7 +129,13 @@ export function HomePage() {
       return
     }
     createRide.mutate(
-      { quoteId: quote.data.quote_id, paymentMethod, tariff, idempotencyKey: newIdempotencyKey() },
+      {
+        quoteId: quote.data.quote_id,
+        paymentMethod,
+        tariff,
+        idempotencyKey: newIdempotencyKey(),
+        useBonus: useBonus && bonusBalance > 0,
+      },
       {
         onSuccess: (ride) => {
           if (dropoff.title)
@@ -259,6 +269,9 @@ export function HomePage() {
                 setLocalError(null)
                 setPaymentMethod(method)
               }}
+              bonusBalance={bonusBalance}
+              useBonus={useBonus}
+              onUseBonusChange={setUseBonus}
               ordering={createRide.isPending || quote.isFetching}
               error={orderError}
               onOrder={order}

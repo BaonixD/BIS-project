@@ -1,8 +1,12 @@
 import { t } from '@/i18n/core'
+import { moneyDue } from '@/lib/money'
 import type { RideDetails } from '@/api'
 import { formatPrice } from '@/pages/passenger/model/format'
 import { isPaidKaspi } from '@/pages/passenger/model/ride-screen'
-type PaymentInfo = Pick<RideDetails, 'payment_method' | 'payment_status' | 'amount_kzt' | 'status'>
+type PaymentInfo = Pick<
+  RideDetails,
+  'payment_method' | 'payment_status' | 'amount_kzt' | 'bonus_kzt' | 'status'
+>
 /** Drop-off row caption on the tracking sheets: «Куда · наличные», «Куда · Kaspi · оплачено». */
 export function dropoffCaption(ride: PaymentInfo, { searching = false } = {}): string {
   if (searching) return isPaidKaspi(ride) ? t('Куда · Kaspi · списано') : t('Куда')
@@ -16,7 +20,7 @@ export function cancelText(ride: PaymentInfo): string {
   if (isPaidKaspi(ride))
     return t('{p0} Оплата Kaspi {p1} вернётся автоматически.', {
       p0: lead,
-      p1: formatPrice(ride.amount_kzt),
+      p1: formatPrice(moneyDue(ride)),
     })
   return hasDriver
     ? t('{p0} Отмена бесплатная.', { p0: lead })
