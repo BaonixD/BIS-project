@@ -30,7 +30,7 @@ export function TariffCard({
         'flex h-16 w-[176px] shrink-0 snap-start items-center gap-1 overflow-hidden rounded-[10px] border-solid pr-1 pl-3 text-left',
         'outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-bg-inverse focus-visible:ring-offset-2',
         selected
-          ? 'border-[1.5px] border-text-primary bg-bg-subtle'
+          ? 'border-[1.5px] border-brand-sky bg-brand-sky-soft'
           : 'border border-border-default bg-bg-canvas',
         className,
       )}

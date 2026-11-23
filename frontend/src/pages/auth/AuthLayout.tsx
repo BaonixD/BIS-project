@@ -1,4 +1,5 @@
 import { BrandLogo } from '@/components/common/BrandLogo'
+import { OrnamentDivider } from '@/components/common/Ornament'
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
 import type { ReactNode } from 'react'
 import { errorMessage } from '@/api'
@@ -21,7 +22,10 @@ export function AuthLayout({ children, top }: { children: ReactNode; top: 'login
             : 'pt-[calc(64px+env(safe-area-inset-top))]',
         )}
       >
-        <BrandLogo />
+        <div className="flex flex-col gap-4">
+          <BrandLogo />
+          <OrnamentDivider className="w-28" />
+        </div>
         {children}
       </main>
     </div>

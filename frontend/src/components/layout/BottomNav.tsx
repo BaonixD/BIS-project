@@ -46,13 +46,14 @@ export function BottomNav({
                   <motion.span
                     layoutId={preview ? `nav-active-pill-${role}` : 'nav-active-pill'}
                     data-slot="nav-active-pill"
-                    className="absolute inset-0 rounded-[20px] bg-bg-muted"
+                    className="absolute inset-0 rounded-[20px] bg-brand-sky-soft"
                     transition={{ type: 'spring', stiffness: 500, damping: 40 }}
                   />
                 )}
                 <Icon
                   className={cn(
-                    'relative size-6 text-text-primary transition-opacity duration-200',
+                    'relative size-6 transition-colors duration-200',
+                    active ? 'text-brand-sky-ink' : 'text-text-primary',
                   )}
                   strokeWidth={2}
                   aria-hidden
@@ -60,7 +61,7 @@ export function BottomNav({
                 <span
                   className={cn(
                     'relative truncate text-label transition-colors duration-200',
-                    active ? 'text-text-primary' : 'font-medium text-text-secondary',
+                    active ? 'text-brand-sky-ink' : 'font-medium text-text-secondary',
                   )}
                 >
                   {item.label}

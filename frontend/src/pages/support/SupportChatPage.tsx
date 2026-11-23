@@ -15,6 +15,7 @@ import {
 } from '@/hooks/use-support'
 import { Button, Skeleton } from '@/components/ui-kit'
 import { ErrorAlert } from '@/components/common/ErrorAlert'
+import { OrnamentDivider } from '@/components/common/Ornament'
 import { t, useLocale } from '@/i18n/core'
 import { ChatLog, Composer, MessageRow, TicketConversation, TypingIndicator } from './chat'
 import { conversationKey, subjectFrom, type Conversation } from './chat-model'
@@ -143,7 +144,7 @@ function ChatList({
                 to={`${base}/${ticket.id}`}
                 onClick={onNavigate}
                 aria-current={ticket.id === activeId ? 'page' : undefined}
-                className={`flex min-w-0 items-center gap-2 rounded-xl px-3 py-2.5 outline-none hover:bg-bg-muted focus-visible:ring-2 focus-visible:ring-bg-inverse ${ticket.id === activeId ? 'bg-bg-muted' : ''}`}
+                className={`flex min-w-0 items-center gap-2 rounded-xl px-3 py-2.5 outline-none hover:bg-bg-muted focus-visible:ring-2 focus-visible:ring-bg-inverse ${ticket.id === activeId ? 'bg-brand-sky-soft' : ''}`}
               >
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span
@@ -157,7 +158,7 @@ function ChatList({
                 </span>
                 {ticket.unread_count > 0 && (
                   <span
-                    className="size-2.5 shrink-0 rounded-full bg-bg-inverse"
+                    className="size-2.5 shrink-0 rounded-full bg-brand-sky-ink"
                     aria-label={t('Есть новые сообщения')}
                   />
                 )}
@@ -290,11 +291,12 @@ function NewChat({
       {sent === null ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-8">
           <div className="flex w-full max-w-xl flex-col items-center gap-5 text-center motion-safe:animate-fade-up">
-            <span className="flex size-14 items-center justify-center rounded-full bg-bg-inverse text-text-inverse">
+            <span className="flex size-14 items-center justify-center rounded-full bg-brand-sky-soft text-brand-sky-ink">
               {ai ? <Bot className="size-7" aria-hidden /> : <Headset className="size-7" aria-hidden />}
             </span>
             <div className="flex flex-col gap-2">
               <h2 className="text-title">{t('Чем можем помочь?')}</h2>
+              <OrnamentDivider className="mx-auto w-28" />
               <p className="text-callout text-text-secondary">
                 {ai
                   ? t(

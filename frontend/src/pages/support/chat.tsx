@@ -85,7 +85,7 @@ function Avatar({ kind, name }: { kind: 'assistant' | 'staff' | 'person'; name?:
   return (
     <span
       aria-hidden
-      className={`flex size-8 shrink-0 items-center justify-center rounded-full text-caption ${kind === 'assistant' ? 'bg-bg-inverse text-text-inverse' : 'border border-border-default bg-bg-canvas text-text-primary'}`}
+      className={`flex size-8 shrink-0 items-center justify-center rounded-full text-caption ${kind === 'assistant' ? 'bg-brand-sky-soft text-brand-sky-ink' : 'border border-border-default bg-bg-canvas text-text-primary'}`}
     >
       {kind === 'assistant' ? (
         <Bot className="size-4" />
@@ -154,11 +154,11 @@ export function TypingIndicator({ queued }: { queued: boolean }) {
       <div className="flex min-w-0 flex-col gap-1.5 pt-1">
         <p className="text-caption font-medium text-text-secondary">{t('ИИ-помощник')}</p>
         <div className="flex items-center gap-3" aria-hidden>
-          <span className="flex h-8 items-center gap-1 rounded-full bg-bg-subtle px-3">
+          <span className="flex h-8 items-center gap-1 rounded-full bg-brand-sky-soft px-3">
             {[0, 1, 2].map((dot) => (
               <span
                 key={dot}
-                className="size-1.5 rounded-full bg-text-secondary motion-safe:animate-typing-dot"
+                className="size-1.5 rounded-full bg-brand-sky-ink motion-safe:animate-typing-dot"
                 style={{ animationDelay: `${dot * 0.15}s` }}
               />
             ))}

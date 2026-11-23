@@ -52,7 +52,12 @@
   --color-accent-success: #05a357;
   --color-accent-warning: #f6bc2f;
   --color-accent-danger: #e11900;
-  --color-accent-info: #276ef1;
+  --color-accent-info: #00788a;
+  /* Kazakhstan flag accents: sky tints selection, ink colours text and icons, gold draws lines. */
+  --color-brand-sky: #00afca;
+  --color-brand-sky-ink: #00788a;
+  --color-brand-sky-soft: #e8f7fa;
+  --color-brand-gold: #fec50c;
   --color-accent-kaspi: #f14635;
   --color-map-land: #eef0f2;
   --color-dim: rgb(0 0 0 / 0.35);

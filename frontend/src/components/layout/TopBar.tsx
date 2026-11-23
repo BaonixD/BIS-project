@@ -60,11 +60,17 @@ export function TopBar({
               to={item.to}
               aria-current={active ? 'page' : undefined}
               className={cn(
-                'text-callout whitespace-nowrap text-text-inverse transition-opacity duration-150 hover:opacity-100',
+                'relative py-1 text-callout whitespace-nowrap text-text-inverse transition-opacity duration-150 hover:opacity-100',
                 !active && 'opacity-60',
               )}
             >
               {item.topLabel ?? item.label}
+              {active && (
+                <span
+                  aria-hidden
+                  className="absolute inset-x-0 -bottom-1 h-0.5 rounded-full bg-brand-gold"
+                />
+              )}
             </Link>
           )
         })}
