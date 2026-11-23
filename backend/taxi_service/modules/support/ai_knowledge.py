@@ -129,7 +129,3 @@ def ticket_context(
     if linked_ride:
         about.append("Обращение привязано к поездке; её данных у тебя нет.")
     return f"{prompt}\n\nКонтекст обращения: {' '.join(about)}\n\nСправка TezJet:\n{KNOWLEDGE}"
-
-
-def with_subject(subject: str, body: str) -> str:
-    return f"{body}\n\n[Тема: {subject}]"

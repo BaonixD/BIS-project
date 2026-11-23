@@ -1,6 +1,7 @@
 """One ``generateContent`` call to Gemini; failures carry a short code and no provider text."""
 
 import asyncio
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Final, Literal, Protocol
@@ -121,9 +122,40 @@ def reply_text(data: object) -> str:
         part["text"]
         for part in parts
         if isinstance(part, dict) and isinstance(part.get("text"), str) and not part.get("thought")
-    ).strip()
+    )
+    text = plain_text(text)
     if not text:
         raise AIReplyError("empty")
     if len(text) > MAX_REPLY_CHARS:
         raise AIReplyError("too_long")
     return text
+
+
+# The prompt asks for plain text; models still slip into Markdown or echo bracketed tags.
+_TAG_LINE = re.compile(r"^\s*\[[^\]\n]{1,60}\]\s*$")
+_TAG_PREFIX = re.compile(r"^\s*\[(?:Тема|Topic|Тақырып)\b[^\]\n]*\]\s*", re.IGNORECASE)
+_HEADING = re.compile(r"^\s{0,3}#{1,6}\s+")
+_BULLET = re.compile(r"^(\s*)[*+\-]\s+")
+_BOLD = re.compile(r"\*\*(.+?)\*\*|__(.+?)__")
+_ITALIC = re.compile(r"(?<![\w*])\*(?=\S)(.+?)(?<=\S)\*(?![\w*])")
+_CODE = re.compile(r"`([^`\n]+)`")
+_LINK = re.compile(r"\[([^\]\n]+)\]\((https?://[^)\s]+)\)")
+_HTML_TAG = re.compile(r"</?[a-zA-Z][^>\n]*>")
+
+
+def plain_text(text: str) -> str:
+    """The reply as chat text: no Markdown marks, HTML tags or echoed service tags."""
+    lines: list[str] = []
+    for raw in text.replace("\r\n", "\n").split("\n"):
+        line = _TAG_PREFIX.sub("", _TAG_LINE.sub("", raw.rstrip()))
+        line = _HEADING.sub("", line)
+        line = _BULLET.sub(r"\1• ", line)
+        line = _BOLD.sub(lambda match: match.group(1) or match.group(2), line)
+        line = _ITALIC.sub(r"\1", line)
+        line = _CODE.sub(r"\1", line)
+        line = _LINK.sub(r"\1 (\2)", line)
+        line = _HTML_TAG.sub("", line)
+        if raw.strip() and not line.strip():
+            continue
+        lines.append(line)
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()

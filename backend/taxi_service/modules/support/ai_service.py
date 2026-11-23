@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from taxi_service.core.clock import Clock
 from taxi_service.database.session import read_transaction
 from taxi_service.modules.support.ai_client import Turn
-from taxi_service.modules.support.ai_knowledge import ticket_context, with_subject
+from taxi_service.modules.support.ai_knowledge import ticket_context
 from taxi_service.modules.support.models import Message, Ticket
 from taxi_service.modules.users.models import User, UserRole
 
@@ -85,7 +85,7 @@ async def load_context(db: AsyncSession, claim: Claim, prompt: str) -> Context |
     async with read_transaction(db):
         ticket = (
             await db.execute(
-                select(Ticket.owner_id, Ticket.category, Ticket.subject, Ticket.ride_id, User.role)
+                select(Ticket.owner_id, Ticket.category, Ticket.ride_id, User.role)
                 .join(User, User.id == Ticket.owner_id)
                 .where(Ticket.id == claim.ticket_id)
             )
@@ -100,7 +100,7 @@ async def load_context(db: AsyncSession, claim: Claim, prompt: str) -> Context |
                 .limit(HISTORY_MESSAGES)
             )
         ).all()
-    turns = conversation(rows, owner_id=ticket.owner_id, subject=ticket.subject)
+    turns = conversation(rows, owner_id=ticket.owner_id)
     if not turns or turns[-1].role != "user":
         return None
     system = ticket_context(
@@ -117,7 +117,6 @@ def conversation(
     rows_newest_first: Sequence[Row[int, str, uuid.UUID | None, str]],
     *,
     owner_id: uuid.UUID,
-    subject: str,
 ) -> list[Turn]:
     """The latest messages within the budget; the newest one is always kept whole."""
     picked: list[Turn] = []
@@ -129,7 +128,7 @@ def conversation(
             role = "user"
         else:
             continue
-        text = with_subject(subject, body) if seq == 1 else body
+        text = body
         if picked and total + len(text) > HISTORY_CHARS:
             break
         picked.append(Turn(role, text))

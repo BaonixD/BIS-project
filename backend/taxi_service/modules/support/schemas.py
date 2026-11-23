@@ -1,10 +1,29 @@
+import re
+import unicodedata
 import uuid
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 Category = Literal["ride", "payment", "documents", "account", "other"]
+
+
+def _chat_text(value: str) -> str:
+    """Visible text: no control characters (line breaks and tabs aside), at most two blank lines."""
+    if any(
+        unicodedata.category(char) == "Cc" and char not in "\n\t"
+        for char in value.replace("\r\n", "\n")
+    ):
+        raise ValueError("Text must not contain control characters")
+    if not any(
+        char.isalnum() or unicodedata.category(char).startswith(("S", "P")) for char in value
+    ):
+        raise ValueError("Text must contain visible characters")
+    return re.sub(r"\n{3,}", "\n\n", value.replace("\r\n", "\n"))
+
+
+ChatText = Annotated[str, AfterValidator(_chat_text)]
 TicketStatus = Literal["open", "in_progress", "resolved"]
 SupportMode = Literal["ai", "human"]
 AIState = Literal["idle", "pending", "running", "failed"]
@@ -15,15 +34,15 @@ class CreateTicket(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     client_request_id: uuid.UUID
     category: Category
-    subject: str = Field(min_length=1, max_length=120)
-    body: str = Field(min_length=1, max_length=2000)
+    subject: ChatText = Field(min_length=1, max_length=120)
+    body: ChatText = Field(min_length=1, max_length=2000)
     ride_id: uuid.UUID | None = None
 
 
 class SendMessage(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     client_message_id: uuid.UUID
-    body: str = Field(min_length=1, max_length=2000)
+    body: ChatText = Field(min_length=1, max_length=2000)
 
 
 class MarkRead(BaseModel):
