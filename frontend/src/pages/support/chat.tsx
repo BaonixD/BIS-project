@@ -24,6 +24,7 @@ import { t } from '@/i18n/core'
 import {
   chatTime,
   conversationKey,
+  hasVisibleText,
   mergeMessages,
   useChatScroll,
   type Conversation,
@@ -217,7 +218,7 @@ export function Composer({
   useEffect(() => {
     if (autoFocus && !coarsePointer()) field.current?.focus()
   }, [autoFocus])
-  const ready = value.trim().length > 0 && !busy
+  const ready = hasVisibleText(value) && !busy
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
     if (coarsePointer()) return

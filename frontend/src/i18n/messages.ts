@@ -1,5 +1,6 @@
 // Shared interface messages. Keep placeholders unchanged in each translation.
 export const en: Record<string, string> = {
+  'Вопрос в поддержку': 'Support question',
   '{p0} · {p1}% с поездки': '{p0} · {p1}% back per ride',
   'Бонусами': 'With bonuses',
   'Бонусы': 'Bonuses',
@@ -790,6 +791,7 @@ export const en: Record<string, string> = {
 }
 
 export const kk: Record<string, string> = {
+  'Вопрос в поддержку': 'Қолдауға сұрақ',
   '{p0} · {p1}% с поездки': '{p0} · сапардан {p1}%',
   'Бонусами': 'Бонуспен',
   'Бонусы': 'Бонустар',

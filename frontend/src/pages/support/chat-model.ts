@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import type { SupportMessage } from '@/hooks/use-support'
-import { getIntlLocale } from '@/i18n/core'
+import { getIntlLocale, t } from '@/i18n/core'
 
 export interface Conversation {
   items: SupportMessage[]
@@ -16,9 +16,21 @@ export function mergeMessages(previous: SupportMessage[], next: SupportMessage[]
   return [...merged.values()].sort((a, b) => a.seq - b.seq)
 }
 
-/** A short chat title from the first message: its first line, at most 60 characters. */
+/** Has something to read: a letter, digit, symbol or punctuation (not only invisible marks). */
+export function hasVisibleText(text: string) {
+  return /[\p{L}\p{N}\p{S}\p{P}]/u.test(text)
+}
+
+/** A short chat title from the first message: its first line with words, at most 60 characters. */
 export function subjectFrom(body: string) {
-  const line = body.trim().split('\n')[0]?.replace(/\s+/g, ' ').trim() ?? ''
+  const line =
+    body
+      .trim()
+      .split('\n')
+      .find((part) => /[\p{L}\p{N}]/u.test(part))
+      ?.replace(/\s+/g, ' ')
+      .trim() ?? ''
+  if (!line) return t('Вопрос в поддержку')
   return line.length > 60 ? `${line.slice(0, 59).trimEnd()}…` : line
 }
 
