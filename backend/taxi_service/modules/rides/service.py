@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from taxi_service.core.clock import Clock
 from taxi_service.database.session import read_transaction
+from taxi_service.modules.bonuses import records as bonus_records
 from taxi_service.modules.drivers import service as drivers_service
 from taxi_service.modules.drivers.models import DriverProfile
 from taxi_service.modules.geo.client import RoutingProvider
@@ -139,6 +140,8 @@ async def create_ride(
                 raise KaspiUnavailableError
             await require_account_access(db, passenger_id)
             ride = await _ride_from_quote(db, passenger_id, request, clock, policy)
+            if request.use_bonus:
+                await bonus_records.spend_on(db, ride, ride.created_at)
             await payment_records.open_payment(db, ride, request.payment_method, ride.created_at)
             db.add(
                 IdempotencyRecord(

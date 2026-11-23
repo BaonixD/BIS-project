@@ -163,6 +163,8 @@ class Ride(RouteSnapshot, Base):
     __table_args__ = (
         *_route_checks(),
         CheckConstraint("amount_kzt > 0", name="amount_positive"),
+        # Bonuses pay at most half of the price, so the payment keeps a positive amount.
+        CheckConstraint("bonus_kzt >= 0 AND bonus_kzt * 2 <= amount_kzt", name="bonus_share"),
         CheckConstraint(tariff_check("tariff"), name="tariff"),
         CheckConstraint(f"status IN ({_sql_list(frozenset(RideStatus))})", name="status"),
         CheckConstraint(
@@ -206,6 +208,7 @@ class Ride(RouteSnapshot, Base):
         _string_enum(Tariff), server_default=Tariff.ECONOMY.value
     )
     amount_kzt: Mapped[int] = mapped_column(Integer())
+    bonus_kzt: Mapped[int] = mapped_column(Integer(), default=0, server_default="0")
     status: Mapped[RideStatus] = mapped_column(_string_enum(RideStatus))
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
@@ -233,6 +236,7 @@ class Ride(RouteSnapshot, Base):
             quote_id=quote.id,
             tariff=tariff,
             amount_kzt=quote.amount_for(tariff),
+            bonus_kzt=0,
             status=RideStatus.SEARCHING,
             **snapshot,
             created_at=now,

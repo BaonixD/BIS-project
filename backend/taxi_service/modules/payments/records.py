@@ -22,7 +22,7 @@ async def open_payment(
     payment = Payment(
         id=uuid.uuid4(),
         ride_id=ride.id,
-        amount_kzt=ride.amount_kzt,
+        amount_kzt=ride.amount_kzt - ride.bonus_kzt,
         currency=CURRENCY,
         method=method,
         status=PaymentStatus.UNPAID,
