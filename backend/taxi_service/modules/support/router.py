@@ -9,6 +9,7 @@ from taxi_service.modules.auth.dependencies import AdminUser, CurrentUser
 from taxi_service.modules.support import service
 from taxi_service.modules.support.ai_config import SupportAIDep
 from taxi_service.modules.support.schemas import (
+    AssistantStatus,
     Category,
     CreateTicket,
     MarkRead,
@@ -78,6 +79,11 @@ async def admin_tickets(
         offset=page.offset,
         ai_active=ai.active,
     )
+
+
+@router.get("/support/assistant")
+async def assistant(user: CurrentUser, ai: SupportAIDep) -> AssistantStatus:
+    return AssistantStatus(available=ai.active)
 
 
 @router.get("/support/unread")

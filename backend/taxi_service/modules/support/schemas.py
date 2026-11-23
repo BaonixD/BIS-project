@@ -70,3 +70,7 @@ class MessageView(BaseModel):
 class MessagePage(BaseModel):
     items: list[MessageView]
     has_more: bool
+
+
+class AssistantStatus(BaseModel):
+    available: bool = Field(description="New conversations are answered by the AI assistant first.")

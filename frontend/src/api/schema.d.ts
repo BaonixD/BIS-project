@@ -809,6 +809,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/support/assistant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Assistant */
+        get: operations["assistant_api_v1_support_assistant_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/support/unread": {
         parameters: {
             query?: never;
@@ -1101,6 +1118,14 @@ export interface components {
          * @enum {string}
          */
         ApprovalStatus: "pending" | "approved";
+        /** AssistantStatus */
+        AssistantStatus: {
+            /**
+             * Available
+             * @description New conversations are answered by the AI assistant first.
+             */
+            available: boolean;
+        };
         /** AuthProvidersResponse */
         AuthProvidersResponse: {
             /**
@@ -5420,6 +5445,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_TicketView_"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    assistant_api_v1_support_assistant_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantStatus"];
                 };
             };
             /** @description Request validation failed; details.errors lists loc, msg and type */
