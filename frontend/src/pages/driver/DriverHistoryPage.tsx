@@ -1,4 +1,5 @@
 import { SupportLink } from '@/components/common/SupportLink'
+import { TitleOrnament } from '@/components/common/Ornament'
 import { t, useLocale } from '@/i18n/core'
 import { useState } from 'react'
 import type { RideSummary } from '@/api'
@@ -63,7 +64,10 @@ export function DriverHistoryPage() {
   return (
     <Screen tone="subtle">
       <ScreenColumn className="gap-4 pt-[calc(64px+env(safe-area-inset-top))] pb-6">
-        <h1 className="w-full text-display text-text-primary">{t('История')}</h1>
+        <div className="flex w-full flex-col gap-2">
+          <h1 className="text-display text-text-primary">{t('История')}</h1>
+          <TitleOrnament />
+        </div>
         <div className="flex w-full flex-col gap-1 overflow-hidden rounded-[20px] bg-bg-inverse p-5 text-text-inverse">
           <p className="text-callout">{current?.earned}</p>
           <p className="text-display">{formatMoney(stats.earnedKzt)}</p>

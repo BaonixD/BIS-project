@@ -166,6 +166,14 @@
   }
 }
 
+/* A row of gold «қошқар мүйіз» motifs joined by short strokes (top bar and accents). */
+@utility bg-ornament-band {
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='-60%20-54%20120%2058'%3E%3Cg%20fill='none'%20stroke='%23fec50c'%20stroke-width='4'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M0%200C-5-11-21-15-25-27c-3-9%201-19%209-21%208-2%2015%203%2015%2011%200%206-4%2010-9%2010-4%200-7-3-7-6%200-3%202-5%205-5'/%3E%3Cpath%20d='M-24-19c-5-4-9-9-9-17%200-5%202-9%205-12M-23%200c-6-4-9-9-8-15%205%202%209%206%2010%2011'/%3E%3Cg%20transform='scale(-1%201)'%3E%3Cpath%20d='M0%200C-5-11-21-15-25-27c-3-9%201-19%209-21%208-2%2015%203%2015%2011%200%206-4%2010-9%2010-4%200-7-3-7-6%200-3%202-5%205-5'/%3E%3Cpath%20d='M-24-19c-5-4-9-9-9-17%200-5%202-9%205-12M-23%200c-6-4-9-9-8-15%205%202%209%206%2010%2011'/%3E%3C/g%3E%3Cpath%20d='M-58-24h12M46-24h12'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-position: center;
+  background-size: auto 100%;
+}
+
 /* Text that shimmers while the support assistant works; static under reduced motion. */
 @utility text-shimmer {
   background-image: linear-gradient(

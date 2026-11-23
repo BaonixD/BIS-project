@@ -1,4 +1,5 @@
 import { SupportLink } from '@/components/common/SupportLink'
+import { TitleOrnament } from '@/components/common/Ornament'
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
 import { t, useLocale } from '@/i18n/core'
 import { useState, type ReactNode } from 'react'
@@ -29,6 +30,7 @@ export function AdminLayout({
           <div className="min-w-0">
             <p className="mb-1 text-label text-text-secondary">{t('TEZJET / УПРАВЛЕНИЕ')}</p>
             <h1 className="text-display text-text-primary">{title}</h1>
+            <TitleOrnament className="mt-2" />
             <p className="mt-1 text-callout text-text-secondary">{description}</p>
           </div>
           <div className="flex shrink-0 items-center gap-1">

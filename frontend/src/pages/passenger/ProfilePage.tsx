@@ -1,4 +1,5 @@
 import { SupportLink } from '@/components/common/SupportLink'
+import { TitleOrnament } from '@/components/common/Ornament'
 import { Achievements } from '@/components/common/Achievements'
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
 import { t, useLocale } from '@/i18n/core'
@@ -23,7 +24,10 @@ export function ProfilePage() {
   return (
     <div className="min-h-dvh bg-bg-subtle">
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 pt-[64px] pb-6 lg:pt-8">
-        <h1 className="px-1 text-display text-text-primary">{t('Профиль')}</h1>
+        <div className="flex flex-col gap-2 px-1">
+          <h1 className="text-display text-text-primary">{t('Профиль')}</h1>
+          <TitleOrnament />
+        </div>
         <div className="flex justify-end lg:hidden">
           <LanguageSwitcher />
         </div>
@@ -32,7 +36,7 @@ export function ProfilePage() {
           <ProfileHeaderCard
             to="/profile/settings"
             avatar={
-              <span className="flex size-16 shrink-0 items-center justify-center rounded-full bg-bg-muted text-headline text-text-primary">
+              <span className="flex size-16 shrink-0 items-center justify-center rounded-full bg-brand-sky-soft text-headline text-brand-sky-ink ring-2 ring-brand-gold ring-offset-2 ring-offset-bg-canvas">
                 {initials(name)}
               </span>
             }

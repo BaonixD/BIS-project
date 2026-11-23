@@ -1,4 +1,5 @@
 import { SupportLink } from '@/components/common/SupportLink'
+import { TitleOrnament } from '@/components/common/Ornament'
 import { Achievements } from '@/components/common/Achievements'
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
 import { t, useLocale } from '@/i18n/core'
@@ -33,7 +34,10 @@ export function DriverProfilePage() {
   return (
     <div className="min-h-dvh bg-bg-subtle">
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 pt-[calc(64px+env(safe-area-inset-top))] pb-6 lg:pt-8">
-        <h1 className="px-1 text-display text-text-primary">{t('Профиль')}</h1>
+        <div className="flex flex-col gap-2 px-1">
+          <h1 className="text-display text-text-primary">{t('Профиль')}</h1>
+          <TitleOrnament />
+        </div>
         <div className="flex justify-end lg:hidden">
           <LanguageSwitcher />
         </div>
@@ -41,7 +45,13 @@ export function DriverProfilePage() {
         {data ? (
           <ProfileHeaderCard
             to="/driver/settings"
-            avatar={<Avatar name={name} size={64} />}
+            avatar={
+              <Avatar
+                name={name}
+                size={64}
+                className="bg-brand-sky-soft text-brand-sky-ink ring-2 ring-brand-gold ring-offset-2 ring-offset-bg-canvas"
+              />
+            }
             name={name}
             subtitle={t('@{p0} · водитель', { p0: user?.username ?? '' })}
           />

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { TitleOrnament } from '@/components/common/Ornament'
 import { Link, useSearchParams } from 'react-router'
 import { Bot, MessageCircle } from 'lucide-react'
 import { useSupportTickets } from '@/hooks/use-support'
@@ -38,6 +39,7 @@ export function SupportListPage() {
       <header className="flex flex-col items-start gap-4 sm:flex-row sm:justify-between sm:gap-6">
         <div className="min-w-0 flex-1">
           <h1 className="text-title text-text-primary sm:text-display">{t('Поддержка')}</h1>
+          <TitleOrnament className="mt-2" />
           <p className="mt-2 max-w-xl text-callout text-text-secondary">
             {t('Вопросы пользователей и ответы команды')}
           </p>

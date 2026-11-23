@@ -38,3 +38,18 @@ export function OrnamentDivider({ className }: { className?: string }) {
     </div>
   )
 }
+
+/** Under a page title: the motif followed by a gold line that fades out. */
+export function TitleOrnament({ className }: { className?: string }) {
+  return (
+    <div aria-hidden className={cn('flex items-center gap-2 text-brand-gold', className)}>
+      <KazakhMotif />
+      <span className="h-px w-28 bg-linear-to-r from-brand-gold to-transparent" />
+    </div>
+  )
+}
+
+/** A thin strip of repeated motifs; decorative. */
+export function OrnamentBand({ className }: { className?: string }) {
+  return <span aria-hidden className={cn('block h-2.5 bg-ornament-band', className)} />
+}
