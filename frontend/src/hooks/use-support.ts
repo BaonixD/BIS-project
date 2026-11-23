@@ -49,10 +49,13 @@ export function useSupportAction() {
       action:
         | { type: 'create'; body: components['schemas']['CreateTicket'] }
         | { type: 'send'; id: string; body: components['schemas']['SendMessage'] }
-        | { type: 'status'; id: string; status: 'in_progress' | 'resolved' },
+        | { type: 'status'; id: string; status: 'in_progress' | 'resolved' }
+        | { type: 'handoff'; id: string },
     ): Promise<Ticket | SupportMessage> => {
       if (action.type === 'create')
         return request<Ticket>('/support/tickets', { method: 'POST', ...jsonBody(action.body) })
+      if (action.type === 'handoff')
+        return request<Ticket>(`/support/tickets/${action.id}/handoff`, { method: 'POST' })
       if (action.type === 'send')
         return request<SupportMessage>(`/support/tickets/${action.id}/messages`, {
           method: 'POST',

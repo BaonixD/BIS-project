@@ -1,4 +1,4 @@
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Bot } from 'lucide-react'
 import { useHideBottomNav } from '@/components/layout/nav-visibility'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
@@ -42,6 +42,8 @@ function SupportThread() {
   const admin = user?.role === 'admin'
   const ticket = useSupportTicket(ticketId)
   const action = useSupportAction()
+  const handoff = useSupportAction()
+  const [handedOff, setHandedOff] = useState(false)
   const client = useQueryClient()
   const [body, setBody] = useState('')
   const [loadingOlder, setLoadingOlder] = useState(false)
@@ -72,6 +74,20 @@ function SupportThread() {
   })
   const loaded = query.data?.items ?? EMPTY
   const older = query.data?.hasOlder ?? false
+  const fetchedThrough = query.data?.fetchedThrough
+  const lastSeq = ticket.data?.last_message_seq
+  const refetchMessages = query.refetch
+  useEffect(() => {
+    if (lastSeq !== undefined && fetchedThrough !== undefined && lastSeq > fetchedThrough)
+      void refetchMessages()
+  }, [lastSeq, fetchedThrough, refetchMessages])
+  const aiAvailable = ticket.data?.ai_available === true
+  const aiState = ticket.data?.ai_state ?? 'idle'
+  const transferred =
+    ticket.data?.support_mode === 'human' &&
+    (handedOff || loaded.some((message) => message.author_kind === 'assistant'))
+  const callOperator = () =>
+    handoff.mutate({ type: 'handoff', id: ticketId }, { onSuccess: () => setHandedOff(true) })
   useEffect(() => {
     const element = viewport.current
     if (element && bottom.current) element.scrollTop = element.scrollHeight
@@ -164,6 +180,39 @@ function SupportThread() {
               </Button>
             )}
           </div>
+          {aiAvailable && (
+            <section
+              aria-label={t('ИИ-помощник')}
+              className="flex flex-col gap-3 rounded-xl border border-border-default bg-bg-canvas p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5"
+            >
+              <div className="flex min-w-0 items-start gap-3">
+                <Bot className="mt-0.5 size-5 shrink-0 text-text-secondary" aria-hidden />
+                <div className="flex min-w-0 flex-col gap-1">
+                  <p className="text-callout">{t('ИИ-помощник · отвечает на общие вопросы')}</p>
+                  <p className="text-caption text-text-secondary">
+                    {admin
+                      ? t('Ваш ответ или смена статуса отключат помощника в этом обращении.')
+                      : t('Сообщения для ответа ИИ обрабатывает Google Gemini.')}
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="md"
+                variant="secondary"
+                className="shrink-0"
+                loading={handoff.isPending}
+                onClick={callOperator}
+              >
+                {t(admin ? 'Подключиться' : 'Позвать оператора')}
+              </Button>
+            </section>
+          )}
+          {transferred && !admin && (
+            <p role="status" className="text-caption text-text-secondary">
+              {t('Обращение передано оператору')}
+            </p>
+          )}
+          <ErrorAlert error={handoff.error} />
           <div
             ref={viewport}
             className="flex h-[48dvh] min-h-60 w-full min-w-0 flex-col gap-3 overflow-y-auto overscroll-contain rounded-xl border border-border-default bg-bg-canvas p-4 [scrollbar-gutter:stable] sm:p-5"
@@ -215,10 +264,19 @@ function SupportThread() {
             {loaded.map((message) => (
               <article
                 key={message.id}
-                className={`flex min-w-0 max-w-[88%] flex-col sm:max-w-[75%] gap-1 rounded-lg px-3 py-2 ${message.author_id === user?.id ? 'self-end bg-bg-inverse text-text-inverse' : 'self-start bg-bg-subtle text-text-primary'}`}
+                className={`flex min-w-0 max-w-[88%] flex-col sm:max-w-[75%] gap-1 rounded-lg px-3 py-2 ${message.author_id !== null && message.author_id === user?.id ? 'self-end bg-bg-inverse text-text-inverse' : 'self-start bg-bg-subtle text-text-primary'}`}
               >
                 <p className="text-caption opacity-70">
-                  {message.author_role === 'admin' ? t('Поддержка') : message.author_name}
+                  {message.author_kind === 'assistant' ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Bot className="size-3.5" aria-hidden />
+                      {t('ИИ-помощник')}
+                    </span>
+                  ) : message.author_role === 'admin' ? (
+                    t('Поддержка')
+                  ) : (
+                    message.author_name
+                  )}
                 </p>
                 <p className="whitespace-pre-wrap text-callout [overflow-wrap:anywhere]">
                   {message.body}
@@ -229,6 +287,21 @@ function SupportThread() {
               </article>
             ))}
           </div>
+          {aiAvailable && aiState !== 'idle' && (
+            <p role="status" className="flex items-center gap-2 text-caption text-text-secondary">
+              {aiState !== 'failed' && (
+                <span
+                  className="size-2 shrink-0 rounded-full bg-text-secondary motion-safe:animate-pulse"
+                  aria-hidden
+                />
+              )}
+              {aiState === 'pending'
+                ? t('Ожидаем ответ помощника…')
+                : aiState === 'running'
+                  ? t('Помощник готовит ответ…')
+                  : t('Помощник сейчас не смог ответить. Можно позвать оператора')}
+            </p>
+          )}
           {!atBottom && (
             <Button variant="secondary" size="md" onClick={scrollBottom}>
               {t('Новые сообщения')}

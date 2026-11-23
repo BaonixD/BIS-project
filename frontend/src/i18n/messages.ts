@@ -1,5 +1,20 @@
 // Shared interface messages. Keep placeholders unchanged in each translation.
 export const en: Record<string, string> = {
+  'ИИ-помощник': 'AI assistant',
+  'ИИ-помощник · отвечает на общие вопросы': 'AI assistant · answers general questions',
+  'Сообщения для ответа ИИ обрабатывает Google Gemini.':
+    'Messages are processed by Google Gemini to generate AI replies.',
+  'Ваш ответ или смена статуса отключат помощника в этом обращении.':
+    'Replying or changing the status turns the assistant off for this request.',
+  'Подключиться': 'Take over',
+  'Позвать оператора': 'Contact an agent',
+  'Обращение передано оператору': 'Your request has been passed to an agent',
+  'Ожидаем ответ помощника…': 'Waiting for the assistant…',
+  'Помощник готовит ответ…': 'The assistant is preparing a reply…',
+  'Помощник сейчас не смог ответить. Можно позвать оператора':
+    'The assistant couldn’t reply right now. You can contact an agent',
+  'На общие вопросы сначала может ответить ИИ-помощник. Сообщения для его ответа обрабатывает Google Gemini — не пишите пароли и данные карты.':
+    'The AI assistant may answer general questions first. Messages are processed by Google Gemini to generate its replies, so don’t share passwords or card details.',
   'Здесь появятся обращения пользователей.': 'User support requests will appear here.',
   'Создайте обращение — мы ответим в этой переписке.': 'Create a request and we’ll reply in the conversation.',
   'Если выехать сейчас': 'If you leave now',
@@ -724,6 +739,21 @@ export const en: Record<string, string> = {
 }
 
 export const kk: Record<string, string> = {
+  'ИИ-помощник': 'ЖИ көмекшісі',
+  'ИИ-помощник · отвечает на общие вопросы': 'ЖИ көмекшісі · жалпы сұрақтарға жауап береді',
+  'Сообщения для ответа ИИ обрабатывает Google Gemini.':
+    'ЖИ жауабы үшін хабарламаларды Google Gemini өңдейді.',
+  'Ваш ответ или смена статуса отключат помощника в этом обращении.':
+    'Жауап беру немесе күйді өзгерту бұл өтініште көмекшіні өшіреді.',
+  'Подключиться': 'Қосылу',
+  'Позвать оператора': 'Операторды шақыру',
+  'Обращение передано оператору': 'Өтініш операторға берілді',
+  'Ожидаем ответ помощника…': 'Көмекшінің жауабын күтудеміз…',
+  'Помощник готовит ответ…': 'Көмекші жауап дайындап жатыр…',
+  'Помощник сейчас не смог ответить. Можно позвать оператора':
+    'Көмекші қазір жауап бере алмады. Операторды шақыруға болады',
+  'На общие вопросы сначала может ответить ИИ-помощник. Сообщения для его ответа обрабатывает Google Gemini — не пишите пароли и данные карты.':
+    'Жалпы сұрақтарға алдымен ЖИ көмекшісі жауап беруі мүмкін. Оның жауабы үшін хабарламаларды Google Gemini өңдейді — құпиясөз бен карта деректерін жазбаңыз.',
   'Здесь появятся обращения пользователей.': 'Пайдаланушылардың өтініштері осы жерде көрсетіледі.',
   'Создайте обращение — мы ответим в этой переписке.': 'Өтініш жіберіңіз — осы чатта жауап береміз.',
   'Если выехать сейчас': 'Қазір жолға шықсаңыз',

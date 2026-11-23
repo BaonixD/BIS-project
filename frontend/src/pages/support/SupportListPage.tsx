@@ -171,6 +171,7 @@ export function SupportListPage() {
                   <span>
                     {supportCategory(ticket.category)} · {formatDateTime(ticket.updated_at)}
                     {admin ? ` · @${ticket.owner_name}` : ''}
+                    {admin && ticket.support_mode === 'ai' ? ` · ${t('ИИ-помощник')}` : ''}
                   </span>
                   <StatusPill tone={ticket.status === 'resolved' ? 'success' : 'warning'}>
                     {supportStatus(ticket.status)}
@@ -305,6 +306,13 @@ export function SupportListPage() {
               {params.get('ride_id') && (
                 <p className="text-caption text-text-secondary">
                   {t('Обращение связано с поездкой')}
+                </p>
+              )}
+              {!admin && (
+                <p className="text-caption text-text-secondary">
+                  {t(
+                    'На общие вопросы сначала может ответить ИИ-помощник. Сообщения для его ответа обрабатывает Google Gemini — не пишите пароли и данные карты.',
+                  )}
                 </p>
               )}
               <ErrorAlert error={action.error} />
