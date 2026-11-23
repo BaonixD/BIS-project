@@ -13,6 +13,7 @@ const driver = () => import('./driver-pages')
 const admin = () => import('./admin-pages')
 const supportList = () => import('@/pages/support/SupportListPage')
 const supportThread = () => import('@/pages/support/SupportThreadPage')
+const supportChat = () => import('@/pages/support/SupportChatPage')
 
 function page<M>(load: () => Promise<M>, pick: (module: M) => ComponentType) {
   return {
@@ -39,8 +40,8 @@ export const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
-          { path: '/support', ...page(supportList, (m) => m.SupportListPage) },
-          { path: '/support/:ticketId', ...page(supportThread, (m) => m.SupportThreadPage) },
+          { path: '/support', ...page(supportChat, (m) => m.SupportChatPage) },
+          { path: '/support/:ticketId', ...page(supportChat, (m) => m.SupportChatPage) },
           { path: '/', ...page(passenger, (m) => m.HomePage) },
           { path: '/ride/:rideId', ...page(passenger, (m) => m.RidePage) },
           { path: '/history', ...page(passenger, (m) => m.HistoryPage) },
@@ -57,8 +58,11 @@ export const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
-          { path: '/driver/support', ...page(supportList, (m) => m.SupportListPage) },
-          { path: '/driver/support/:ticketId', ...page(supportThread, (m) => m.SupportThreadPage) },
+          { path: '/driver/support', ...page(supportChat, (m) => m.SupportChatPage) },
+          {
+            path: '/driver/support/:ticketId',
+            ...page(supportChat, (m) => m.SupportChatPage),
+          },
           { path: '/driver', ...page(driver, (m) => m.DriverHomePage) },
           { path: '/driver/history', ...page(driver, (m) => m.DriverHistoryPage) },
           { path: '/driver/profile', ...page(driver, (m) => m.DriverProfilePage) },

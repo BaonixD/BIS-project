@@ -17,7 +17,7 @@ export function SupportLink({ rideId, compact = false }: { rideId?: string; comp
         : '/support'
   return (
     <Link
-      to={rideId ? `${base}?new=1&ride_id=${rideId}` : base}
+      to={rideId ? `${base}?ride_id=${rideId}` : base}
       className={`inline-flex items-center gap-2 rounded-md outline-none focus-visible:ring-2 ${compact ? 'px-3 py-2 text-caption' : 'bg-bg-canvas p-4 text-callout'}`}
     >
       <MessageCircle className="size-5 shrink-0" />

@@ -11,14 +11,15 @@ export type Category = components['schemas']['CreateTicket']['category']
 export function useSupportTickets(
   admin: boolean,
   filters: { status?: string; category?: string; q?: string; offset?: number },
+  limit = 20,
 ) {
   const query = new URLSearchParams()
   Object.entries(filters).forEach(([key, value]) => {
     if (value !== undefined && value !== '') query.set(key, String(value))
   })
-  query.set('limit', '20')
+  query.set('limit', String(limit))
   return useQuery({
-    queryKey: ['support', 'tickets', admin, filters],
+    queryKey: ['support', 'tickets', admin, filters, limit],
     queryFn: () => request<TicketPage>(`${admin ? '/admin' : ''}/support/tickets?${query}`),
     refetchInterval: 20_000,
   })
@@ -38,7 +39,21 @@ export function useSupportTicket(id: string) {
     queryKey: ['support', 'ticket', id],
     queryFn: () => request<Ticket>(`/support/tickets/${id}`),
     enabled: Boolean(id),
-    refetchInterval: 5_000,
+    refetchInterval: (query) => (assistantWorking(query.state.data) ? 1_500 : 5_000),
+  })
+}
+
+export function assistantWorking(ticket: Ticket | undefined): boolean {
+  return Boolean(
+    ticket?.ai_available && (ticket.ai_state === 'pending' || ticket.ai_state === 'running'),
+  )
+}
+
+export function useSupportAssistant() {
+  return useQuery({
+    queryKey: ['support', 'assistant'],
+    queryFn: () => request<{ available: boolean }>('/support/assistant'),
+    staleTime: 60_000,
   })
 }
 
