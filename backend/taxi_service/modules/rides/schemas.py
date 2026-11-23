@@ -88,6 +88,10 @@ class RideCreateRequest(BaseModel):
         description="The ride costs this tariff's amount from the quote; only cars of this "
         "class or higher are offered the ride.",
     )
+    use_bonus: bool = Field(
+        default=False,
+        description="Pay up to half of the price with the passenger's bonuses (GET /bonuses/me).",
+    )
 
 
 def _without_control_characters(value: str) -> str:
@@ -127,6 +131,7 @@ class RideResponse(BaseModel):
     route: RouteResult
     tariff: Tariff
     amount_kzt: int
+    bonus_kzt: int = Field(description="Paid with bonuses; the rest is paid in money.")
     currency: Literal["KZT"]
     tariff_version: str
     created_at: datetime
@@ -154,6 +159,7 @@ class RideResponse(BaseModel):
             route=route_of(ride),
             tariff=ride.tariff,
             amount_kzt=ride.amount_kzt,
+            bonus_kzt=ride.bonus_kzt,
             currency="KZT",
             tariff_version=ride.tariff_version,
             created_at=ride.created_at,
@@ -256,6 +262,7 @@ class OfferResponse(BaseModel):
     distance_m: int
     duration_s: int
     amount_kzt: int
+    bonus_kzt: int = Field(description="Paid with bonuses; the rest is paid in money.")
     currency: Literal["KZT"]
     tariff: Tariff
     payment_method: PaymentMethod = Field(description="How the passenger pays for the ride.")
@@ -278,6 +285,7 @@ class OfferResponse(BaseModel):
             distance_m=ride.distance_m,
             duration_s=ride.duration_s,
             amount_kzt=ride.amount_kzt,
+            bonus_kzt=ride.bonus_kzt,
             currency="KZT",
             tariff=ride.tariff,
             payment_method=PaymentMethod.CASH if payment is None else payment.method,
@@ -299,6 +307,7 @@ class RideSummary(BaseModel):
     distance_m: int
     duration_s: int
     amount_kzt: int
+    bonus_kzt: int = Field(description="Paid with bonuses; the rest is paid in money.")
     currency: Literal["KZT"]
     tariff: Tariff
     created_at: datetime
@@ -319,6 +328,7 @@ class RideSummary(BaseModel):
             distance_m=ride.distance_m,
             duration_s=ride.duration_s,
             amount_kzt=ride.amount_kzt,
+            bonus_kzt=ride.bonus_kzt,
             currency="KZT",
             tariff=ride.tariff,
             created_at=ride.created_at,
@@ -355,3 +365,30 @@ def route_of(snapshot: RouteSnapshot) -> RouteResult:
             **(snapshot.routing_metadata or {}),
         }
     )
+
+
+class RideUpgradeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tariff: Tariff = Field(description="A tariff above the ride's current one.")
+    use_bonus: bool = Field(
+        default=False,
+        description="Cover the surcharge with bonuses, up to half of the new price in total.",
+    )
+
+
+class UpgradeOption(BaseModel):
+    tariff: Tariff
+    amount_kzt: int = Field(description="The ride's new price in this tariff.")
+    surcharge_kzt: int = Field(description="What the passenger adds to the current price.")
+    bonus_kzt: int = Field(description="Bonuses that can still go towards this price.")
+
+
+class RideUpgradeOptions(BaseModel):
+    """Empty ``options`` once a driver accepted the ride or in the top tariff."""
+
+    tariff: Tariff
+    amount_kzt: int
+    bonus_kzt: int = Field(description="Bonuses already used for this ride.")
+    bonus_balance_kzt: int
+    options: list[UpgradeOption]
