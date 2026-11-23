@@ -104,7 +104,11 @@ async def load_context(db: AsyncSession, claim: Claim, prompt: str) -> Context |
     if not turns or turns[-1].role != "user":
         return None
     system = ticket_context(
-        prompt, UserRole(ticket.role), ticket.category, linked_ride=ticket.ride_id is not None
+        prompt,
+        UserRole(ticket.role),
+        ticket.category,
+        linked_ride=ticket.ride_id is not None,
+        question=rows[0].body,
     )
     return Context(system=system, turns=turns)
 
