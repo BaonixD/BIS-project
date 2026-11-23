@@ -895,6 +895,23 @@ export interface paths {
         patch: operations["status_api_v1_admin_support_tickets__ticket_id__patch"];
         trace?: never;
     };
+    "/api/v1/support/tickets/{ticket_id}/handoff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Handoff */
+        post: operations["handoff_api_v1_support_tickets__ticket_id__handoff_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1357,13 +1374,21 @@ export interface components {
             /** Seq */
             seq: number;
             /**
-             * Author Id
-             * Format: uuid
+             * Author Kind
+             * @enum {string}
              */
-            author_id: string;
+            author_kind: "human" | "assistant";
+            /**
+             * Author Id
+             * @description Null for the assistant.
+             */
+            author_id: string | null;
             /** Author Name */
             author_name: string;
-            /** Author Role */
+            /**
+             * Author Role
+             * @description passenger, driver, admin or assistant.
+             */
             author_role: string;
             /** Body */
             body: string;
@@ -2139,6 +2164,21 @@ export interface components {
             unread_count: number;
             /** Last Message */
             last_message: string;
+            /**
+             * Support Mode
+             * @enum {string}
+             */
+            support_mode: "ai" | "human";
+            /**
+             * Ai State
+             * @enum {string}
+             */
+            ai_state: "idle" | "pending" | "running" | "failed";
+            /**
+             * Ai Available
+             * @description The assistant answers this ticket now; false when switched off or handed off.
+             */
+            ai_available: boolean;
         };
         /** UserResponse */
         UserResponse: {
@@ -5626,6 +5666,46 @@ export interface operations {
                 "application/json": components["schemas"]["SetStatus"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketView"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    handoff_api_v1_support_tickets__ticket_id__handoff_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticket_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
