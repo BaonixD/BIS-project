@@ -6,6 +6,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 Category = Literal["ride", "payment", "documents", "account", "other"]
 TicketStatus = Literal["open", "in_progress", "resolved"]
+SupportMode = Literal["ai", "human"]
+AIState = Literal["idle", "pending", "running", "failed"]
+AuthorKind = Literal["human", "assistant"]
 
 
 class CreateTicket(BaseModel):
@@ -46,14 +49,20 @@ class TicketView(BaseModel):
     last_message_seq: int
     unread_count: int
     last_message: str
+    support_mode: SupportMode
+    ai_state: AIState
+    ai_available: bool = Field(
+        description="The assistant answers this ticket now; false when switched off or handed off."
+    )
 
 
 class MessageView(BaseModel):
     id: uuid.UUID
     seq: int
-    author_id: uuid.UUID
+    author_kind: AuthorKind
+    author_id: uuid.UUID | None = Field(description="Null for the assistant.")
     author_name: str
-    author_role: str
+    author_role: str = Field(description="passenger, driver, admin or assistant.")
     body: str
     created_at: datetime
 

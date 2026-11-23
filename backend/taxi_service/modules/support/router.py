@@ -7,6 +7,7 @@ from taxi_service.core.clock import ClockDep
 from taxi_service.database.session import DbSession
 from taxi_service.modules.auth.dependencies import AdminUser, CurrentUser
 from taxi_service.modules.support import service
+from taxi_service.modules.support.ai_config import SupportAIDep
 from taxi_service.modules.support.schemas import (
     Category,
     CreateTicket,
@@ -25,19 +26,35 @@ router = APIRouter(tags=["support"])
 
 @router.post("/support/tickets", status_code=201)
 async def create(
-    body: CreateTicket, user: CurrentUser, db: DbSession, clock: ClockDep, request: Request
+    body: CreateTicket,
+    user: CurrentUser,
+    db: DbSession,
+    clock: ClockDep,
+    request: Request,
+    ai: SupportAIDep,
 ) -> TicketView:
     return await service.create_ticket(
-        db, user, body, clock=clock, limiter=request.app.state.support_ticket_limiter
+        db, user, body, clock=clock, limiter=request.app.state.support_ticket_limiter, ai=ai
     )
 
 
 @router.get("/support/tickets")
 async def mine(
-    user: CurrentUser, db: DbSession, page: PageParamsDep, status: TicketStatus | None = None
+    user: CurrentUser,
+    db: DbSession,
+    page: PageParamsDep,
+    ai: SupportAIDep,
+    status: TicketStatus | None = None,
 ) -> Page[TicketView]:
     return await service.list_tickets(
-        db, user, status=status, category=None, query="", limit=page.limit, offset=page.offset
+        db,
+        user,
+        status=status,
+        category=None,
+        query="",
+        limit=page.limit,
+        offset=page.offset,
+        ai_active=ai.active,
     )
 
 
@@ -46,12 +63,20 @@ async def admin_tickets(
     user: AdminUser,
     db: DbSession,
     page: PageParamsDep,
+    ai: SupportAIDep,
     status: TicketStatus | None = None,
     category: Category | None = None,
     q: Annotated[str, Query(max_length=100)] = "",
 ) -> Page[TicketView]:
     return await service.list_tickets(
-        db, user, status=status, category=category, query=q, limit=page.limit, offset=page.offset
+        db,
+        user,
+        status=status,
+        category=category,
+        query=q,
+        limit=page.limit,
+        offset=page.offset,
+        ai_active=ai.active,
     )
 
 
@@ -61,8 +86,10 @@ async def unread(user: CurrentUser, db: DbSession) -> dict[str, int]:
 
 
 @router.get("/support/tickets/{ticket_id}")
-async def ticket(ticket_id: uuid.UUID, user: CurrentUser, db: DbSession) -> TicketView:
-    return await service.read_ticket(db, ticket_id, user)
+async def ticket(
+    ticket_id: uuid.UUID, user: CurrentUser, db: DbSession, ai: SupportAIDep
+) -> TicketView:
+    return await service.read_ticket(db, ticket_id, user, ai_active=ai.active)
 
 
 @router.get("/support/tickets/{ticket_id}/messages")
@@ -87,9 +114,16 @@ async def send(
     db: DbSession,
     clock: ClockDep,
     request: Request,
+    ai: SupportAIDep,
 ) -> MessageView:
     return await service.send_message(
-        db, ticket_id, user, body, clock=clock, limiter=request.app.state.support_message_limiter
+        db,
+        ticket_id,
+        user,
+        body,
+        clock=clock,
+        limiter=request.app.state.support_message_limiter,
+        ai=ai,
     )
 
 
@@ -101,6 +135,18 @@ async def read(ticket_id: uuid.UUID, body: MarkRead, user: CurrentUser, db: DbSe
 
 @router.patch("/admin/support/tickets/{ticket_id}")
 async def status(
-    ticket_id: uuid.UUID, body: SetStatus, user: AdminUser, db: DbSession, clock: ClockDep
+    ticket_id: uuid.UUID,
+    body: SetStatus,
+    user: AdminUser,
+    db: DbSession,
+    clock: ClockDep,
+    ai: SupportAIDep,
 ) -> TicketView:
-    return await service.set_status(db, ticket_id, user, body.status, clock)
+    return await service.set_status(db, ticket_id, user, body.status, clock, ai_active=ai.active)
+
+
+@router.post("/support/tickets/{ticket_id}/handoff")
+async def handoff(
+    ticket_id: uuid.UUID, user: CurrentUser, db: DbSession, clock: ClockDep, ai: SupportAIDep
+) -> TicketView:
+    return await service.handoff(db, ticket_id, user, clock, ai_active=ai.active)
