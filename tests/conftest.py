@@ -51,6 +51,12 @@ def _no_dispatch_loop(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DISPATCH_LOOP_ENABLED", "false")
 
 
+@pytest.fixture(autouse=True)
+def _no_support_ai(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A GEMINI_API_KEY in the local .env must never make a test call the paid API.
+    monkeypatch.setenv("SUPPORT_AI_ENABLED", "false")
+
+
 @pytest.fixture(scope="session")
 def temp_root(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """Only files below this directory may be deleted or overwritten by fixtures."""

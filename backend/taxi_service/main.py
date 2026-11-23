@@ -20,6 +20,8 @@ from taxi_service.modules.payments.config import PaymentSettings
 from taxi_service.modules.rides.idempotency import IDEMPOTENCY_HEADER, REPLAYED_HEADER
 from taxi_service.modules.rides.lifecycle import on_ride_completed
 from taxi_service.modules.rides.policy import DispatchPolicy
+from taxi_service.modules.support.ai_client import SupportAIProvider
+from taxi_service.modules.support.ai_config import SupportAISettings
 
 API_DESCRIPTION = """\
 Backend MVP of a taxi service in Almaty (KZT).
@@ -43,6 +45,8 @@ def create_app(
     routing_provider: RoutingProvider | None = None,
     payment_settings: PaymentSettings | None = None,
     google_verifier: GoogleTokenVerifier | None = None,
+    support_ai_settings: SupportAISettings | None = None,
+    support_ai_provider: SupportAIProvider | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="TezJet Taxi Service",
@@ -74,6 +78,8 @@ def create_app(
     app.state.dispatch_policy = DispatchPolicy.from_settings(settings)
     app.state.ride_completion_hook = on_ride_completed
     app.state.payment_settings = payment_settings or PaymentSettings()
+    app.state.support_ai_settings = support_ai_settings or SupportAISettings()
+    app.state.support_ai_provider_override = support_ai_provider
     # Added first, so RequestIdMiddleware wraps it: preflight answers get an ID too.
     app.add_middleware(DocumentBodyLimit)
     app.add_middleware(
