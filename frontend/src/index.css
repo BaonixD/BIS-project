@@ -158,10 +158,12 @@
 
 @utility bg-app-ornament {
   background-color: var(--color-bg-subtle);
-  background-image: url('/brand/kazakh-ornament.jpeg');
-  background-position: top center;
-  background-repeat: repeat;
-  background-size: 591px auto;
+  background-image:
+    radial-gradient(ellipse at center, rgb(246 246 246 / 0.65), rgb(246 246 246 / 0.22)),
+    url('/brand/kazakh-ornament.svg');
+  background-position: center, top center;
+  background-repeat: no-repeat, repeat;
+  background-size: 100% 100%, 176px auto;
 }
 
 @utility scrollbar-none {

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="248" viewBox="0 0 192 248">
+  <defs>
+    <g id="horn">
+      <path d="M0 0C-5-11-21-15-25-27c-3-9 1-19 9-21 8-2 15 3 15 11 0 6-4 10-9 10-4 0-7-3-7-6 0-3 2-5 5-5"/>
+      <path d="M-24-19c-5-4-9-9-9-17 0-5 2-9 5-12M-23 0c-6-4-9-9-8-15 5 2 9 6 10 11M-27-2c3 1 7 1 10 0"/>
+    </g>
+    <g id="upper">
+      <use href="#horn"/>
+      <use href="#horn" transform="scale(-1 1)"/>
+    </g>
+    <g id="ornament">
+      <use href="#upper"/>
+      <use href="#upper" transform="scale(1 -1)"/>
+      <path d="M0-17Q-9-8 0 0Q9-8 0-17ZM0 17Q-9 8 0 0Q9 8 0 17Z"/>
+      <path d="M0-60v-4m0 128v-4"/>
+      <circle cy="-55" r="1.4" fill="currentColor" stroke="none"/>
+      <circle cy="55" r="1.4" fill="currentColor" stroke="none"/>
+    </g>
+  </defs>
+  <g fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" color="#567775" opacity=".19">
+    <use href="#ornament" x="48" y="0"/>
+    <use href="#ornament" x="48" y="124"/>
+    <use href="#ornament" x="48" y="248"/>
+    <use href="#ornament" x="144" y="62"/>
+    <use href="#ornament" x="144" y="186"/>
+  </g>
+</svg>
