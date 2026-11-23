@@ -48,8 +48,3 @@ export function TitleOrnament({ className }: { className?: string }) {
     </div>
   )
 }
-
-/** A thin strip of repeated motifs; decorative. */
-export function OrnamentBand({ className }: { className?: string }) {
-  return <span aria-hidden className={cn('block h-2.5 bg-ornament-band', className)} />
-}

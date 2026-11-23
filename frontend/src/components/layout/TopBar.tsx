@@ -1,5 +1,4 @@
 import { BrandLogo } from '@/components/common/BrandLogo'
-import { OrnamentBand } from '@/components/common/Ornament'
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
 import { t, useLocale } from '@/i18n/core'
 import { LogOut } from 'lucide-react'
@@ -49,7 +48,10 @@ export function TopBar({
         preview ? 'relative flex w-full' : 'fixed inset-x-0 top-0 z-40 hidden lg:flex',
       )}
     >
-      <OrnamentBand className="pointer-events-none absolute inset-x-0 bottom-1 h-2.5 opacity-60" />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-linear-to-r from-transparent via-brand-gold/70 to-transparent"
+      />
       <Link to={ROLE_HOME[role]} className="text-headline whitespace-nowrap text-text-inverse">
         <BrandLogo inverse />
       </Link>
