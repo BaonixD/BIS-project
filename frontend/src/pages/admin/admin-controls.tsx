@@ -23,7 +23,7 @@ export function AdminLayout({
 }) {
   useLocale()
   return (
-    <div className="min-h-dvh bg-app-ornament">
+    <div className="min-h-dvh bg-bg-subtle">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 px-4 pt-[calc(64px+env(safe-area-inset-top))] pb-8 lg:gap-5 lg:px-8 lg:pt-8">
         <header className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">

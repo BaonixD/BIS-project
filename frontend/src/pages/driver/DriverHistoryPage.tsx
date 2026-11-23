@@ -61,7 +61,7 @@ export function DriverHistoryPage() {
   const stats = summarizeShift(rides)
   const current = PERIODS().find((item) => item.id === period) ?? PERIODS()[0]
   return (
-    <Screen>
+    <Screen tone="subtle">
       <ScreenColumn className="gap-4 pt-[calc(64px+env(safe-area-inset-top))] pb-6">
         <h1 className="w-full text-display text-text-primary">{t('История')}</h1>
         <div className="flex w-full flex-col gap-1 overflow-hidden rounded-[20px] bg-bg-inverse p-5 text-text-inverse">

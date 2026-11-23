@@ -339,7 +339,7 @@ function SheetDemo() {
 /** Dev-only showcase of the UI kit for side-by-side checks against Figma (route /dev/kit). */
 export function KitPage() {
   return (
-    <div className="min-h-dvh bg-app-ornament pb-16">
+    <div className="min-h-dvh bg-bg-subtle pb-16">
       <div className="hidden lg:block" data-figma="7:62">
         <TopBar role="passenger" displayName="Айгерим" pathname="/" preview />
       </div>

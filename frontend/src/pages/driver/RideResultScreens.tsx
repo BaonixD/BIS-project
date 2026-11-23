@@ -58,7 +58,7 @@ export function CollectCashScreen({ ride }: { ride: NextRide }) {
   const pickup = useReverseGeocode(ride.pickup)
   const dropoff = useReverseGeocode(ride.dropoff)
   return (
-    <Screen overNav>
+    <Screen tone="subtle" overNav>
       <ScreenColumn className="items-center gap-5 pt-[calc(72px+env(safe-area-inset-top))] pb-32">
         <span className="flex size-18 shrink-0 items-center justify-center rounded-full bg-bg-inverse text-text-inverse">
           <Banknote className="size-6" strokeWidth={2} aria-hidden />
@@ -132,7 +132,7 @@ export function CompletedScreen({
       onError: (error) => showToast({ title: errorMessage(error) }),
     })
   return (
-    <Screen overNav>
+    <Screen tone="subtle" overNav>
       <ScreenColumn className="items-center gap-4 pt-[calc(100px+env(safe-area-inset-top))] pb-40">
         <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-accent-success text-text-inverse">
           <Check className="size-8" strokeWidth={2} aria-hidden />

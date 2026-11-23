@@ -21,7 +21,7 @@ export function ProfilePage() {
   const name = data?.display_name || data?.username || ''
   const google = data?.login_method === 'google'
   return (
-    <div className="min-h-dvh bg-app-ornament">
+    <div className="min-h-dvh bg-bg-subtle">
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 pt-[64px] pb-6 lg:pt-8">
         <h1 className="px-1 text-display text-text-primary">{t('Профиль')}</h1>
         <div className="flex justify-end lg:hidden">

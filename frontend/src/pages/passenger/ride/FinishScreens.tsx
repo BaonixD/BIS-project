@@ -37,7 +37,7 @@ function ResultPage({
 }) {
   useLocale()
   return (
-    <FullScreen>
+    <FullScreen className="bg-bg-subtle">
       <div className={cn('mx-auto flex min-h-full w-full max-w-[420px] flex-col px-4', top)}>
         <div className="flex w-full flex-col items-center">{children}</div>
         <div className="mt-auto flex w-full flex-col items-center gap-3 pt-6">{footer}</div>

@@ -157,18 +157,8 @@
     -webkit-tap-highlight-color: transparent;
   }
   body {
-    @apply bg-app-ornament text-foreground;
+    @apply bg-background text-foreground;
   }
-}
-
-@utility bg-app-ornament {
-  background-color: var(--color-bg-subtle);
-  background-image:
-    radial-gradient(ellipse at center, rgb(246 246 246 / 0.65), rgb(246 246 246 / 0.22)),
-    url('/brand/kazakh-ornament.svg');
-  background-position: center, top center;
-  background-repeat: no-repeat, repeat;
-  background-size: 100% 100%, 176px auto;
 }
 
 /* Text that shimmers while the support assistant works; static under reduced motion. */

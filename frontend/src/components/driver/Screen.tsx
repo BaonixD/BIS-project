@@ -7,10 +7,12 @@ import { cn } from '@/lib/utils'
  */
 export function Screen({
   children,
+  tone = 'canvas',
   overNav = false,
   className,
 }: {
   children: ReactNode
+  tone?: 'canvas' | 'subtle'
   overNav?: boolean
   className?: string
 }) {
@@ -18,7 +20,7 @@ export function Screen({
     <div
       className={cn(
         'fixed inset-0 overflow-y-auto lg:top-(--top-bar-height)',
-        'bg-app-ornament',
+        tone === 'subtle' ? 'bg-bg-subtle' : 'bg-bg-canvas',
         overNav ? 'z-50' : 'pb-(--nav-height) lg:pb-0',
         className,
       )}
