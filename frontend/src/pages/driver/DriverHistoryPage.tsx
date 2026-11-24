@@ -1,4 +1,5 @@
 import { SupportLink } from '@/components/common/SupportLink'
+import { AlatauScene } from '@/components/common/AlatauScene'
 import { TitleOrnament } from '@/components/common/Ornament'
 import { t, useLocale } from '@/i18n/core'
 import { useState } from 'react'
@@ -87,9 +88,12 @@ export function DriverHistoryPage() {
         {history.isPending ? (
           <Skeleton className="h-56 w-full rounded-lg" />
         ) : rides.length === 0 ? (
-          <p className="w-full rounded-lg bg-bg-canvas p-5 text-center text-callout text-text-secondary">
-            {t('Поездок за этот период нет')}
-          </p>
+          <div className="flex w-full flex-col gap-4 rounded-lg bg-bg-canvas p-5">
+            <p className="text-center text-callout text-text-secondary">
+              {t('Поездок за этот период нет')}
+            </p>
+            <AlatauScene />
+          </div>
         ) : (
           <ul className="flex w-full flex-col overflow-hidden rounded-lg bg-bg-canvas p-2">
             {rides.map((ride) => (

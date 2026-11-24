@@ -1,4 +1,5 @@
 import { t, useLocale } from '@/i18n/core'
+import { AlatauScene } from '@/components/common/AlatauScene'
 import { TitleOrnament } from '@/components/common/Ornament'
 import { useState } from 'react'
 import { Link } from 'react-router'
@@ -55,6 +56,7 @@ function EmptyHistory() {
       <Button size="md" asChild>
         <Link to="/">{t('Заказать такси')}</Link>
       </Button>
+      <AlatauScene className="mt-6" />
     </div>
   )
 }

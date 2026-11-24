@@ -16,6 +16,7 @@ import {
 import { Button, Skeleton } from '@/components/ui-kit'
 import { ErrorAlert } from '@/components/common/ErrorAlert'
 import { OrnamentDivider } from '@/components/common/Ornament'
+import { AlatauScene } from '@/components/common/AlatauScene'
 import { t, useLocale } from '@/i18n/core'
 import { ChatLog, Composer, MessageRow, TicketConversation, TypingIndicator } from './chat'
 import { conversationKey, subjectFrom, type Conversation } from './chat-model'
@@ -133,9 +134,12 @@ function ChatList({
           </div>
         )}
         {tickets.data?.items.length === 0 && (
-          <p className="px-3 py-2 text-caption text-text-tertiary">
-            {t('Здесь появятся ваши чаты с поддержкой.')}
-          </p>
+          <div className="flex flex-col gap-3 px-3 py-2">
+            <p className="text-caption text-text-tertiary">
+              {t('Здесь появятся ваши чаты с поддержкой.')}
+            </p>
+            <AlatauScene className="h-20 rounded-xl" />
+          </div>
         )}
         <ul className="flex flex-col gap-0.5">
           {tickets.data?.items.map((ticket) => (
