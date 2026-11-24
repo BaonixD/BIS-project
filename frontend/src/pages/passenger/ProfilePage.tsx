@@ -1,4 +1,5 @@
 import { SupportLink } from '@/components/common/SupportLink'
+import { MapThemeSwitch } from '@/components/common/MapThemeSwitch'
 import { TitleOrnament } from '@/components/common/Ornament'
 import { Achievements } from '@/components/common/Achievements'
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
@@ -88,6 +89,7 @@ export function ProfilePage() {
         )}
         <SupportLink />
         <Achievements />
+        <MapThemeSwitch />
         <GroupedSection>
           <GroupedRow
             icon={Settings}

@@ -1,4 +1,5 @@
 import { SupportLink } from '@/components/common/SupportLink'
+import { MapThemeSwitch } from '@/components/common/MapThemeSwitch'
 import { TitleOrnament } from '@/components/common/Ornament'
 import { Achievements } from '@/components/common/Achievements'
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
@@ -126,6 +127,7 @@ export function DriverProfilePage() {
         )}
         <SupportLink />
         <Achievements />
+        <MapThemeSwitch />
         <GroupedSection>
           <GroupedRow icon={CreditCard} tone="bg-accent-info" title={t("Документы")} to="/driver/documents" />
           <GroupedRow

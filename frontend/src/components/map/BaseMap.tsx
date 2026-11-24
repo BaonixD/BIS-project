@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import L from 'leaflet'
 import { setWorkerUrl } from 'maplibre-gl'
 import type { Map as MaplibreMap } from 'maplibre-gl'
@@ -9,6 +9,7 @@ import { MapContainer, useMap, useMapEvents } from 'react-leaflet'
 import { cn } from '@/lib/utils'
 import type { Coordinates } from '@/api'
 import { ALMATY_CENTER, DEFAULT_ZOOM, fromLatLng, toLatLng } from '@/lib/geo'
+import { useNightMap } from '@/lib/map-theme'
 
 // OpenFreeMap: free vector tiles without a key; Positron is the light Uber-like style.
 const STYLE_URL = 'https://tiles.openfreemap.org/styles/positron'
@@ -18,11 +19,12 @@ const ATTRIBUTION =
   '<a href="https://openfreemap.org">OpenFreeMap</a> &copy; <a href="https://www.openmaptiles.org/">OpenMapTiles</a> ' +
   'Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 
+type PaintProperty = Parameters<MaplibreMap['setPaintProperty']>[1]
+type Palette = readonly [layer: string, property: PaintProperty, value: string][]
+
 // Positron, warmed towards the TezJet palette: steppe-light land, sky-blue water,
 // sage parks and a faint gold casing on main roads. Labels and road geometry stay as they are.
-type PaintProperty = Parameters<MaplibreMap['setPaintProperty']>[1]
-
-const THEME: readonly [layer: string, property: PaintProperty, value: string][] = [
+const DAY: Palette = [
   ['background', 'background-color', '#f5f3ec'],
   ['road_area_pier', 'fill-color', '#f5f3ec'],
   ['road_pier', 'line-color', '#f5f3ec'],
@@ -41,28 +43,104 @@ const THEME: readonly [layer: string, property: PaintProperty, value: string][] 
   ['tunnel_motorway_casing', 'line-color', '#e8d9a8'],
 ]
 
-function applyTheme(map: MaplibreMap) {
-  for (const [layer, property, value] of THEME) {
+const NIGHT_INK = '#0f1b20'
+const NIGHT_LABELS = [
+  'label_other',
+  'label_village',
+  'label_town',
+  'label_state',
+  'label_city',
+  'label_city_capital',
+  'label_country_1',
+  'label_country_2',
+  'label_country_3',
+  'airport',
+  'highway-name-minor',
+  'highway-name-major',
+  'highway-name-path',
+  'waterway_line_label',
+]
+
+// «Түнгі Алматы»: deep blue-green land, gold motorways and dim-gold avenues.
+const NIGHT: Palette = [
+  ['background', 'background-color', NIGHT_INK],
+  ['road_area_pier', 'fill-color', NIGHT_INK],
+  ['road_pier', 'line-color', NIGHT_INK],
+  ['landuse_residential', 'fill-color', '#132228'],
+  ['building', 'fill-color', '#182a30'],
+  ['building', 'fill-outline-color', '#1f343b'],
+  ['park', 'fill-color', '#12261f'],
+  ['landcover_wood', 'fill-color', '#11241d'],
+  ['landcover_ice_shelf', 'fill-color', '#1c2c31'],
+  ['landcover_glacier', 'fill-color', '#1c2c31'],
+  ['aeroway-area', 'fill-color', '#16262b'],
+  ['aeroway-runway', 'line-color', '#243338'],
+  ['aeroway-taxiway', 'line-color', '#203035'],
+  ['aeroway-runway-casing', 'line-color', '#203035'],
+  ['water', 'fill-color', '#0b3440'],
+  ['waterway', 'line-color', '#12495a'],
+  ['water_name_point_label', 'text-color', '#5fc6d8'],
+  ['water_name_line_label', 'text-color', '#5fc6d8'],
+  ['highway_path', 'line-color', '#1d2d32'],
+  ['highway_minor', 'line-color', '#25363c'],
+  ['highway_major_casing', 'line-color', '#3a3317'],
+  ['highway_major_inner', 'line-color', '#8a7024'],
+  ['highway_major_subtle', 'line-color', '#4a3f1a'],
+  ['highway_motorway_casing', 'line-color', '#6b5410'],
+  ['highway_motorway_inner', 'line-color', '#e0b12a'],
+  ['highway_motorway_subtle', 'line-color', '#6b5410'],
+  ['highway_motorway_bridge_casing', 'line-color', '#6b5410'],
+  ['highway_motorway_bridge_inner', 'line-color', '#e0b12a'],
+  ['tunnel_motorway_casing', 'line-color', '#3a3317'],
+  ['tunnel_motorway_inner', 'line-color', '#5a4a1a'],
+  ['railway', 'line-color', '#2a3a40'],
+  ['railway_dashline', 'line-color', NIGHT_INK],
+  ['railway_transit', 'line-color', '#2a3a40'],
+  ['railway_transit_dashline', 'line-color', NIGHT_INK],
+  ['railway_service', 'line-color', '#2a3a40'],
+  ['railway_service_dashline', 'line-color', NIGHT_INK],
+  ['boundary_2', 'line-color', '#3b4c52'],
+  ['boundary_3', 'line-color', '#3b4c52'],
+  ['boundary_disputed', 'line-color', '#3b4c52'],
+  ...NIGHT_LABELS.flatMap((layer): Palette[number][] => [
+    [layer, 'text-color', '#c9d4d6'],
+    [layer, 'text-halo-color', NIGHT_INK],
+  ]),
+]
+
+function applyTheme(map: MaplibreMap, palette: Palette) {
+  for (const [layer, property, value] of palette) {
     if (map.getLayer(layer)) map.setPaintProperty(layer, property, value)
   }
 }
 
-function VectorBasemap() {
+function VectorBasemap({ night }: { night: boolean }) {
   const map = useMap()
+  const palette = useRef<Palette>(night ? NIGHT : DAY)
+  const glRef = useRef<MaplibreMap | null>(null)
   useEffect(() => {
     const layer = L.maplibreGL({
       style: STYLE_URL,
       attributionControl: false,
     } as L.LeafletMaplibreGLOptions).addTo(map)
     const gl = layer.getMaplibreMap()
-    const theme = () => applyTheme(gl)
+    glRef.current = gl
+    const theme = () => applyTheme(gl, palette.current)
     gl.on('style.load', theme)
     if (gl.isStyleLoaded()) theme()
     return () => {
       gl.off('style.load', theme)
+      glRef.current = null
       layer.remove()
     }
   }, [map])
+  useEffect(() => {
+    const next = night ? NIGHT : DAY
+    if (palette.current === next) return
+    palette.current = next
+    // A fresh style drops the other palette's colours; style.load then paints this one.
+    glRef.current?.setStyle(STYLE_URL)
+  }, [night])
   return null
 }
 
@@ -100,6 +178,7 @@ export function BaseMap({
   onPick,
   children,
 }: BaseMapProps) {
+  const night = useNightMap()
   return (
     <MapContainer
       center={toLatLng(center)}
@@ -107,9 +186,9 @@ export function BaseMap({
       zoomControl={false}
       // Avoid delayed Leaflet CSS zoom callbacks after a ride screen unmounts.
       zoomAnimation={false}
-      className={cn('isolate h-full w-full', className)}
+      className={cn('isolate h-full w-full', night && 'map-night', className)}
     >
-      <VectorBasemap />
+      <VectorBasemap night={night} />
       <AttributionTopRight />
       {onPick && <ClickHandler onPick={onPick} />}
       {children}

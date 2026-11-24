@@ -10,7 +10,7 @@ const CAR_SVG =
 /** Figma Route (4:317): pickup — 22px black circle; its centre is the flag's sky blue. */
 export const pickupIcon = divIcon({
   className: 'map-marker',
-  html: '<span class="flex size-[22px] items-center justify-center rounded-full bg-bg-inverse"><span class="size-2 rounded-full bg-brand-sky"></span></span>',
+  html: '<span class="flex size-[22px] items-center justify-center rounded-full bg-bg-inverse ring-2 ring-bg-canvas"><span class="size-2 rounded-full bg-brand-sky"></span></span>',
   iconSize: [22, 22],
   iconAnchor: [11, 11],
 })
@@ -18,7 +18,7 @@ export const pickupIcon = divIcon({
 /** Figma Route (4:317): drop-off — 20px black square; its centre is the flag's gold. */
 export const dropoffIcon = divIcon({
   className: 'map-marker',
-  html: '<span class="flex size-5 items-center justify-center bg-bg-inverse"><span class="size-2 bg-brand-gold"></span></span>',
+  html: '<span class="flex size-5 items-center justify-center bg-bg-inverse ring-2 ring-bg-canvas"><span class="size-2 bg-brand-gold"></span></span>',
   iconSize: [20, 20],
   iconAnchor: [10, 10],
 })

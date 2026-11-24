@@ -1,5 +1,12 @@
 // Shared interface messages. Keep placeholders unchanged in each translation.
 export const en: Record<string, string> = {
+  '«Түнгі Алматы» — тёмная карта с золотыми магистралями; в режиме «Авто» с 20:00 до 6:00.':
+    '«Түнгі Алматы» is a dark map with golden highways; Auto turns it on from 20:00 to 6:00.',
+  'Авто': 'Auto',
+  'Госномер {p0}': 'Plate number {p0}',
+  'День': 'Day',
+  'Карта': 'Map',
+  'Ночь': 'Night',
   'Вопрос в поддержку': 'Support question',
   '{p0} · {p1}% с поездки': '{p0} · {p1}% back per ride',
   'Бонусами': 'With bonuses',
@@ -791,6 +798,13 @@ export const en: Record<string, string> = {
 }
 
 export const kk: Record<string, string> = {
+  '«Түнгі Алматы» — тёмная карта с золотыми магистралями; в режиме «Авто» с 20:00 до 6:00.':
+    '«Түнгі Алматы» — алтын магистральдары бар қараңғы карта; «Авто» режимінде 20:00-ден 6:00-ге дейін.',
+  'Авто': 'Авто',
+  'Госномер {p0}': 'Мемлекеттік нөмір {p0}',
+  'День': 'Күндіз',
+  'Карта': 'Карта',
+  'Ночь': 'Түн',
   'Вопрос в поддержку': 'Қолдауға сұрақ',
   '{p0} · {p1}% с поездки': '{p0} · сапардан {p1}%',
   'Бонусами': 'Бонуспен',

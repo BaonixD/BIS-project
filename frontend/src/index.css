@@ -250,3 +250,39 @@
     transition-duration: 1ms !important;
   }
 }
+
+/* «Түнгі Алматы»: the container shows through while tiles load; attribution stays readable. */
+.map-night.leaflet-container {
+  background: #0f1b20;
+}
+.map-night .leaflet-control-attribution {
+  background: rgb(15 27 32 / 0.75);
+  color: #9fb0b4;
+}
+.map-night .leaflet-control-attribution a {
+  color: #5fc6d8;
+}
+
+/* Шаңырақ while a driver is searched: poles light up in turn, the crown turns slowly. */
+.shanyrak-uyk {
+  stroke: rgb(142 142 142 / 0.45);
+  animation: uyk-glow 2.4s linear infinite;
+}
+.shanyrak-spin {
+  transform-box: view-box;
+  transform-origin: 100px 100px;
+  animation: shanyrak-turn 40s linear infinite;
+}
+@keyframes uyk-glow {
+  0%, 22%, 100% { stroke: rgb(142 142 142 / 0.45); }
+  6% { stroke: #00afca; }
+}
+@keyframes shanyrak-turn {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shanyrak-uyk,
+  .shanyrak-spin {
+    animation: none;
+  }
+}
