@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from taxi_service.api.exception_handlers import register_exception_handlers
+from taxi_service.api.frontend import install_frontend
 from taxi_service.api.openapi import install_openapi
 from taxi_service.api.router import api_router
 from taxi_service.core.clock import Clock, SystemClock
@@ -94,4 +95,6 @@ def create_app(
     register_exception_handlers(app)
     app.include_router(api_router)
     install_openapi(app)
+    if settings.frontend_dist is not None:
+        install_frontend(app, settings.frontend_dist)
     return app

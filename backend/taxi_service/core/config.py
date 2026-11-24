@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     support_tickets_per_10_min: int = Field(default=5, ge=1)
     support_messages_per_min: int = Field(default=30, ge=1)
     document_storage_dir: Path = Path("private_uploads/driver-documents")
+    # The built web app (frontend/dist); set in the container, empty in local development.
+    frontend_dist: Path | None = None
     log_level: LogLevel = "INFO"
     database_url: str = Field(repr=False)
 

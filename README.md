@@ -89,6 +89,10 @@ The app is built for phones first. On a computer, it looks best in your browser'
 **Good to know:** the Kaspi option only shows up if you add a Kaspi link to `.env`, and "Continue with Google" only shows up if you add a Google client ID. Everything else works without them.
 
 
+## Deploy
+
+One Docker image (frontend + API) for Dokploy, data on a SQLite volume: [deploy guide](docs/deploy-dokploy.md) (in Russian).
+
 ## More
 
 Want the technical details? See the [developer guide](docs/development.md) (in Russian).
