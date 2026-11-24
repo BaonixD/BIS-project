@@ -1,4 +1,5 @@
 import { SupportLink } from '@/components/common/SupportLink'
+import { AlatauBanner } from '@/components/common/AlatauScene'
 import { MapThemeSwitch } from '@/components/common/MapThemeSwitch'
 import { TitleOrnament } from '@/components/common/Ornament'
 import { Achievements } from '@/components/common/Achievements'
@@ -35,6 +36,9 @@ export function ProfilePage() {
           <LanguageSwitcher />
         </div>
         <ErrorAlert error={profile.error} />
+        <AlatauBanner name={data ? name.split(' ')[0] : undefined}>
+          {t('Алматы, Заилийский Алатау')}
+        </AlatauBanner>
         {data ? (
           <ProfileHeaderCard
             to="/profile/settings"

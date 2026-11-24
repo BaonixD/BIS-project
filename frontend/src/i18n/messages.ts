@@ -1,5 +1,10 @@
 // Shared interface messages. Keep placeholders unchanged in each translation.
 export const en: Record<string, string> = {
+  'Доброе утро': 'Good morning',
+  'Добрый день': 'Good afternoon',
+  'Добрый вечер': 'Good evening',
+  'Доброй ночи': 'Good night',
+  'Алматы, Заилийский Алатау': 'Almaty, Trans-Ili Alatau',
   '«Түнгі Алматы» — тёмная карта с золотыми магистралями; в режиме «Авто» с 20:00 до 6:00.':
     '«Түнгі Алматы» is a dark map with golden highways; Auto turns it on from 20:00 to 6:00.',
   'Авто': 'Auto',
@@ -798,6 +803,11 @@ export const en: Record<string, string> = {
 }
 
 export const kk: Record<string, string> = {
+  'Доброе утро': 'Қайырлы таң',
+  'Добрый день': 'Қайырлы күн',
+  'Добрый вечер': 'Қайырлы кеш',
+  'Доброй ночи': 'Қайырлы түн',
+  'Алматы, Заилийский Алатау': 'Алматы, Іле Алатауы',
   '«Түнгі Алматы» — тёмная карта с золотыми магистралями; в режиме «Авто» с 20:00 до 6:00.':
     '«Түнгі Алматы» — алтын магистральдары бар қараңғы карта; «Авто» режимінде 20:00-ден 6:00-ге дейін.',
   'Авто': 'Авто',

@@ -1,8 +1,9 @@
-import { useId } from 'react'
+import { useId, type ReactNode } from 'react'
+import { t, useLocale } from '@/i18n/core'
 import { almatyHour } from '@/lib/map-theme'
+import { phaseAt, useSkyPhase, type SkyPhase } from '@/lib/sky'
 import { cn } from '@/lib/utils'
 
-export type SkyPhase = 'dawn' | 'day' | 'dusk' | 'night'
 type Phase = SkyPhase
 
 const SKY: Record<Phase, { top: string; bottom: string; ridge: string; line: string }> = {
@@ -12,12 +13,6 @@ const SKY: Record<Phase, { top: string; bottom: string; ridge: string; line: str
   night: { top: '#0f1b20', bottom: '#1d3540', ridge: '#3d5a64', line: '#8fb1bb' },
 }
 
-function phaseAt(hour: number): Phase {
-  if (hour >= 5 && hour < 8) return 'dawn'
-  if (hour >= 8 && hour < 17) return 'day'
-  if (hour >= 17 && hour < 20) return 'dusk'
-  return 'night'
-}
 
 // Заилийский Алатау as seen from the city: a far, higher ridge and a nearer, lower one.
 const FAR =
@@ -63,5 +58,40 @@ export function AlatauScene({ className, phase: fixed }: { className?: string; p
       <path d={`${NEAR}V110H0Z`} fill={colors.ridge} opacity="0.3" />
       <path d={NEAR} fill="none" stroke={colors.line} strokeWidth="1.4" strokeLinejoin="round" opacity="0.8" />
     </svg>
+  )
+}
+
+
+const GREETING = (): Record<SkyPhase, string> => ({
+  dawn: t('Доброе утро'),
+  day: t('Добрый день'),
+  dusk: t('Добрый вечер'),
+  night: t('Доброй ночи'),
+})
+
+/** Profile banner: the Alatau under today's sky with a greeting for this time of day. */
+export function AlatauBanner({ name, children }: { name?: string; children?: ReactNode }) {
+  useLocale()
+  const phase = useSkyPhase()
+  const night = phase === 'night'
+  return (
+    <section className="relative w-full overflow-hidden rounded-[20px]">
+      <AlatauScene phase={phase} className="h-32 rounded-[20px]" />
+      <div
+        className={cn(
+          'absolute inset-x-0 top-0 flex flex-col gap-0.5 p-4',
+          night ? 'text-text-inverse' : 'text-text-primary',
+        )}
+      >
+        <p className="text-headline">
+          {name ? `${GREETING()[phase]}, ${name}` : GREETING()[phase]}
+        </p>
+        {children && (
+          <p className={cn('text-caption', night ? 'text-white/70' : 'text-text-secondary')}>
+            {children}
+          </p>
+        )}
+      </div>
+    </section>
   )
 }
