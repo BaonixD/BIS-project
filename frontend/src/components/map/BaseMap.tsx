@@ -144,11 +144,10 @@ function VectorBasemap({ night }: { night: boolean }) {
       attributionControl: false,
     } as L.LeafletMaplibreGLOptions).addTo(map)
     const gl = layer.getMaplibreMap()
+    // isStyleLoaded() stays false while tiles and sprites load, so style.load marks readiness.
     let originals: Originals | null = null
     const paint = () => {
-      if (!gl.isStyleLoaded()) return
-      originals ??= readOriginals(gl)
-      applyTheme(gl, palette.current, originals)
+      if (originals) applyTheme(gl, palette.current, originals)
     }
     const loaded = () => {
       originals = readOriginals(gl)

@@ -293,6 +293,7 @@ export function HomePage() {
             <FloatingIconButton
               icon={Menu}
               aria-label={t('Меню')}
+              className="lg:hidden"
               onClick={() => navigate('/profile')}
             />
           </MapOverlay>
