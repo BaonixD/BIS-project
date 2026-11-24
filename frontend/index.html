@@ -8,6 +8,15 @@
     <meta name="theme-color" content="#00AEC7" />
     <meta name="description" content="TezJet — такси в Алматы. Заказ поездок и работа водителем." />
     <title>TezJet</title>
+    <script>
+      try {
+        var choice = localStorage.getItem('tezjet.theme') || 'system'
+        var dark =
+          choice === 'dark' ||
+          (choice === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+      } catch (error) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

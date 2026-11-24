@@ -133,7 +133,53 @@
   --color-background: var(--background);
 }
 
-/* shadcn/ui semantic variables mapped onto the Figma palette (light theme only). */
+/* Dark theme for the whole app: the same tokens with dark values (html[data-theme=dark]).
+   An element with data-theme="light" inside keeps the light values, e.g. the black top bar. */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+:root[data-theme='dark'] {
+  --color-bg-canvas: #16191b;
+  --color-bg-subtle: #0d0f10;
+  --color-bg-muted: #24292c;
+  --color-bg-inverse: #f2f4f5;
+  --color-text-primary: #f2f4f5;
+  --color-text-secondary: #a6aeb2;
+  --color-text-tertiary: #737c81;
+  --color-text-inverse: #0d0f10;
+  --color-border-default: #2c3235;
+  --color-accent-danger: #ff5a45;
+  --color-accent-info: #4cc3d6;
+  --color-brand-sky-ink: #5fc6d8;
+  --color-brand-sky-soft: #0f3038;
+  --color-map-land: #0f1b20;
+  --color-dim: rgb(0 0 0 / 0.55);
+  --shadow-card: 0px 4px 16px 0px rgb(0 0 0 / 0.5);
+  --shadow-sheet: 0px -4px 24px 0px rgb(0 0 0 / 0.55);
+  color-scheme: dark;
+}
+
+:root[data-theme='dark'] [data-theme='light'] {
+  --color-bg-canvas: #ffffff;
+  --color-bg-subtle: #f6f6f6;
+  --color-bg-muted: #eeeeee;
+  --color-bg-inverse: #000000;
+  --color-text-primary: #000000;
+  --color-text-secondary: #5e5e5e;
+  --color-text-tertiary: #8e8e8e;
+  --color-text-inverse: #ffffff;
+  --color-border-default: #e2e2e2;
+  --color-accent-danger: #e11900;
+  --color-accent-info: #00788a;
+  --color-brand-sky-ink: #00788a;
+  --color-brand-sky-soft: #e8f7fa;
+  --color-map-land: #eef0f2;
+  --color-dim: rgb(0 0 0 / 0.35);
+  --shadow-card: 0px 4px 16px 0px rgb(0 0 0 / 0.1);
+  --shadow-sheet: 0px -4px 24px 0px rgb(0 0 0 / 0.12);
+  color-scheme: light;
+}
+
+/* shadcn/ui semantic variables mapped onto the Figma palette; they follow the theme tokens. */
 :root {
   --background: var(--color-bg-canvas);
   --foreground: var(--color-text-primary);
