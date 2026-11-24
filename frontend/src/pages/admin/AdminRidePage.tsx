@@ -1,4 +1,5 @@
 import { t, useLocale } from '@/i18n/core'
+import type { ReactNode } from 'react'
 import { adminDate } from './admin-model'
 import { Link, useParams } from 'react-router'
 import { ArrowLeft } from 'lucide-react'
@@ -12,7 +13,7 @@ import { TARIFF_LABELS } from '@/api/driver-types'
 import { formatMoney } from '@/lib/format'
 import { rideStatusPill } from './admin-format'
 import { adminPayment } from './admin-model'
-import { AdminLayout, AdminLoading, FactList, RidesLink } from './admin-controls'
+import { AdminLayout, AdminLoading, CopyId, FactList, RidesLink } from './admin-controls'
 export function AdminRidePage() {
   useLocale()
   const { rideId } = useParams()
@@ -38,9 +39,7 @@ export function AdminRidePage() {
         <>
           <div className="flex flex-wrap items-center gap-3">
             <StatusPill tone={pill!.tone}>{pill!.label}</StatusPill>
-            <span className="select-all break-all font-mono text-caption text-text-secondary">
-              {ride.id}
-            </span>
+            <CopyId value={ride.id} />
           </div>
           <div className="grid items-start gap-5 lg:grid-cols-2">
             <section className="overflow-hidden rounded-lg bg-bg-canvas">
@@ -123,17 +122,25 @@ export function AdminRidePage() {
               <section className="rounded-lg bg-bg-canvas p-5">
                 <h2 className="text-headline">{t('Этапы поездки')}</h2>
                 <FactList
-                  items={[
-                    [t('Заказ создан'), adminDate(ride.created_at)],
-                    [t('Водитель назначен'), adminDate(ride.assigned_at)],
-                    [t('На месте'), adminDate(ride.arrived_at)],
-                    [t('Поездка начата'), adminDate(ride.started_at)],
-                    [t('Завершена'), adminDate(ride.completed_at)],
-                    [t('Отменена'), adminDate(ride.cancelled_at)],
-                    ...(ride.cancel_reason
-                      ? [[t('Причина отмены'), ride.cancel_reason] as [string, string]]
-                      : []),
-                  ]}
+                  items={(
+                    [
+                      [t('Заказ создан'), ride.created_at],
+                      [t('Водитель назначен'), ride.assigned_at],
+                      [t('Водитель на месте'), ride.arrived_at],
+                      [t('Поездка начата'), ride.started_at],
+                      [t('Поездка завершена'), ride.completed_at],
+                      [t('Поездка отменена'), ride.cancelled_at],
+                    ] as [string, string | null][]
+                  )
+                    // A finished ride shows only what happened; an active one also what is next.
+                    .filter(([, at]) => at !== null || !['completed', 'cancelled', 'no_driver'].includes(ride.status))
+                    .map(([label, at]): [string, ReactNode] => [label, at ? adminDate(at) : t('ещё нет')])
+                    .concat(
+                      ride.status === 'no_driver'
+                        ? [[t('Итог'), t('Водитель не найден за время поиска')]]
+                        : [],
+                      ride.cancel_reason ? [[t('Причина отмены'), ride.cancel_reason]] : [],
+                    )}
                 />
               </section>
             </div>

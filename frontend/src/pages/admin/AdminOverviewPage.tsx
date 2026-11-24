@@ -17,7 +17,7 @@ export function AdminOverviewPage() {
           value: waiting.data?.total ?? '—',
           icon: Clock,
           to: '/admin?status=pending&documents=pending',
-          note: t('Пакет документов'),
+          note: t('Водители с документами'),
         },
         {
           label: t('Активные поездки'),
@@ -45,24 +45,24 @@ export function AdminOverviewPage() {
   return (
     <AdminLayout
       title={t('Обзор сервиса')}
-      description={t('Текущее состояние и итоги за всё время. Обновление каждые 15 секунд.')}
+      description={t('Что происходит сейчас и итоги за всё время. Данные обновляются сами.')}
       refreshing={query.isFetching}
       onRefresh={() => void query.refetch()}
     >
       <ErrorAlert error={query.error} />
       {query.isPending && <AdminLoading />}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {metrics.map(({ label, value, icon: Icon, to, note }) => (
           <Link
             key={label}
             to={to}
-            className="group rounded-lg bg-bg-canvas p-5 outline-none transition-shadow hover:shadow-card focus-visible:ring-2 focus-visible:ring-bg-inverse"
+            className="group rounded-lg bg-bg-canvas p-4 outline-none transition-shadow hover:shadow-card focus-visible:ring-2 focus-visible:ring-bg-inverse sm:p-5"
           >
             <div className="flex items-center justify-between text-text-secondary">
               <Icon className="size-5" />
               <ArrowUpRight className="size-4" />
             </div>
-            <p className="mt-5 text-display text-text-primary">{value}</p>
+            <p className="mt-4 text-title text-text-primary sm:mt-5 sm:text-display">{value}</p>
             <p className="mt-1 text-body-medium text-text-primary">{label}</p>
             <p className="mt-1 text-caption text-text-secondary">{note}</p>
           </Link>
@@ -90,7 +90,7 @@ export function AdminOverviewPage() {
             </div>
             <p className="mt-4 text-display text-text-primary">{formatMoney(data.collected_kzt)}</p>
             <p className="text-caption text-text-secondary">
-              {t('Подтверждённая оплата · Kaspi учитывается как учебная имитация')}
+              {t('Получено за поездки. Kaspi — учебная оплата, реальные деньги не списываются.')}
             </p>
             <Link
               to="/admin/rides?view=completed&payment_status=unpaid&payment_method=cash"

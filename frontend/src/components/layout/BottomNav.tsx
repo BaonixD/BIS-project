@@ -4,6 +4,7 @@ import { motion } from 'motion/react'
 import type { UserRole } from '@/api'
 import { cn } from '@/lib/utils'
 import { isNavItemActive, NAV_ITEMS } from './nav-items'
+import { SupportBadge } from './SupportBadge'
 /**
  * Figma «BottomNav» 3:85: a floating white pill (16px inset, radius 28, 1px border, Elevation/Card);
  * the active item sits on a light-grey radius-20 capsule that glides between items.
@@ -66,6 +67,7 @@ export function BottomNav({
                 >
                   {item.label}
                 </span>
+                {item.supportBadge && <SupportBadge className="absolute top-0.5 right-1.5" />}
               </Link>
             </li>
           )

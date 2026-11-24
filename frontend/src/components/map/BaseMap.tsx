@@ -170,6 +170,26 @@ function VectorBasemap({ night }: { night: boolean }) {
   return null
 }
 
+/** Leaflet sizes itself once; a container that grows later (a card, a sheet) left grey tiles. */
+function FollowContainerSize() {
+  const map = useMap()
+  useEffect(() => {
+    const container = map.getContainer()
+    if (typeof ResizeObserver === 'undefined') return
+    let frame = 0
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => map.invalidateSize({ pan: false }))
+    })
+    observer.observe(container)
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
+  }, [map])
+  return null
+}
+
 function AttributionTopRight() {
   const map = useMap()
   useEffect(() => {
@@ -215,6 +235,7 @@ export function BaseMap({
       className={cn('isolate h-full w-full', night && 'map-night', className)}
     >
       <VectorBasemap night={night} />
+      <FollowContainerSize />
       <AttributionTopRight />
       {onPick && <ClickHandler onPick={onPick} />}
       {children}

@@ -8,6 +8,7 @@ import type { UserRole } from '@/api'
 import { ROLE_HOME } from '@/auth/role-home'
 import { cn } from '@/lib/utils'
 import { isNavItemActive, NAV_ITEMS, PROFILE_PATH } from './nav-items'
+import { SupportBadge } from './SupportBadge'
 function Account({ displayName }: { displayName: string }) {
   useLocale()
   return (
@@ -71,6 +72,7 @@ export function TopBar({
               )}
             >
               {item.topLabel ?? item.label}
+              {item.supportBadge && <SupportBadge className="ml-1.5 align-middle" />}
               {active && (
                 <span
                   aria-hidden

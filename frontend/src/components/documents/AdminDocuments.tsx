@@ -24,8 +24,8 @@ export function AdminDocuments({ driverId }: { driverId: string }) {
     }
   }
   return (
-    <section className="flex w-full flex-col gap-4 rounded-lg bg-bg-subtle p-4">
-      <h2 className="text-headline">{t('Пакет документов')}</h2>
+    <section className="flex w-full flex-col gap-4 rounded-lg bg-bg-canvas p-4">
+      <h2 className="text-headline">{t('Документы')}</h2>
       <ErrorAlert error={query.error} />
       {query.isPending && <Skeleton className="h-32" />}
       {data && (
@@ -35,18 +35,18 @@ export function AdminDocuments({ driverId }: { driverId: string }) {
               {documentStatusLabel(pkg?.status ?? (data.legacy_exempt ? 'legacy' : 'missing'))}
             </StatusPill>
             {pkg && (
-              <span className="text-caption">
-                {t('Версия')} {pkg.version}
+              <span className="text-caption text-text-secondary">
+                {t('Отправка №{p0}', { p0: pkg.version })}
               </span>
             )}
             <Button variant="ghost" size="md" onClick={() => void query.refetch()}>
-              {t('Обновить')}
+              {t('Обновить документы')}
             </Button>
           </div>
           {pkg?.review_note && <p className="text-callout">{pkg.review_note}</p>}
           {(data.history ?? []).length > 0 && (
             <label className="text-caption">
-              {t('Версии пакета')}
+              {t('Предыдущие отправки')}
               <select
                 className="ml-2 rounded-md border border-border-default bg-bg-canvas p-2"
                 value={selected}

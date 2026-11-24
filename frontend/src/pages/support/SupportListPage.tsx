@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { TitleOrnament } from '@/components/common/Ornament'
 import { Link, useSearchParams } from 'react-router'
 import { Bot, MessageCircle } from 'lucide-react'
 import { useSupportTickets } from '@/hooks/use-support'
@@ -9,7 +8,8 @@ import { Pagination } from '@/components/common/Pagination'
 import { t, useLocale } from '@/i18n/core'
 import { formatDateTime } from '@/lib/format'
 import { supportCategory, supportStatus } from './support-labels'
-import { SupportPage, SupportSelect } from './support-controls'
+import { SupportSelect } from './support-controls'
+import { AdminLayout } from '@/pages/admin/admin-controls'
 
 /** The admin queue; passengers and drivers use SupportChatPage. */
 export function SupportListPage() {
@@ -35,16 +35,12 @@ export function SupportListPage() {
       return next
     })
   return (
-    <SupportPage>
-      <header className="flex flex-col items-start gap-4 sm:flex-row sm:justify-between sm:gap-6">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-title text-text-primary sm:text-display">{t('Поддержка')}</h1>
-          <TitleOrnament className="mt-2" />
-          <p className="mt-2 max-w-xl text-callout text-text-secondary">
-            {t('Вопросы пользователей и ответы команды')}
-          </p>
-        </div>
-      </header>
+    <AdminLayout
+      title={t('Поддержка')}
+      description={t('Вопросы пользователей и ответы команды. Сверху — обращения с последними сообщениями.')}
+      refreshing={query.isFetching}
+      onRefresh={() => void query.refetch()}
+    >
       <section className="overflow-hidden rounded-xl border border-border-default bg-bg-canvas">
         <div className="flex flex-col gap-4 border-b border-border-default p-4 sm:flex-row sm:flex-wrap sm:items-end sm:p-5">
           <div className="w-full sm:w-48">
@@ -172,6 +168,6 @@ export function SupportListPage() {
           </div>
         )}
       </section>
-    </SupportPage>
+    </AdminLayout>
   )
 }
