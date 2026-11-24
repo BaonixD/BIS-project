@@ -2,6 +2,7 @@ import { t, useLocale } from '@/i18n/core'
 import { Phone } from 'lucide-react'
 import type { DriverCard } from '@/api'
 import { minutesSince } from '@/lib/format'
+import { KzPlate } from '@/components/ui-kit'
 const STALE_LOCATION_MIN = 2
 export function DriverInfo({ driver, now }: { driver: DriverCard; now: number }) {
   useLocale()
@@ -13,10 +14,12 @@ export function DriverInfo({ driver, now }: { driver: DriverCard; now: number })
     <div className="grid gap-1 rounded-lg border p-3">
       <p className="font-medium">{driver.full_name ?? t('Водитель')}</p>
       {vehicle && (
-        <p className="text-sm text-muted-foreground">
-          {vehicle.color} {vehicle.make} {vehicle.model} ·{' '}
-          <span className="font-mono">{vehicle.plate_number}</span>
-        </p>
+        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <span>
+            {vehicle.color} {vehicle.make} {vehicle.model}
+          </span>
+          <KzPlate plate={vehicle.plate_number} />
+        </div>
       )}
       {driver.phone && (
         <a
