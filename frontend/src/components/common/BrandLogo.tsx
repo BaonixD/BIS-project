@@ -1,32 +1,19 @@
-import { useId } from 'react'
 import { cn } from '@/lib/utils'
 
-/** Display the supplied emblem directly; its original raster is never redrawn. */
+/** The round TulparTaxi badge: the emblem on white inside a gold ring. */
 export function BrandMark({ className }: { className?: string }) {
-  const clip = useId().replaceAll(':', '')
   return (
-    <svg
-      viewBox="870 150 980 980"
-      className={cn('size-10 shrink-0', className)}
+    <img
+      src="/brand/tulpar-badge.png"
+      alt=""
       aria-hidden="true"
-      focusable="false"
-    >
-      <defs>
-        <clipPath id={clip}>
-          <circle cx="1360" cy="680" r="440" />
-          <rect x="1264" y="176" width="192" height="80" rx="24" />
-        </clipPath>
-      </defs>
-      <image
-        href="/brand/tezjet-original.png"
-        width="2760"
-        height="1800"
-        clipPath={`url(#${clip})`}
-      />
-    </svg>
+      draggable={false}
+      className={cn('block size-10 shrink-0 rounded-full', className)}
+    />
   )
 }
 
+/** Emblem and wordmark in the logo's colours: «Tulpar» navy (white on dark), «Taxi» gold. */
 export function BrandLogo({
   className,
   inverse = false,
@@ -37,13 +24,13 @@ export function BrandLogo({
   return (
     <span className={cn('inline-flex shrink-0 items-center gap-2.5', className)}>
       <BrandMark />
+      <span className="sr-only">TulparTaxi</span>
       <span
-        className={cn(
-          'text-headline whitespace-nowrap',
-          inverse ? 'text-text-inverse' : 'text-text-primary',
-        )}
+        aria-hidden="true"
+        className="text-headline font-extrabold tracking-tight whitespace-nowrap italic"
       >
-        TezJet
+        <span className={inverse ? 'text-white' : 'text-[#1b4f8a] dark:text-white'}>Tulpar</span>
+        <span className="text-[#f4b400]">Taxi</span>
       </span>
     </span>
   )
