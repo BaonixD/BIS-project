@@ -21,7 +21,7 @@ export function CarIcon({ carClass = 'comfort', className }: { carClass?: CarCla
       alt=""
       draggable={false}
       data-slot="car-icon"
-      className={cn('block h-7 w-[60px] shrink-0', className)}
+      className={cn('block h-7 w-[60px] shrink-0 dark:invert', className)}
     />
   )
 }

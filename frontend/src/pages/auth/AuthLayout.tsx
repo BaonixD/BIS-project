@@ -1,4 +1,5 @@
 import { BrandLogo } from '@/components/common/BrandLogo'
+import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { OrnamentDivider } from '@/components/common/Ornament'
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
 import type { ReactNode } from 'react'
@@ -11,7 +12,8 @@ import { cn } from '@/lib/utils'
 export function AuthLayout({ children, top }: { children: ReactNode; top: 'login' | 'register' }) {
   return (
     <div className="relative min-h-dvh bg-bg-canvas text-text-primary lg:flex lg:items-center lg:justify-center">
-      <div className="absolute right-4 top-[calc(16px+env(safe-area-inset-top))] lg:right-8 lg:top-6">
+      <div className="absolute right-4 top-[calc(16px+env(safe-area-inset-top))] flex items-center gap-1 lg:right-8 lg:top-6">
+        <ThemeToggle className="text-text-primary hover:bg-bg-muted" />
         <LanguageSwitcher />
       </div>
       <main

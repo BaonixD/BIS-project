@@ -36,7 +36,7 @@ export function CountdownRing({
           cy={SIZE / 2}
           r={RADIUS}
           fill="none"
-          stroke="#EEEEEE"
+          stroke="var(--color-bg-muted)"
           strokeWidth={STROKE}
         />
         <circle
@@ -44,7 +44,7 @@ export function CountdownRing({
           cy={SIZE / 2}
           r={RADIUS}
           fill="none"
-          stroke="black"
+          stroke="var(--color-text-primary)"
           strokeWidth={STROKE}
           strokeLinecap="round"
           strokeDasharray={CIRCUMFERENCE}

@@ -1,6 +1,6 @@
 import { SupportLink } from '@/components/common/SupportLink'
 import { AlatauBanner } from '@/components/common/AlatauScene'
-import { MapThemeSwitch } from '@/components/common/MapThemeSwitch'
+import { AppearanceSettings } from '@/components/common/MapThemeSwitch'
 import { TitleOrnament } from '@/components/common/Ornament'
 import { Achievements } from '@/components/common/Achievements'
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
@@ -131,7 +131,7 @@ export function DriverProfilePage() {
         )}
         <SupportLink />
         <Achievements />
-        <MapThemeSwitch />
+        <AppearanceSettings />
         <GroupedSection>
           <GroupedRow icon={CreditCard} tone="bg-accent-info" title={t("Документы")} to="/driver/documents" />
           <GroupedRow

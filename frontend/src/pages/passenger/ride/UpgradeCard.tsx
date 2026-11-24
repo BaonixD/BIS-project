@@ -43,7 +43,7 @@ function ClassShift({ from, to }: { from: Tariff; to: Tariff }) {
           src={carImage}
           alt=""
           draggable={false}
-          className="absolute top-0 left-[calc(50%-22px)] h-7 w-11 object-contain mix-blend-multiply motion-safe:animate-car-glide"
+          className="absolute top-0 left-[calc(50%-22px)] h-7 w-11 object-contain mix-blend-multiply motion-safe:animate-car-glide dark:mix-blend-screen dark:invert"
         />
       </span>
       <ArrowRight className="size-4 shrink-0 text-brand-sky-ink" />
@@ -82,7 +82,7 @@ export function UpgradeCard({ ride }: { ride: RideDetails }) {
   return (
     <section
       aria-label={t('Повысить класс')}
-      className="relative w-full overflow-hidden rounded-[20px] border border-brand-sky/30 bg-linear-to-br from-[#e9f8fb] via-[#dff3f7] to-[#fdf4d6] p-4 motion-safe:animate-fade-up"
+      className="relative w-full overflow-hidden rounded-[20px] border border-brand-sky/30 bg-linear-to-br from-[#e9f8fb] via-[#dff3f7] to-[#fdf4d6] p-4 dark:from-[#0e2a31] dark:via-[#10242a] dark:to-[#2b2410] motion-safe:animate-fade-up"
     >
       <FlagSun className="pointer-events-none absolute -top-10 -right-10 size-32 text-brand-gold/70 motion-safe:animate-sun-spin" />
       <KazakhMotif className="pointer-events-none absolute right-3 bottom-2 h-10 w-[52px] text-brand-sky-ink/10" />

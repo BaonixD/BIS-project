@@ -67,7 +67,7 @@ export function CenterPin() {
       alt=""
       aria-hidden
       draggable={false}
-      className="pointer-events-none absolute top-[253px] left-1/2 z-20 -ml-5 block lg:top-[calc(50%-61px)]"
+      className="pointer-events-none absolute top-[253px] left-1/2 z-20 -ml-5 block lg:top-[calc(50%-61px)] dark:invert"
     />
   )
 }

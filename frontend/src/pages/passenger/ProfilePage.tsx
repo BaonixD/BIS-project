@@ -1,6 +1,6 @@
 import { SupportLink } from '@/components/common/SupportLink'
 import { AlatauBanner } from '@/components/common/AlatauScene'
-import { MapThemeSwitch } from '@/components/common/MapThemeSwitch'
+import { AppearanceSettings } from '@/components/common/MapThemeSwitch'
 import { TitleOrnament } from '@/components/common/Ornament'
 import { Achievements } from '@/components/common/Achievements'
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
@@ -93,7 +93,7 @@ export function ProfilePage() {
         )}
         <SupportLink />
         <Achievements />
-        <MapThemeSwitch />
+        <AppearanceSettings />
         <GroupedSection>
           <GroupedRow
             icon={Settings}

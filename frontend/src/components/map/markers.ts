@@ -26,7 +26,7 @@ export const dropoffIcon = divIcon({
 /** Figma CarMarker (24:418): 36px black circle, Elevation/Card, white 20px car. */
 export const carIcon = divIcon({
   className: 'map-marker',
-  html: `<span class="flex size-9 items-center justify-center rounded-full bg-bg-inverse shadow-card ring-2 ring-brand-gold">${CAR_SVG}</span>`,
+  html: `<span class="flex size-9 items-center justify-center rounded-full bg-[#000] shadow-card ring-2 ring-brand-gold">${CAR_SVG}</span>`,
   iconSize: [36, 36],
   iconAnchor: [18, 18],
 })

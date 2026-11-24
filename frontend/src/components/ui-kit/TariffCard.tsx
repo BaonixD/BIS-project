@@ -47,7 +47,7 @@ export function TariffCard({
         alt=""
         draggable={false}
         className={cn(
-          'pointer-events-none h-[58px] w-[86px] shrink-0 object-cover mix-blend-multiply transition-opacity duration-150',
+          'pointer-events-none h-[58px] w-[86px] shrink-0 object-cover mix-blend-multiply transition-opacity duration-150 dark:rounded-md dark:mix-blend-normal',
           !selected && 'opacity-45',
         )}
       />

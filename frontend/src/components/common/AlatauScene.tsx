@@ -140,7 +140,7 @@ export function AlatauBanner({ name, children }: { name?: string; children?: Rea
           onClick={() => setEditing((open) => !open)}
           className={cn(
             'absolute top-3 right-3 flex size-9 items-center justify-center rounded-full outline-none backdrop-blur-sm transition-colors focus-visible:ring-2 focus-visible:ring-bg-inverse',
-            night ? 'bg-white/15 text-text-inverse' : 'bg-white/60 text-text-primary',
+            night ? 'bg-white/15 text-white' : 'bg-white/60 text-[#111]',
           )}
         >
           <SlidersHorizontal className="size-4" aria-hidden />
@@ -148,14 +148,14 @@ export function AlatauBanner({ name, children }: { name?: string; children?: Rea
         <div
           className={cn(
             'absolute inset-x-0 top-0 flex flex-col gap-0.5 p-4 pr-14',
-            night ? 'text-text-inverse' : 'text-text-primary',
+            night ? 'text-white' : 'text-[#111]',
           )}
         >
           <p className="text-headline">
             {name ? `${GREETING()[phase]}, ${name}` : GREETING()[phase]}
           </p>
           {children && (
-            <p className={cn('text-caption', night ? 'text-white/70' : 'text-text-secondary')}>
+            <p className={cn('text-caption', night ? 'text-white/70' : 'text-black/60')}>
               {children}
             </p>
           )}

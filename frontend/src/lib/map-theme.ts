@@ -1,4 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useDarkTheme } from './theme'
 
 export type MapThemeChoice = 'auto' | 'day' | 'night'
 export const MAP_THEME_STORAGE_KEY = 'tezjet.map-theme'
@@ -52,13 +53,14 @@ export function isAlmatyNight(date = new Date()): boolean {
   return hour >= 20 || hour < 6
 }
 
-/** «Түнгі Алматы»: chosen night, or auto from 20:00 to 6:00 Almaty time; checked every minute. */
+/** «Түнгі Алматы»: chosen night, or auto at night in Almaty (20:00–6:00) or in the dark theme. */
 export function useNightMap(): boolean {
   const current = useMapThemeChoice()
+  const dark = useDarkTheme()
   const [night, setNight] = useState(isAlmatyNight)
   useEffect(() => {
     const timer = window.setInterval(() => setNight(isAlmatyNight()), 60_000)
     return () => window.clearInterval(timer)
   }, [])
-  return current === 'night' || (current === 'auto' && night)
+  return current === 'night' || (current === 'auto' && (night || dark))
 }

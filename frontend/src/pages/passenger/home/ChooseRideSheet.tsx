@@ -31,7 +31,7 @@ function RouteSummary({
   useLocale()
   return (
     <div className="flex w-full items-center gap-3 overflow-hidden rounded-lg bg-bg-subtle px-4 py-3 lg:hidden">
-      <img src={routeRail} width={12} height={40} alt="" aria-hidden className="block shrink-0" />
+      <img src={routeRail} width={12} height={40} alt="" aria-hidden className="block shrink-0 dark:invert" />
       <div className="flex min-w-0 flex-1 flex-col gap-1.5 text-body-medium text-text-primary">
         <p className="truncate">{pickupTitle}</p>
         <p className="truncate">{dropoffTitle}</p>

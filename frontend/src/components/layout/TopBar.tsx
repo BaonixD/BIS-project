@@ -1,4 +1,5 @@
 import { BrandLogo } from '@/components/common/BrandLogo'
+import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
 import { t, useLocale } from '@/i18n/core'
 import { LogOut } from 'lucide-react'
@@ -43,6 +44,7 @@ export function TopBar({
   const profile = PROFILE_PATH[role]
   return (
     <header
+      data-theme="light"
       className={cn(
         'h-(--top-bar-height) items-center gap-8 overflow-hidden bg-bg-inverse px-8',
         preview ? 'relative flex w-full' : 'fixed inset-x-0 top-0 z-40 hidden lg:flex',
@@ -79,6 +81,7 @@ export function TopBar({
           )
         })}
       </nav>
+      <ThemeToggle className="-mr-4 text-text-inverse opacity-80 hover:opacity-100" />
       <LanguageSwitcher inverse />
       {profile ? (
         <Link to={profile} className="flex shrink-0 items-center gap-2.5">
