@@ -108,7 +108,27 @@ const NIGHT: Palette = [
   ]),
 ]
 
-function applyTheme(map: MaplibreMap, palette: Palette) {
+type Originals = Map<string, unknown>
+
+/** The style's own values of every property a palette touches, read once per loaded style. */
+function readOriginals(map: MaplibreMap): Originals {
+  const originals: Originals = new Map()
+  for (const [layer, property] of [...DAY, ...NIGHT]) {
+    if (map.getLayer(layer)) originals.set(`${layer}|${property}`, map.getPaintProperty(layer, property))
+  }
+  return originals
+}
+
+/** Back to the style's values, then the palette on top, so switching never leaves stray colours. */
+function applyTheme(map: MaplibreMap, palette: Palette, originals: Originals) {
+  for (const [key, value] of originals) {
+    const [layer = '', property = ''] = key.split('|')
+    map.setPaintProperty(
+      layer,
+      property as PaintProperty,
+      value as Parameters<MaplibreMap['setPaintProperty']>[2],
+    )
+  }
   for (const [layer, property, value] of palette) {
     if (map.getLayer(layer)) map.setPaintProperty(layer, property, value)
   }
@@ -117,29 +137,35 @@ function applyTheme(map: MaplibreMap, palette: Palette) {
 function VectorBasemap({ night }: { night: boolean }) {
   const map = useMap()
   const palette = useRef<Palette>(night ? NIGHT : DAY)
-  const glRef = useRef<MaplibreMap | null>(null)
+  const repaint = useRef<(() => void) | null>(null)
   useEffect(() => {
     const layer = L.maplibreGL({
       style: STYLE_URL,
       attributionControl: false,
     } as L.LeafletMaplibreGLOptions).addTo(map)
     const gl = layer.getMaplibreMap()
-    glRef.current = gl
-    const theme = () => applyTheme(gl, palette.current)
-    gl.on('style.load', theme)
-    if (gl.isStyleLoaded()) theme()
+    let originals: Originals | null = null
+    const paint = () => {
+      if (!gl.isStyleLoaded()) return
+      originals ??= readOriginals(gl)
+      applyTheme(gl, palette.current, originals)
+    }
+    const loaded = () => {
+      originals = readOriginals(gl)
+      paint()
+    }
+    gl.on('style.load', loaded)
+    if (gl.isStyleLoaded()) loaded()
+    repaint.current = paint
     return () => {
-      gl.off('style.load', theme)
-      glRef.current = null
+      gl.off('style.load', loaded)
+      repaint.current = null
       layer.remove()
     }
   }, [map])
   useEffect(() => {
-    const next = night ? NIGHT : DAY
-    if (palette.current === next) return
-    palette.current = next
-    // A fresh style drops the other palette's colours; style.load then paints this one.
-    glRef.current?.setStyle(STYLE_URL)
+    palette.current = night ? NIGHT : DAY
+    repaint.current?.()
   }, [night])
   return null
 }
