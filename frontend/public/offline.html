@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#f6f6f6" />
+    <title>TulparTaxi — нет подключения</title>
+    <style>
+      :root { color-scheme: light dark; --bg: #f6f6f6; --card: #ffffff; --text: #000; --muted: #5e5e5e; --button: #000; --button-text: #fff; }
+      @media (prefers-color-scheme: dark) { :root { --bg: #0d0f10; --card: #16191b; --text: #f2f4f5; --muted: #a6aeb2; --button: #f2f4f5; --button-text: #0d0f10; } }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: var(--bg); color: var(--text);
+        font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+      main { width: 100%; max-width: 360px; background: var(--card); border-radius: 24px; padding: 32px 24px; text-align: center; }
+      img { width: 72px; height: 72px; }
+      h1 { margin: 16px 0 8px; font-size: 22px; }
+      p { margin: 0 0 4px; color: var(--muted); font-size: 15px; line-height: 1.4; }
+      button { margin-top: 20px; width: 100%; height: 52px; border: 0; border-radius: 14px; background: var(--button); color: var(--button-text);
+        font: 600 16px/1 inherit; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/icons/icon-192.png" alt="" />
+      <h1>Нет подключения к интернету</h1>
+      <p>Проверьте сеть и попробуйте снова.</p>
+      <p lang="kk">Интернетке қосылу жоқ. Желіні тексеріп, қайталаңыз.</p>
+      <p lang="en">No internet connection. Check your network and try again.</p>
+      <button type="button" onclick="location.reload()">Повторить · Қайталау · Retry</button>
+    </main>
+  </body>
+</html>

@@ -1,6 +1,7 @@
 # TulparTaxi — PWA: приложение из сайта
 
-Дата: 24 ноября 2026. Статус: план, реализация не начата. Решение владельца: вместо нативного
+Дата: 24 ноября 2026. Статус: этапы 1–2 и установка из этапа 3 сделаны до деплоя (раздел 6);
+остальное — после деплоя. Решение владельца: вместо нативного
 приложения на Swift — PWA (сайт, который ставится на телефон как приложение); магазины приложений,
 если понадобятся, — позже через Capacitor поверх этого же кода.
 
@@ -143,3 +144,55 @@ https://tulpartaxi.<домен>/health/.. → uvicorn
 1. Деплой (раздел 2) — без HTTPS остальное не проверить.
 2. Этап 1 → этап 2 → проверка на устройствах → этап 3 по приоритету.
 3. Отчёт в `docs/reports/pwa.md`: что проверено на каких устройствах, результаты Lighthouse.
+
+## 6. Сделано до деплоя (24 ноября 2026)
+
+- Иконки 192/512, maskable 512, apple-touch 180 и круглый значок — генерирует
+  `uv run --with pillow python scripts/make_pwa_icons.py` из `frontend/public/brand/tulpar-original.png`.
+- `frontend/public/manifest.webmanifest` (standalone, быстрые действия «Заказать такси / История /
+  Поддержка»), мета-теги iOS/Android в `index.html`; цвет статус-бара следует теме.
+- `frontend/public/sw.js` без внешних зависимостей. API и `/health` — только сеть, никогда не
+  кэшируются; все файлы сборки кэшируются при установке (`precache.json` пишет плагин в
+  `vite.config.ts`), тайлы карты — stale-while-revalidate до 300 штук. Каждая сборка получает свою
+  версию кэша; старые удаляются после «Обновить».
+- Service worker регистрируется только в production-сборке (`src/lib/pwa.ts`); в `npm run dev`
+  его нет, горячая перезагрузка не страдает.
+- Плашка «Нет подключения к интернету», баннер «Доступна новая версия · Обновить» (не показывается
+  на экране поездки и смены водителя), экран ошибки маршрута вместо страницы React Router
+  (`src/pages/RouteError.tsx`) — покрывает и старую вкладку после выкладки новой версии.
+- Карточка «TulparTaxi на телефоне» в профиле: кнопка «Установить» (Chrome) или инструкция для Safari.
+- Проверено локально (`npm run build && npx vite preview`, Chrome): установка service worker,
+  манифест, отсутствие ответов API в кэше, работа без сети, баннер обновления после новой сборки и
+  переключение на неё.
+
+### Что обязательно настроить на сервере
+
+Иначе обновления перестанут доходить до пользователей:
+
+| Путь | Заголовок |
+| --- | --- |
+| `/sw.js`, `/index.html`, `/precache.json`, `/manifest.webmanifest`, `/offline.html` | `Cache-Control: no-cache` |
+| `/assets/*` (имена с хэшем) | `Cache-Control: public, max-age=31536000, immutable` |
+| любые другие пути, кроме `/api/*` и `/health/*` | отдавать `index.html` (SPA) |
+
+Пример для Caddy (`/srv/tulpartaxi` — содержимое `frontend/dist`):
+
+```caddyfile
+tulpartaxi.example.kz {
+    encode zstd gzip
+    handle /api/* {
+        reverse_proxy 127.0.0.1:8000
+    }
+    handle /health/* {
+        reverse_proxy 127.0.0.1:8000
+    }
+    handle {
+        root * /srv/tulpartaxi
+        @fresh path /sw.js /index.html /precache.json /manifest.webmanifest /offline.html
+        header @fresh Cache-Control "no-cache"
+        header /assets/* Cache-Control "public, max-age=31536000, immutable"
+        try_files {path} /index.html
+        file_server
+    }
+}
+```

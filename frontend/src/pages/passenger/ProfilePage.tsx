@@ -1,4 +1,5 @@
 import { SupportLink } from '@/components/common/SupportLink'
+import { InstallAppCard } from '@/components/common/InstallAppCard'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { AlatauBanner } from '@/components/common/AlatauScene'
 import { AppearanceSettings } from '@/components/common/MapThemeSwitch'
@@ -97,6 +98,7 @@ export function ProfilePage() {
         )}
         <SupportLink />
         <Achievements />
+        <InstallAppCard />
         <AppearanceSettings />
         <GroupedSection>
           <GroupedRow

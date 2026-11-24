@@ -27,7 +27,10 @@ function resolvedDark(): boolean {
 
 function apply(): void {
   if (typeof document === 'undefined') return
-  document.documentElement.dataset.theme = resolvedDark() ? 'dark' : 'light'
+  const dark = resolvedDark()
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+  // The status bar of the installed app follows the page background.
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0d0f10' : '#f6f6f6')
   listeners.forEach((listener) => listener())
 }
 

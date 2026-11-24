@@ -121,7 +121,7 @@ def conversation(
     """The latest messages within the budget; the newest one is always kept whole."""
     picked: list[Turn] = []
     total = 0
-    for seq, kind, author_id, body in rows_newest_first:
+    for _seq, kind, author_id, body in rows_newest_first:
         if kind == "assistant":
             role: Literal["user", "model"] = "model"
         elif author_id == owner_id:

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AppStatus } from '@/components/common/AppStatus'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from 'react-router/dom'
 import { SessionProvider } from '@/auth/SessionProvider'
@@ -13,6 +14,7 @@ export default function App() {
       <SessionProvider>
         <RouterProvider router={router} />
         <Toaster />
+        <AppStatus />
       </SessionProvider>
     </QueryClientProvider>
   )

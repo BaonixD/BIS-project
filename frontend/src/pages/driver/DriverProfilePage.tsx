@@ -1,4 +1,5 @@
 import { SupportLink } from '@/components/common/SupportLink'
+import { InstallAppCard } from '@/components/common/InstallAppCard'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { AlatauBanner } from '@/components/common/AlatauScene'
 import { AppearanceSettings } from '@/components/common/MapThemeSwitch'
@@ -135,6 +136,7 @@ export function DriverProfilePage() {
         )}
         <SupportLink />
         <Achievements />
+        <InstallAppCard />
         <AppearanceSettings />
         <GroupedSection>
           <GroupedRow icon={CreditCard} tone="bg-accent-info" title={t("Документы")} to="/driver/documents" />
