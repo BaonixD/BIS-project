@@ -2,7 +2,8 @@ import { useId } from 'react'
 import { almatyHour } from '@/lib/map-theme'
 import { cn } from '@/lib/utils'
 
-type Phase = 'dawn' | 'day' | 'dusk' | 'night'
+export type SkyPhase = 'dawn' | 'day' | 'dusk' | 'night'
+type Phase = SkyPhase
 
 const SKY: Record<Phase, { top: string; bottom: string; ridge: string; line: string }> = {
   dawn: { top: '#fde3c4', bottom: '#fff8ec', ridge: '#c9a77a', line: '#8f6f45' },
@@ -29,9 +30,9 @@ const STARS: readonly [number, number][] = [
 ]
 
 /** A thin-line Alatau ridge under a sky that follows the time of day in Almaty; decorative. */
-export function AlatauScene({ className }: { className?: string }) {
+export function AlatauScene({ className, phase: fixed }: { className?: string; phase?: SkyPhase }) {
   const id = useId()
-  const phase = phaseAt(almatyHour())
+  const phase = fixed ?? phaseAt(almatyHour())
   const colors = SKY[phase]
   const sun =
     phase === 'night'

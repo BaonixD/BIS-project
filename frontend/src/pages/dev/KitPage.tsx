@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { AlatauScene } from '@/components/common/AlatauScene'
 import { ArrowLeft, Banknote, Car, Check, Clock, Locate, MapPin, Menu, Navigation, Receipt, Search, X } from 'lucide-react'
 import type { PaymentMethod } from '@/api'
 import { BottomNav } from '@/components/layout/BottomNav'
@@ -235,6 +236,13 @@ function DriverBits() {
   const [step, setStep] = useState(0)
   return (
     <>
+      <Frame title="AlatauScene · рассвет, день, закат, ночь" figma="—" className="w-[390px] max-w-full px-4">
+        <div className="flex w-[358px] max-w-full flex-col gap-3">
+          {(['dawn', 'day', 'dusk', 'night'] as const).map((phase) => (
+            <AlatauScene key={phase} phase={phase} />
+          ))}
+        </div>
+      </Frame>
       <Frame title="DriverCard" figma="5:451" className="w-[390px] max-w-full px-4">
         <div className="w-[358px] max-w-full">
           <DriverCard name="Арман Н." vehicle="Toyota Camry · серо-синий" plate="123 ABC 02" />
