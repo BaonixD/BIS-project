@@ -1,5 +1,9 @@
 // Shared interface messages. Keep placeholders unchanged in each translation.
 export const en: Record<string, string> = {
+  'Рассвет': 'Dawn',
+  'Закат': 'Sunset',
+  'Небо над Алатау': 'Sky over the Alatau',
+  'Настроить небо': 'Choose the sky',
   'Доброе утро': 'Good morning',
   'Добрый день': 'Good afternoon',
   'Добрый вечер': 'Good evening',
@@ -803,6 +807,10 @@ export const en: Record<string, string> = {
 }
 
 export const kk: Record<string, string> = {
+  'Рассвет': 'Таң',
+  'Закат': 'Күн батуы',
+  'Небо над Алатау': 'Алатау үстіндегі аспан',
+  'Настроить небо': 'Аспанды таңдау',
   'Доброе утро': 'Қайырлы таң',
   'Добрый день': 'Қайырлы күн',
   'Добрый вечер': 'Қайырлы кеш',

@@ -1,7 +1,14 @@
-import { useId, type ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
+import { SlidersHorizontal } from 'lucide-react'
 import { t, useLocale } from '@/i18n/core'
-import { almatyHour } from '@/lib/map-theme'
-import { phaseAt, useSkyPhase, type SkyPhase } from '@/lib/sky'
+import {
+  SKY_CHOICES,
+  setSkyChoice,
+  useSkyChoice,
+  useSkyPhase,
+  type SkyChoice,
+  type SkyPhase,
+} from '@/lib/sky'
 import { cn } from '@/lib/utils'
 
 type Phase = SkyPhase
@@ -27,7 +34,8 @@ const STARS: readonly [number, number][] = [
 /** A thin-line Alatau ridge under a sky that follows the time of day in Almaty; decorative. */
 export function AlatauScene({ className, phase: fixed }: { className?: string; phase?: SkyPhase }) {
   const id = useId()
-  const phase = fixed ?? phaseAt(almatyHour())
+  const chosen = useSkyPhase()
+  const phase = fixed ?? chosen
   const colors = SKY[phase]
   const sun =
     phase === 'night'
@@ -69,29 +77,91 @@ const GREETING = (): Record<SkyPhase, string> => ({
   night: t('Доброй ночи'),
 })
 
-/** Profile banner: the Alatau under today's sky with a greeting for this time of day. */
+const CHOICE_LABEL = (): Record<SkyChoice, string> => ({
+  auto: t('Авто'),
+  dawn: t('Рассвет'),
+  day: t('День'),
+  dusk: t('Закат'),
+  night: t('Ночь'),
+})
+
+/** Pick the banner's sky: auto follows the time in Almaty; kept on this device. */
+function SkyPicker() {
+  useLocale()
+  const choice = useSkyChoice()
+  return (
+    <div
+      role="radiogroup"
+      aria-label={t('Небо над Алатау')}
+      className="flex gap-1.5 overflow-x-auto scrollbar-none motion-safe:animate-fade-up"
+    >
+      {SKY_CHOICES.map((option) => (
+        <button
+          key={option}
+          type="button"
+          role="radio"
+          aria-checked={choice === option}
+          onClick={() => setSkyChoice(option)}
+          className={cn(
+            'flex shrink-0 items-center gap-2 rounded-full border py-1 pr-3 pl-1 text-callout outline-none transition-colors focus-visible:ring-2 focus-visible:ring-bg-inverse',
+            choice === option
+              ? 'border-brand-sky-ink bg-brand-sky-soft text-brand-sky-ink'
+              : 'border-border-default bg-bg-canvas text-text-primary',
+          )}
+        >
+          <span className="h-6 w-9 overflow-hidden rounded-full" aria-hidden>
+            {option === 'auto' ? (
+              <span className="block size-full bg-linear-to-r from-[#fde3c4] via-[#d6eff6] to-[#1d3540]" />
+            ) : (
+              <AlatauScene phase={option} className="size-full rounded-full" />
+            )}
+          </span>
+          {CHOICE_LABEL()[option]}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** Profile banner: the Alatau under the chosen (or current) sky with a greeting. */
 export function AlatauBanner({ name, children }: { name?: string; children?: ReactNode }) {
   useLocale()
   const phase = useSkyPhase()
   const night = phase === 'night'
+  const [editing, setEditing] = useState(false)
   return (
-    <section className="relative w-full overflow-hidden rounded-[20px]">
-      <AlatauScene phase={phase} className="h-32 rounded-[20px]" />
-      <div
-        className={cn(
-          'absolute inset-x-0 top-0 flex flex-col gap-0.5 p-4',
-          night ? 'text-text-inverse' : 'text-text-primary',
-        )}
-      >
-        <p className="text-headline">
-          {name ? `${GREETING()[phase]}, ${name}` : GREETING()[phase]}
-        </p>
-        {children && (
-          <p className={cn('text-caption', night ? 'text-white/70' : 'text-text-secondary')}>
-            {children}
+    <div className="flex w-full flex-col gap-2">
+      <section className="relative w-full overflow-hidden rounded-[20px]">
+        <AlatauScene phase={phase} className="h-32 rounded-[20px]" />
+        <button
+          type="button"
+          aria-label={t('Настроить небо')}
+          aria-expanded={editing}
+          onClick={() => setEditing((open) => !open)}
+          className={cn(
+            'absolute top-3 right-3 flex size-9 items-center justify-center rounded-full outline-none backdrop-blur-sm transition-colors focus-visible:ring-2 focus-visible:ring-bg-inverse',
+            night ? 'bg-white/15 text-text-inverse' : 'bg-white/60 text-text-primary',
+          )}
+        >
+          <SlidersHorizontal className="size-4" aria-hidden />
+        </button>
+        <div
+          className={cn(
+            'absolute inset-x-0 top-0 flex flex-col gap-0.5 p-4 pr-14',
+            night ? 'text-text-inverse' : 'text-text-primary',
+          )}
+        >
+          <p className="text-headline">
+            {name ? `${GREETING()[phase]}, ${name}` : GREETING()[phase]}
           </p>
-        )}
-      </div>
-    </section>
+          {children && (
+            <p className={cn('text-caption', night ? 'text-white/70' : 'text-text-secondary')}>
+              {children}
+            </p>
+          )}
+        </div>
+      </section>
+      {editing && <SkyPicker />}
+    </div>
   )
 }
