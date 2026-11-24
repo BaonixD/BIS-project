@@ -161,7 +161,17 @@ export function AdminDriversPage() {
       </div>
       <ErrorAlert error={drivers.error} />
       {drivers.isPending && <AdminLoading />}
-      {drivers.data?.items.length === 0 && <AdminEmpty onReset={reset} />}
+      {drivers.data?.items.length === 0 &&
+        (filter === 'pending' && !q && !online && !documentFilter ? (
+          <AdminEmpty
+            message={t('Новых заявок нет')}
+            text={t('Когда водитель отправит документы на проверку, заявка появится здесь.')}
+            action={{ label: t('Показать всех водителей'), onClick: () => update({ status: 'all' }) }}
+            onReset={reset}
+          />
+        ) : (
+          <AdminEmpty onReset={reset} />
+        ))}
       <ul
         className={`grid gap-4 md:grid-cols-2 xl:grid-cols-3 ${drivers.isPlaceholderData ? 'pointer-events-none opacity-50' : ''}`}
         aria-busy={drivers.isFetching}

@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { AlatauScene } from '@/components/common/AlatauScene'
 import { ArrowLeft, Banknote, Car, Check, Clock, Locate, MapPin, Menu, Navigation, Receipt, Search, X } from 'lucide-react'
 import type { PaymentMethod } from '@/api'
 import { BottomNav } from '@/components/layout/BottomNav'
@@ -235,6 +236,13 @@ function DriverBits() {
   const [step, setStep] = useState(0)
   return (
     <>
+      <Frame title="AlatauScene · рассвет, день, закат, ночь" figma="—" className="w-[390px] max-w-full px-4">
+        <div className="flex w-[358px] max-w-full flex-col gap-3">
+          {(['dawn', 'day', 'dusk', 'night'] as const).map((phase) => (
+            <AlatauScene key={phase} phase={phase} />
+          ))}
+        </div>
+      </Frame>
       <Frame title="DriverCard" figma="5:451" className="w-[390px] max-w-full px-4">
         <div className="w-[358px] max-w-full">
           <DriverCard name="Арман Н." vehicle="Toyota Camry · серо-синий" plate="123 ABC 02" />
@@ -339,7 +347,7 @@ function SheetDemo() {
 /** Dev-only showcase of the UI kit for side-by-side checks against Figma (route /dev/kit). */
 export function KitPage() {
   return (
-    <div className="min-h-dvh bg-app-ornament pb-16">
+    <div className="min-h-dvh bg-bg-subtle pb-16">
       <div className="hidden lg:block" data-figma="7:62">
         <TopBar role="passenger" displayName="Айгерим" pathname="/" preview />
       </div>
@@ -347,7 +355,7 @@ export function KitPage() {
         <header className="flex flex-col gap-2">
           <h1 className="text-display">UI kit</h1>
           <p className="text-body text-text-secondary">
-            Компоненты TezJet по Figma 6VHeDBRKk6RWdTYqH0r66K. Только в режиме разработки.
+            Компоненты TulparTaxi по Figma 6VHeDBRKk6RWdTYqH0r66K. Только в режиме разработки.
           </p>
         </header>
         <div className="grid gap-8 lg:grid-cols-2">

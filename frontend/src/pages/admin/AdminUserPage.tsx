@@ -9,7 +9,7 @@ import { Avatar } from '@/components/driver/Avatar'
 import { Button, StatusPill, showToast } from '@/components/ui-kit'
 import { useAccountAccess, useAdminUser } from '@/hooks/use-admin'
 import { ROLE_PILL } from './admin-format'
-import { AdminLayout, AdminLoading, FactList, RidesLink } from './admin-controls'
+import { AdminLayout, AdminLoading, CopyId, FactList, RidesLink } from './admin-controls'
 export function AdminUserPage() {
   useLocale()
   const { userId } = useParams()
@@ -55,10 +55,7 @@ export function AdminUserPage() {
             <FactList
               items={[
                 [t('Регистрация'), adminDate(user.created_at)],
-                [
-                  t('ID аккаунта'),
-                  <span className="select-all font-mono text-caption">{user.id}</span>,
-                ],
+                [t('ID для поддержки'), <CopyId value={user.id} />],
               ]}
             />
             <div className="flex flex-wrap gap-4">

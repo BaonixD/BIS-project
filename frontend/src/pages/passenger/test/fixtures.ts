@@ -51,6 +51,7 @@ export function makeRide(overrides: Partial<RideDetails> = {}): RideDetails {
     route: ROUTE,
     tariff: 'economy',
     amount_kzt: 2200,
+    bonus_kzt: 0,
     currency: 'KZT',
     tariff_version: 'edu-v2',
     created_at: now,

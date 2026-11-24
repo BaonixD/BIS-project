@@ -172,6 +172,7 @@ async def test_driver_sees_the_open_offer_with_the_ride(
         "distance_m",
         "duration_s",
         "amount_kzt",
+        "bonus_kzt",
         "currency",
         "tariff",
         "payment_method",

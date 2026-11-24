@@ -1,8 +1,11 @@
 import { SupportLink } from '@/components/common/SupportLink'
+import { AlatauBanner } from '@/components/common/AlatauScene'
+import { AppearanceSettings } from '@/components/common/MapThemeSwitch'
+import { TitleOrnament } from '@/components/common/Ornament'
 import { Achievements } from '@/components/common/Achievements'
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
 import { t, useLocale } from '@/i18n/core'
-import { KeyRound, LogOut, Phone, Settings, Star } from 'lucide-react'
+import { Gift, KeyRound, LogOut, Phone, Settings, Star } from 'lucide-react'
 import googleIcon from '@/assets/icons/google.svg'
 import { formatRating } from '@/api/driver-types'
 import { useSession } from '@/auth/use-session'
@@ -11,28 +14,36 @@ import { GroupedRow, GroupedSection, ProfileHeaderCard } from '@/components/comm
 import { Skeleton } from '@/components/ui-kit'
 import { useMyProfile } from '@/hooks/use-profile'
 import { ROLE_LABELS } from '@/lib/labels'
-import { initials } from './model/format'
+import { useBonusBalance } from '@/hooks/use-bonuses'
+import { formatPrice, initials } from './model/format'
 /** Figma Profile 5:623: grouped cards on the subtle background. */
 export function ProfilePage() {
   useLocale()
   const profile = useMyProfile()
   const { logout } = useSession()
+  const bonuses = useBonusBalance()
   const data = profile.data
   const name = data?.display_name || data?.username || ''
   const google = data?.login_method === 'google'
   return (
-    <div className="min-h-dvh bg-app-ornament">
+    <div className="min-h-dvh bg-bg-subtle">
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 pt-[64px] pb-6 lg:pt-8">
-        <h1 className="px-1 text-display text-text-primary">{t('Профиль')}</h1>
+        <div className="flex flex-col gap-2 px-1">
+          <h1 className="text-display text-text-primary">{t('Профиль')}</h1>
+          <TitleOrnament />
+        </div>
         <div className="flex justify-end lg:hidden">
           <LanguageSwitcher />
         </div>
         <ErrorAlert error={profile.error} />
+        <AlatauBanner name={data ? name.split(' ')[0] : undefined}>
+          {t('Алматы, Заилийский Алатау')}
+        </AlatauBanner>
         {data ? (
           <ProfileHeaderCard
             to="/profile/settings"
             avatar={
-              <span className="flex size-16 shrink-0 items-center justify-center rounded-full bg-bg-muted text-headline text-text-primary">
+              <span className="flex size-16 shrink-0 items-center justify-center rounded-full bg-brand-sky-soft text-headline text-brand-sky-ink ring-2 ring-brand-gold ring-offset-2 ring-offset-bg-canvas">
                 {initials(name)}
               </span>
             }
@@ -65,10 +76,24 @@ export function ProfilePage() {
               title={t('Рейтинг')}
               value={formatRating(data.rating) ?? t('Пока нет оценок')}
             />
+            <GroupedRow
+              icon={Gift}
+              tone="bg-brand-sky-ink"
+              title={t('Бонусы')}
+              value={
+                bonuses.data
+                  ? t('{p0} · {p1}% с поездки', {
+                      p0: formatPrice(bonuses.data.balance_kzt),
+                      p1: bonuses.data.earn_percent,
+                    })
+                  : '—'
+              }
+            />
           </GroupedSection>
         )}
         <SupportLink />
         <Achievements />
+        <AppearanceSettings />
         <GroupedSection>
           <GroupedRow
             icon={Settings}

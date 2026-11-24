@@ -210,9 +210,24 @@ export function AdminRidesPage() {
       </div>
       <ErrorAlert error={rides.error} />
       {rides.isPending && <AdminLoading />}
-      {rides.data?.items.length === 0 && (
-        <AdminEmpty message={t('Поездок не найдено')} onReset={reset} />
-      )}
+      {rides.data?.items.length === 0 &&
+        (view.id === 'active' &&
+        !q &&
+        !paymentStatus &&
+        !paymentMethod &&
+        !tariff &&
+        !period &&
+        !params.get('passenger_id') &&
+        !params.get('driver_id') ? (
+          <AdminEmpty
+            message={t('Сейчас нет активных поездок')}
+            text={t('Здесь видны поездки от поиска водителя до завершения.')}
+            action={{ label: t('Показать все поездки'), onClick: () => update({ view: 'all' }) }}
+            onReset={reset}
+          />
+        ) : (
+          <AdminEmpty message={t('Поездок не найдено')} onReset={reset} />
+        ))}
       {Boolean(rides.data?.items.length) && (
         <div
           aria-busy={rides.isFetching}

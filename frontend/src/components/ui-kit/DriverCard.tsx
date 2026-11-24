@@ -1,4 +1,5 @@
 import { CarIcon, type CarClass } from './CarIcon'
+import { KzPlate } from './KzPlate'
 import { cn } from '@/lib/utils'
 
 interface DriverCardProps {
@@ -21,9 +22,7 @@ export function DriverCard({ name, vehicle, plate, carClass = 'comfort', classNa
       <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
         <p className="w-full truncate text-headline text-text-primary">{name}</p>
         <p className="w-full truncate text-caption text-text-secondary">{vehicle}</p>
-        <span className="rounded-[6px] border-[1.5px] border-solid border-bg-inverse bg-bg-canvas px-2 py-1 text-[12px] leading-4 font-bold tracking-[0.2px] whitespace-nowrap text-text-primary">
-          {plate}
-        </span>
+        <KzPlate plate={plate} />
       </div>
     </div>
   )

@@ -62,6 +62,7 @@ describe('order', () => {
       quote_id: 'q1',
       payment_method: 'kaspi_link',
       tariff: 'comfort_plus',
+      use_bonus: false,
     })
   })
   it('labels the button with the tariff and the method', () => {

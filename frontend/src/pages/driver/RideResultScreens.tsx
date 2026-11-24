@@ -1,4 +1,5 @@
 import { t, useLocale } from '@/i18n/core'
+import { moneyDue } from '@/lib/money'
 import { useState } from 'react'
 import { Banknote, Check, CircleDot, MapPin } from 'lucide-react'
 import { errorMessage } from '@/api'
@@ -58,18 +59,24 @@ export function CollectCashScreen({ ride }: { ride: NextRide }) {
   const pickup = useReverseGeocode(ride.pickup)
   const dropoff = useReverseGeocode(ride.dropoff)
   return (
-    <Screen overNav>
+    <Screen tone="subtle" overNav>
       <ScreenColumn className="items-center gap-5 pt-[calc(72px+env(safe-area-inset-top))] pb-32">
         <span className="flex size-18 shrink-0 items-center justify-center rounded-full bg-bg-inverse text-text-inverse">
           <Banknote className="size-6" strokeWidth={2} aria-hidden />
         </span>
         <Heading
           title={t('Получите оплату')}
-          text={t('Пассажир платит наличными. Подтвердите, когда получите деньги.')}
+          text={
+            ride.bonus_kzt > 0
+              ? t('Часть поездки ({p0}) оплачена бонусами. Получите остаток наличными.', {
+                  p0: formatMoney(ride.bonus_kzt),
+                })
+              : t('Пассажир платит наличными. Подтвердите, когда получите деньги.')
+          }
         />
         <AmountCard
           label={t('Сумма')}
-          amount={ride.amount_kzt}
+          amount={moneyDue(ride)}
           className="py-5"
           pill={<StatusPill tone="warning">{t('Ожидает оплаты')}</StatusPill>}
         />
@@ -132,7 +139,7 @@ export function CompletedScreen({
       onError: (error) => showToast({ title: errorMessage(error) }),
     })
   return (
-    <Screen overNav>
+    <Screen tone="subtle" overNav>
       <ScreenColumn className="items-center gap-4 pt-[calc(100px+env(safe-area-inset-top))] pb-40">
         <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-accent-success text-text-inverse">
           <Check className="size-8" strokeWidth={2} aria-hidden />

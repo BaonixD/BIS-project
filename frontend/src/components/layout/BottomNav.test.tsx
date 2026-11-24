@@ -1,6 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, expect, it, vi } from 'vitest'
 import type { UserRole } from '@/api'
 import { BottomNav } from './BottomNav'
@@ -8,9 +9,11 @@ import { TopBar } from './TopBar'
 
 function renderNav(role: UserRole, path: string) {
   render(
-    <MemoryRouter initialEntries={[path]}>
-      <BottomNav role={role} />
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={[path]}>
+        <BottomNav role={role} />
+      </MemoryRouter>
+    </QueryClientProvider>,
   )
   return screen.getByRole('navigation', { name: 'Основная навигация' })
 }
@@ -32,7 +35,7 @@ describe('BottomNav', () => {
   it.each([
     ['passenger', ['Такси', 'История', 'Профиль']],
     ['driver', ['Смена', 'История', 'Профиль']],
-    ['admin', ['Водители', 'Поездки', 'Люди']],
+    ['admin', ['Обзор', 'Водители', 'Поездки', 'Люди', 'Поддержка']],
   ] as const)('shows the %s items from the Figma BottomNav', (role, expected) => {
     expect(labels(renderNav(role, '/'))).toEqual(expected)
   })
@@ -48,6 +51,9 @@ describe('BottomNav', () => {
     ['admin', '/admin', 'Водители'],
     ['admin', '/admin/rides', 'Поездки'],
     ['admin', '/admin/users', 'Люди'],
+    ['admin', '/admin/overview', 'Обзор'],
+    ['admin', '/admin/support/abc', 'Поддержка'],
+    ['admin', '/admin/drivers/abc', 'Водители'],
   ] as const)('marks exactly one active item for %s at %s', (role, path, expected) => {
     expect(activeLabel(renderNav(role, path))).toEqual([expected])
   })
@@ -69,7 +75,7 @@ describe('TopBar', () => {
     )
     const nav = screen.getByRole('navigation', { name: 'Разделы' })
     expect(activeLabel(nav)).toEqual(['История'])
-    expect(screen.getByText('TezJet')).toBeInTheDocument()
+    expect(screen.getByText('TulparTaxi')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Айгерим/ })).toHaveAttribute('href', '/profile')
   })
 })
@@ -77,9 +83,11 @@ describe('TopBar', () => {
 describe('TopBar logout', () => {
   const renderBar = (role: UserRole, onLogout: () => void) =>
     render(
-      <MemoryRouter initialEntries={['/']}>
-        <TopBar role={role} displayName="admin" onLogout={onLogout} />
-      </MemoryRouter>,
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={['/']}>
+          <TopBar role={role} displayName="admin" onLogout={onLogout} />
+        </MemoryRouter>
+      </QueryClientProvider>,
     )
 
   it('lets the admin, who has no profile page, log out', async () => {

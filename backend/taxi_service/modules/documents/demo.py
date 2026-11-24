@@ -20,7 +20,7 @@ async def submit_demo_package(
 ) -> PackageCommand:
     writer = PdfWriter()
     writer.add_blank_page(width=300, height=400)
-    writer.add_metadata({"/Title": "TezJet DEMO - no personal data"})
+    writer.add_metadata({"/Title": "TulparTaxi DEMO - no personal data"})
     buffer = io.BytesIO()
     writer.write(buffer)
     data = buffer.getvalue()

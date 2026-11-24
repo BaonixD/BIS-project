@@ -7,18 +7,18 @@ const CAR_SVG =
   '<path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/>' +
   '<circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>'
 
-/** Figma Route (4:317): pickup — 22px black circle with an 8px white centre. */
+/** Figma Route (4:317): pickup — 22px black circle; its centre is the flag's sky blue. */
 export const pickupIcon = divIcon({
   className: 'map-marker',
-  html: '<span class="flex size-[22px] items-center justify-center rounded-full bg-bg-inverse"><span class="size-2 rounded-full bg-bg-canvas"></span></span>',
+  html: '<span class="flex size-[22px] items-center justify-center rounded-full bg-bg-inverse ring-2 ring-bg-canvas"><span class="size-2 rounded-full bg-brand-sky"></span></span>',
   iconSize: [22, 22],
   iconAnchor: [11, 11],
 })
 
-/** Figma Route (4:317): drop-off — 20px black square with an 8px white centre. */
+/** Figma Route (4:317): drop-off — 20px black square; its centre is the flag's gold. */
 export const dropoffIcon = divIcon({
   className: 'map-marker',
-  html: '<span class="flex size-5 items-center justify-center bg-bg-inverse"><span class="size-2 bg-bg-canvas"></span></span>',
+  html: '<span class="flex size-5 items-center justify-center bg-bg-inverse ring-2 ring-bg-canvas"><span class="size-2 bg-brand-gold"></span></span>',
   iconSize: [20, 20],
   iconAnchor: [10, 10],
 })
@@ -26,7 +26,7 @@ export const dropoffIcon = divIcon({
 /** Figma CarMarker (24:418): 36px black circle, Elevation/Card, white 20px car. */
 export const carIcon = divIcon({
   className: 'map-marker',
-  html: `<span class="flex size-9 items-center justify-center rounded-full bg-bg-inverse shadow-card">${CAR_SVG}</span>`,
+  html: `<span class="flex size-9 items-center justify-center rounded-full bg-[#000] shadow-card ring-2 ring-brand-gold">${CAR_SVG}</span>`,
   iconSize: [36, 36],
   iconAnchor: [18, 18],
 })

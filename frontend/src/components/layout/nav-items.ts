@@ -1,5 +1,5 @@
 import { t } from '@/i18n/core'
-import { Car, Clock, List, ShieldCheck, User, Users } from 'lucide-react'
+import { Car, Clock, LayoutGrid, List, MessageCircle, ShieldCheck, User, Users } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { UserRole } from '@/api'
 export interface NavItem {
@@ -12,6 +12,8 @@ export interface NavItem {
   end?: boolean
   /** Other path prefixes that belong to this section (e.g. a ride screen under «Такси»). */
   also?: string[]
+  /** Shows the unread support count next to the label. */
+  supportBadge?: boolean
 }
 /** Figma «BottomNav» 3:85 — one set per role. */
 export const NAV_ITEMS = (): Record<UserRole, NavItem[]> => ({
@@ -26,9 +28,11 @@ export const NAV_ITEMS = (): Record<UserRole, NavItem[]> => ({
     { to: '/driver/profile', label: t('Профиль'), icon: User },
   ],
   admin: [
-    { to: '/admin', label: t('Водители'), icon: ShieldCheck, end: true },
+    { to: '/admin/overview', label: t('Обзор'), icon: LayoutGrid },
+    { to: '/admin', label: t('Водители'), icon: ShieldCheck, end: true, also: ['/admin/drivers'] },
     { to: '/admin/rides', label: t('Поездки'), icon: List },
     { to: '/admin/users', label: t('Люди'), topLabel: t('Пользователи'), icon: Users },
+    { to: '/admin/support', label: t('Поддержка'), icon: MessageCircle, supportBadge: true },
   ],
 })
 export const PROFILE_PATH: Partial<Record<UserRole, string>> = {

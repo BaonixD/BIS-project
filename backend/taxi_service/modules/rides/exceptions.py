@@ -143,3 +143,25 @@ class InvalidDateRangeError(AppError):
             code="invalid_date_range",
             message="created_from must not be later than created_to.",
         )
+
+
+class RideUpgradeUnavailableError(AppError):
+    """A tariff can be raised only while the ride is still looking for a driver."""
+
+    def __init__(self, *, current_status: str) -> None:
+        super().__init__(
+            status_code=409,
+            code="ride_upgrade_unavailable",
+            message="The tariff can be upgraded only while a driver is being searched for.",
+            details={"current_status": current_status},
+        )
+
+
+class TariffNotHigherError(AppError):
+    def __init__(self, *, current_tariff: str) -> None:
+        super().__init__(
+            status_code=409,
+            code="tariff_not_higher",
+            message="Choose a tariff above the current one.",
+            details={"current_tariff": current_tariff},
+        )

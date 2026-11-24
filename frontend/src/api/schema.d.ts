@@ -382,6 +382,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/rides/{ride_id}/upgrades": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Upgrade Options */
+        get: operations["upgrade_options_api_v1_rides__ride_id__upgrades_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rides/{ride_id}/upgrade": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upgrade Ride */
+        post: operations["upgrade_ride_api_v1_rides__ride_id__upgrade_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/rides/{ride_id}/cancel": {
         parameters: {
             query?: never;
@@ -809,6 +843,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/support/assistant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Assistant */
+        get: operations["assistant_api_v1_support_assistant_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/support/unread": {
         parameters: {
             query?: never;
@@ -893,6 +944,40 @@ export interface paths {
         head?: never;
         /** Status */
         patch: operations["status_api_v1_admin_support_tickets__ticket_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/support/tickets/{ticket_id}/handoff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Handoff */
+        post: operations["handoff_api_v1_support_tickets__ticket_id__handoff_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bonuses/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Mine */
+        get: operations["mine_api_v1_bonuses_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
 }
@@ -1021,6 +1106,11 @@ export interface components {
             /** Amount Kzt */
             amount_kzt: number;
             /**
+             * Bonus Kzt
+             * @description Paid with bonuses; the rest is paid in money.
+             */
+            bonus_kzt: number;
+            /**
              * Currency
              * @constant
              */
@@ -1084,6 +1174,14 @@ export interface components {
          * @enum {string}
          */
         ApprovalStatus: "pending" | "approved";
+        /** AssistantStatus */
+        AssistantStatus: {
+            /**
+             * Available
+             * @description New conversations are answered by the AI assistant first.
+             */
+            available: boolean;
+        };
         /** AuthProvidersResponse */
         AuthProvidersResponse: {
             /**
@@ -1103,6 +1201,24 @@ export interface components {
         Body_upload_api_v1_drivers_me_documents__kind__put: {
             /** File */
             file: string;
+        };
+        /** BonusBalance */
+        BonusBalance: {
+            /**
+             * Balance Kzt
+             * @description 1 bonus = 1 KZT.
+             */
+            balance_kzt: number;
+            /**
+             * Earn Percent
+             * @description Share of the money paid for a completed ride.
+             */
+            earn_percent: number;
+            /**
+             * Max Share Percent
+             * @description Bonuses pay at most this share of a ride.
+             */
+            max_share_percent: number;
         };
         /** CancelRequest */
         CancelRequest: {
@@ -1357,13 +1473,21 @@ export interface components {
             /** Seq */
             seq: number;
             /**
-             * Author Id
-             * Format: uuid
+             * Author Kind
+             * @enum {string}
              */
-            author_id: string;
+            author_kind: "human" | "assistant";
+            /**
+             * Author Id
+             * @description Null for the assistant.
+             */
+            author_id: string | null;
             /** Author Name */
             author_name: string;
-            /** Author Role */
+            /**
+             * Author Role
+             * @description passenger, driver, admin or assistant.
+             */
             author_role: string;
             /** Body */
             body: string;
@@ -1448,6 +1572,11 @@ export interface components {
             duration_s: number;
             /** Amount Kzt */
             amount_kzt: number;
+            /**
+             * Bonus Kzt
+             * @description Paid with bonuses; the rest is paid in money.
+             */
+            bonus_kzt: number;
             /**
              * Currency
              * @constant
@@ -1791,6 +1920,12 @@ export interface components {
              * @default economy
              */
             tariff: components["schemas"]["Tariff"];
+            /**
+             * Use Bonus
+             * @description Pay up to half of the price with the passenger's bonuses (GET /bonuses/me).
+             * @default false
+             */
+            use_bonus: boolean;
         };
         /** RideDetailsResponse */
         RideDetailsResponse: {
@@ -1818,6 +1953,11 @@ export interface components {
             tariff: components["schemas"]["Tariff"];
             /** Amount Kzt */
             amount_kzt: number;
+            /**
+             * Bonus Kzt
+             * @description Paid with bonuses; the rest is paid in money.
+             */
+            bonus_kzt: number;
             /**
              * Currency
              * @constant
@@ -1923,6 +2063,11 @@ export interface components {
             /** Amount Kzt */
             amount_kzt: number;
             /**
+             * Bonus Kzt
+             * @description Paid with bonuses; the rest is paid in money.
+             */
+            bonus_kzt: number;
+            /**
              * Currency
              * @constant
              */
@@ -1986,6 +2131,11 @@ export interface components {
             /** Amount Kzt */
             amount_kzt: number;
             /**
+             * Bonus Kzt
+             * @description Paid with bonuses; the rest is paid in money.
+             */
+            bonus_kzt: number;
+            /**
              * Currency
              * @constant
              */
@@ -2003,6 +2153,35 @@ export interface components {
             updated_at: string;
             payment_status: components["schemas"]["PaymentStatus"] | null;
             payment_method: components["schemas"]["PaymentMethod"] | null;
+        };
+        /**
+         * RideUpgradeOptions
+         * @description Empty ``options`` once a driver accepted the ride or in the top tariff.
+         */
+        RideUpgradeOptions: {
+            tariff: components["schemas"]["Tariff"];
+            /** Amount Kzt */
+            amount_kzt: number;
+            /**
+             * Bonus Kzt
+             * @description Bonuses already used for this ride.
+             */
+            bonus_kzt: number;
+            /** Bonus Balance Kzt */
+            bonus_balance_kzt: number;
+            /** Options */
+            options: components["schemas"]["UpgradeOption"][];
+        };
+        /** RideUpgradeRequest */
+        RideUpgradeRequest: {
+            /** @description A tariff above the ride's current one. */
+            tariff: components["schemas"]["Tariff"];
+            /**
+             * Use Bonus
+             * @description Cover the surcharge with bonuses, up to half of the new price in total.
+             * @default false
+             */
+            use_bonus: boolean;
         };
         /**
          * RouteGeometry
@@ -2139,6 +2318,40 @@ export interface components {
             unread_count: number;
             /** Last Message */
             last_message: string;
+            /**
+             * Support Mode
+             * @enum {string}
+             */
+            support_mode: "ai" | "human";
+            /**
+             * Ai State
+             * @enum {string}
+             */
+            ai_state: "idle" | "pending" | "running" | "failed";
+            /**
+             * Ai Available
+             * @description The assistant answers this ticket now; false when switched off or handed off.
+             */
+            ai_available: boolean;
+        };
+        /** UpgradeOption */
+        UpgradeOption: {
+            tariff: components["schemas"]["Tariff"];
+            /**
+             * Amount Kzt
+             * @description The ride's new price in this tariff.
+             */
+            amount_kzt: number;
+            /**
+             * Surcharge Kzt
+             * @description What the passenger adds to the current price.
+             */
+            surcharge_kzt: number;
+            /**
+             * Bonus Kzt
+             * @description Bonuses that can still go towards this price.
+             */
+            bonus_kzt: number;
         };
         /** UserResponse */
         UserResponse: {
@@ -3868,6 +4081,153 @@ export interface operations {
             };
         };
     };
+    upgrade_options_api_v1_rides__ride_id__upgrades_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ride_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RideUpgradeOptions"];
+                };
+            };
+            /** @description Not authenticated (no or expired session) or invalid credentials */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden: role, CSRF token or request origin not allowed */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found or not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    upgrade_ride_api_v1_rides__ride_id__upgrade_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ride_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RideUpgradeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RideResponse"];
+                };
+            };
+            /** @description Not authenticated (no or expired session) or invalid credentials */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden: role, CSRF token or request origin not allowed */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found or not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict with the current state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     cancel_api_v1_rides__ride_id__cancel_post: {
         parameters: {
             query?: never;
@@ -5402,6 +5762,44 @@ export interface operations {
             };
         };
     };
+    assistant_api_v1_support_assistant_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantStatus"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     unread_api_v1_support_unread_get: {
         parameters: {
             query?: never;
@@ -5634,6 +6032,102 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TicketView"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    handoff_api_v1_support_tickets__ticket_id__handoff_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticket_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketView"];
+                };
+            };
+            /** @description Request validation failed; details.errors lists loc, msg and type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    mine_api_v1_bonuses_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BonusBalance"];
+                };
+            };
+            /** @description Not authenticated (no or expired session) or invalid credentials */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden: role, CSRF token or request origin not allowed */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Request validation failed; details.errors lists loc, msg and type */

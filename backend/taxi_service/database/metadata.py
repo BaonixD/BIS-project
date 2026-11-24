@@ -1,5 +1,6 @@
 from taxi_service.database.base import Base
 from taxi_service.modules.auth import models as auth_models
+from taxi_service.modules.bonuses import models as bonuses_models
 from taxi_service.modules.documents import models as documents_models
 from taxi_service.modules.drivers import models as drivers_models
 from taxi_service.modules.payments import models as payments_models
@@ -18,6 +19,7 @@ MODEL_MODULES = (
     rides_models,
     users_models,
     support_models,
+    bonuses_models,
 )
 
 target_metadata = Base.metadata

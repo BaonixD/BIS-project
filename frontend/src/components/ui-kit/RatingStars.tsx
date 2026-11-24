@@ -12,8 +12,8 @@ function Star({ filled }: { filled: boolean }) {
         d={STAR_PATH}
         strokeWidth={1.63333}
         strokeLinejoin="round"
-        stroke={filled ? '#111111' : '#C9C9C9'}
-        fill={filled ? '#111111' : 'none'}
+        stroke={filled ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)'}
+        fill={filled ? 'var(--color-text-primary)' : 'none'}
         className="transition-[fill,stroke] duration-150"
       />
     </svg>

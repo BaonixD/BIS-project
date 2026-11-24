@@ -2,17 +2,16 @@ import { AdminDocuments } from '@/components/documents/AdminDocuments'
 import { dateFormatter } from '@/i18n/date'
 import { t, useLocale } from '@/i18n/core'
 import { APPROVAL_STATUS_LABELS } from '@/lib/labels'
+import type { ReactNode } from 'react'
 import { Link, useParams } from 'react-router'
-import { Check, CircleAlert } from 'lucide-react'
+import { ArrowLeft, Check, CircleAlert } from 'lucide-react'
 import { vehicleCategoryLabel, type NextAdminDriver } from '@/api/driver-types'
 import { ErrorAlert } from '@/components/common/ErrorAlert'
 import { FullScreenLoader } from '@/components/common/FullScreenLoader'
 import { Avatar } from '@/components/driver/Avatar'
-import { BackHeader } from '@/components/driver/BackHeader'
-import { Screen, ScreenColumn, ScreenFooter } from '@/components/driver/Screen'
-import { Button, StatusPill } from '@/components/ui-kit'
+import { Button, KzPlate, StatusPill } from '@/components/ui-kit'
 import { useAdminDriver } from '@/hooks/use-admin'
-import { RidesLink } from './admin-controls'
+import { AdminLayout, RidesLink } from './admin-controls'
 import { DRIVER_FIELD_LABELS } from '@/lib/labels'
 import { CarClassSheet } from './CarClassSheet'
 import { useApproveFlow } from './use-approve-flow'
@@ -22,14 +21,16 @@ const registeredFormat = () =>
     day: 'numeric',
     month: 'long',
   })
-function Facts({ rows }: { rows: [string, string][] }) {
+function Facts({ rows }: { rows: [string, ReactNode][] }) {
   useLocale()
   return (
-    <dl className="flex w-full flex-col gap-2.5 overflow-hidden rounded-lg bg-bg-subtle p-4 text-callout">
+    <dl className="flex w-full flex-col gap-2.5 overflow-hidden rounded-lg bg-bg-canvas p-4 text-callout">
       {rows.map(([label, value]) => (
         <div key={label} className="flex w-full items-start gap-3">
           <dt className="min-w-0 flex-1 text-text-secondary">{label}</dt>
-          <dd className="max-w-[60%] break-words text-right text-text-primary">{value}</dd>
+          <dd className="flex max-w-[60%] justify-end break-words text-right text-text-primary">
+            {value}
+          </dd>
         </div>
       ))}
     </dl>
@@ -39,13 +40,13 @@ function DriverDetails({ driver }: { driver: NextAdminDriver }) {
   useLocale()
   const name = driver.full_name ?? driver.username
   const vehicle = driver.vehicle
-  const vehicleRows: [string, string][] = [
+  const vehicleRows: [string, ReactNode][] = [
     [t('Машина'), vehicle ? `${vehicle.make} ${vehicle.model}` : '—'],
     [t('Цвет'), vehicle?.color ?? '—'],
-    [t('Госномер'), vehicle?.plate_number ?? '—'],
+    [t('Госномер'), vehicle?.plate_number ? <KzPlate plate={vehicle.plate_number} /> : '—'],
   ]
   if (driver.approval_status === 'approved' && vehicle?.car_class) {
-    vehicleRows.push([t('Категории'), vehicleCategoryLabel(vehicle)])
+    vehicleRows.push([t('Принимает тарифы'), vehicleCategoryLabel(vehicle)])
   }
   const missing = driver.missing_fields.map((field) => DRIVER_FIELD_LABELS()[field] ?? field)
   return (
@@ -82,7 +83,7 @@ function DriverDetails({ driver }: { driver: NextAdminDriver }) {
     </>
   )
 }
-/** Figma 26:764: a driver's application. */
+/** Figma 26:764: a driver's application, in the common admin frame. */
 export function AdminDriverPage() {
   useLocale()
   const { driverId } = useParams()
@@ -91,61 +92,71 @@ export function AdminDriverPage() {
   if (drivers.isPending) return <FullScreenLoader />
   const driver = drivers.data ?? null
   const approved = driver?.approval_status === 'approved'
+  const submitted = driver ? ['pending', 'legacy'].includes(driver.documents_summary) : false
+  const blocked = Boolean(driver?.blocked_at)
+  const disabledReason = blocked
+    ? t('Аккаунт заблокирован — сначала снимите блокировку.')
+    : !approved && !submitted
+      ? t('Водитель ещё не отправил документы на проверку.')
+      : null
   return (
-    <Screen overNav>
-      <ScreenColumn className="gap-4 pt-[calc(56px+env(safe-area-inset-top))] pb-32 lg:max-w-5xl">
-        <BackHeader
-          title={t('Заявка водителя')}
-          fallback="/admin"
-          trailing={
-            driver && (
-              <StatusPill tone={approved ? 'success' : 'warning'}>
-                {APPROVAL_STATUS_LABELS()[driver.approval_status]}
-              </StatusPill>
-            )
-          }
-        />
-        <ErrorAlert error={drivers.error} />
-        {driver ? (
-          <>
-            <div className="grid w-full items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-              <div className="flex min-w-0 flex-col gap-4">
-                <DriverDetails driver={driver} />
+    <AdminLayout
+      title={approved ? t('Водитель') : t('Заявка водителя')}
+      description={t('Данные водителя, документы и допуск к работе.')}
+      refreshing={drivers.isFetching}
+      onRefresh={() => void drivers.refetch()}
+    >
+      <Link to="/admin?status=all" className="inline-flex items-center gap-2 self-start text-callout">
+        <ArrowLeft className="size-4" aria-hidden />
+        {t('Все водители')}
+      </Link>
+      <ErrorAlert error={drivers.error} />
+      {driver ? (
+        <div className="grid w-full items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+          <div className="flex min-w-0 flex-col gap-4">
+            <DriverDetails driver={driver} />
+            <section className="flex flex-col gap-3 rounded-lg bg-bg-canvas p-4">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-headline text-text-primary">{t('Допуск к работе')}</h2>
+                <StatusPill tone={blocked ? 'danger' : approved ? 'success' : 'warning'}>
+                  {blocked ? t('Аккаунт заблокирован') : APPROVAL_STATUS_LABELS()[driver.approval_status]}
+                </StatusPill>
               </div>
-              <AdminDocuments driverId={driver.id} />
-            </div>
-            {driver.blocked_at && (
-              <StatusPill tone="danger">{t('Аккаунт заблокирован')}</StatusPill>
-            )}
-            <RidesLink userId={driver.id} role="driver">
-              {t('Поездки водителя')}
-            </RidesLink>
-            <Link
-              to={`/admin/users/${driver.id}`}
-              className="text-callout underline underline-offset-4"
-            >
-              {t('Управление доступом к аккаунту')}
-            </Link>
-          </>
-        ) : (
-          !drivers.error && (
-            <p className="text-callout text-text-secondary">{t('Водитель не найден')}</p>
-          )
-        )}
-      </ScreenColumn>
-      {driver && (
-        <ScreenFooter>
-          <Button
-            className="w-full"
-            disabled={
-              Boolean(driver.blocked_at) ||
-              (!approved && !['pending', 'legacy'].includes(driver.documents_summary))
-            }
-            onClick={() => flow.open(driver)}
-          >
-            {approved ? t('Сменить класс машины') : t('Одобрить водителя')}
-          </Button>
-        </ScreenFooter>
+              <p className="text-callout text-text-secondary">
+                {approved
+                  ? t('Водитель получает заказы своего класса и ниже. Класс можно изменить.')
+                  : t('Проверьте документы и данные машины, затем одобрите и назначьте класс.')}
+              </p>
+              <Button
+                size="md"
+                className="w-full"
+                disabled={disabledReason !== null}
+                onClick={() => flow.open(driver)}
+              >
+                {approved ? t('Сменить класс машины') : t('Одобрить водителя')}
+              </Button>
+              {disabledReason && (
+                <p className="text-caption text-text-secondary">{disabledReason}</p>
+              )}
+              <div className="flex flex-wrap gap-x-5 gap-y-2 pt-1">
+                <RidesLink userId={driver.id} role="driver">
+                  {t('Поездки водителя')}
+                </RidesLink>
+                <Link
+                  to={`/admin/users/${driver.id}`}
+                  className="text-callout underline underline-offset-4"
+                >
+                  {t('Блокировка и доступ')}
+                </Link>
+              </div>
+            </section>
+          </div>
+          <AdminDocuments driverId={driver.id} />
+        </div>
+      ) : (
+        !drivers.error && (
+          <p className="text-callout text-text-secondary">{t('Водитель не найден')}</p>
+        )
       )}
       {flow.target && (
         <CarClassSheet
@@ -156,6 +167,6 @@ export function AdminDriverPage() {
           onClose={flow.close}
         />
       )}
-    </Screen>
+    </AdminLayout>
   )
 }

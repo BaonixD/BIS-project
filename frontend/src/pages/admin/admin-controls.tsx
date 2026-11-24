@@ -1,9 +1,10 @@
-import { SupportLink } from '@/components/common/SupportLink'
+import { ThemeToggle } from '@/components/common/ThemeToggle'
+import { TitleOrnament } from '@/components/common/Ornament'
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
 import { t, useLocale } from '@/i18n/core'
 import { useState, type ReactNode } from 'react'
-import { Link, NavLink } from 'react-router'
-import { ArrowUpRight, RefreshCw, Search } from 'lucide-react'
+import { Link } from 'react-router'
+import { ArrowUpRight, Check, Copy, RefreshCw, Search } from 'lucide-react'
 import { Button, Input, Skeleton } from '@/components/ui-kit'
 import { Pagination } from '@/components/common/Pagination'
 import { AdminLogoutButton } from './AdminLogoutButton'
@@ -23,51 +24,31 @@ export function AdminLayout({
 }) {
   useLocale()
   return (
-    <div className="min-h-dvh bg-app-ornament">
-      <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 px-4 pt-[calc(64px+env(safe-area-inset-top))] pb-8 lg:gap-5 lg:px-8 lg:pt-8">
-        <header className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="min-h-dvh bg-bg-subtle">
+      <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 px-4 pt-[calc(16px+env(safe-area-inset-top))] pb-8 lg:gap-5 lg:px-8 lg:pt-8">
+        <div className="flex items-center justify-end gap-1 lg:hidden">
+          <ThemeToggle className="text-text-primary hover:bg-bg-muted" />
+          <LanguageSwitcher />
+          <AdminLogoutButton />
+        </div>
+        <header className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="mb-1 text-label text-text-secondary">{t('TEZJET / УПРАВЛЕНИЕ')}</p>
-            <h1 className="text-display text-text-primary">{title}</h1>
-            <p className="mt-1 text-callout text-text-secondary">{description}</p>
+            <h1 className="text-title text-text-primary sm:text-display">{title}</h1>
+            <TitleOrnament className="mt-2" />
+            <p className="mt-2 max-w-2xl text-callout text-text-secondary">{description}</p>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <Button
-              variant="ghost"
-              size="md"
-              onClick={onRefresh}
-              disabled={refreshing}
-              aria-label={t('Обновить данные')}
-            >
-              <RefreshCw className={refreshing ? 'motion-safe:animate-spin' : ''} />
-              <span className="hidden sm:inline">{t('Обновить')}</span>
-            </Button>
-            <LanguageSwitcher className="lg:hidden" />
-            <AdminLogoutButton />
-          </div>
+          <Button
+            variant="ghost"
+            size="md"
+            className="shrink-0"
+            onClick={onRefresh}
+            disabled={refreshing}
+            aria-label={t('Обновить данные')}
+          >
+            <RefreshCw className={refreshing ? 'motion-safe:animate-spin' : ''} />
+            <span className="hidden sm:inline">{t('Обновить')}</span>
+          </Button>
         </header>
-        <nav aria-label={t('Управление сервисом')} className="flex gap-2 overflow-x-auto pb-1">
-          {(
-            [
-              ['/admin/overview', t('Обзор')],
-              ['/admin', t('Водители')],
-              ['/admin/rides', t('Поездки')],
-              ['/admin/users', t('Пользователи')],
-            ] as const
-          ).map(([to, label]) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/admin'}
-              className={({ isActive }) =>
-                `shrink-0 rounded-full px-4 py-2.5 text-callout outline-none focus-visible:ring-2 focus-visible:ring-bg-inverse ${isActive ? 'bg-bg-inverse text-text-inverse' : 'bg-bg-canvas text-text-secondary'}`
-              }
-            >
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-        <SupportLink compact />
         {children}
       </div>
     </div>
@@ -155,7 +136,10 @@ export function AdminResults({
   useLocale()
   return (
     <div className="flex flex-col gap-2" aria-busy={busy}>
-      <p className="text-caption text-text-secondary" role="status">
+      <p
+        className={total === 0 ? 'sr-only' : 'text-caption text-text-secondary'}
+        role="status"
+      >
         {total === undefined
           ? t('Загружаем…')
           : total === 0
@@ -176,20 +160,23 @@ export function AdminResults({
 }
 export function AdminEmpty({
   message = t('Ничего не найдено'),
+  text = t('Попробуйте другой запрос или измените фильтры.'),
+  action,
   onReset,
 }: {
   message?: string
+  text?: string
+  /** A next step instead of «Сбросить фильтры», e.g. «Показать всех водителей». */
+  action?: { label: string; onClick: () => void }
   onReset: () => void
 }) {
   useLocale()
   return (
     <div className="flex flex-col items-center gap-3 rounded-lg bg-bg-canvas px-5 py-10 text-center sm:py-12">
       <p className="text-headline text-text-primary">{message}</p>
-      <p className="text-callout text-text-secondary">
-        {t('Попробуйте другой запрос или измените фильтры.')}
-      </p>
-      <Button variant="secondary" size="md" onClick={onReset}>
-        {t('Сбросить фильтры')}
+      <p className="max-w-md text-callout text-text-secondary">{text}</p>
+      <Button variant="secondary" size="md" onClick={action?.onClick ?? onReset}>
+        {action?.label ?? t('Сбросить фильтры')}
       </Button>
     </div>
   )
@@ -239,5 +226,31 @@ export function RidesLink({
       {children}
       <ArrowUpRight className="size-4" aria-hidden />
     </Link>
+  )
+}
+
+/** A long identifier shown short, with a button that copies it whole. */
+export function CopyId({ value }: { value: string }) {
+  useLocale()
+  const [copied, setCopied] = useState(false)
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className="font-mono text-caption text-text-secondary" title={value}>
+        {value.slice(0, 8)}…
+      </span>
+      <button
+        type="button"
+        onClick={() => {
+          void navigator.clipboard?.writeText(value).then(() => {
+            setCopied(true)
+            window.setTimeout(() => setCopied(false), 1500)
+          })
+        }}
+        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-caption text-text-primary outline-none hover:bg-bg-muted focus-visible:ring-2 focus-visible:ring-bg-inverse"
+      >
+        {copied ? <Check className="size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
+        {copied ? t('Скопировано') : t('Копировать')}
+      </button>
+    </span>
   )
 }

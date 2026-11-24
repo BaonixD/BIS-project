@@ -1,1 +1,1 @@
-"""TezJet Taxi Service backend."""
+"""TulparTaxi Service backend."""

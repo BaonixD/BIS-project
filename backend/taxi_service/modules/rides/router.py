@@ -8,7 +8,7 @@ from taxi_service.modules.auth.dependencies import CurrentUser
 from taxi_service.modules.geo.dependencies import RoutingProviderDep
 from taxi_service.modules.payments.dependencies import PaymentSettingsDep
 from taxi_service.modules.ratings import service as ratings_service
-from taxi_service.modules.rides import dispatch, estimates, history, lifecycle, service
+from taxi_service.modules.rides import dispatch, estimates, history, lifecycle, service, upgrade
 from taxi_service.modules.rides.dependencies import (
     CompletionHookDep,
     DispatchPolicyDep,
@@ -30,6 +30,8 @@ from taxi_service.modules.rides.schemas import (
     RideDetailsResponse,
     RideResponse,
     RideSummary,
+    RideUpgradeOptions,
+    RideUpgradeRequest,
 )
 from taxi_service.modules.rides.states import RideCommand
 from taxi_service.schemas.errors import error_responses
@@ -136,6 +138,26 @@ async def complete(
         clock=clock,
         on_completed=on_completed,
     )
+    return RideResponse.build(ride)
+
+
+@router.get("/{ride_id}/upgrades", responses=error_responses(401, 403, 404))
+async def upgrade_options(
+    ride_id: uuid.UUID, user: PassengerUser, db: DbSession
+) -> RideUpgradeOptions:
+    return await upgrade.upgrade_options(db, ride_id, user.id)
+
+
+@router.post("/{ride_id}/upgrade", responses=COMMAND_ERRORS)
+async def upgrade_ride(
+    ride_id: uuid.UUID,
+    body: RideUpgradeRequest,
+    user: PassengerUser,
+    db: DbSession,
+    clock: ClockDep,
+    policy: DispatchPolicyDep,
+) -> RideResponse:
+    ride = await upgrade.upgrade_ride(db, ride_id, user.id, body, clock=clock, policy=policy)
     return RideResponse.build(ride)
 
 

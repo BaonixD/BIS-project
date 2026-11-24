@@ -1,4 +1,5 @@
 import { t, useLocale } from '@/i18n/core'
+import { moneyDue } from '@/lib/money'
 import { useState, type ReactNode } from 'react'
 import { Banknote, Check, X } from 'lucide-react'
 import type { DriverCard, RideDetails } from '@/api'
@@ -37,7 +38,7 @@ function ResultPage({
 }) {
   useLocale()
   return (
-    <FullScreen>
+    <FullScreen className="bg-bg-subtle">
       <div className={cn('mx-auto flex min-h-full w-full max-w-[420px] flex-col px-4', top)}>
         <div className="flex w-full flex-col items-center">{children}</div>
         <div className="mt-auto flex w-full flex-col items-center gap-3 pt-6">{footer}</div>
@@ -97,7 +98,7 @@ export function PayCashScreen({
   onDone: () => void
 }) {
   useLocale()
-  const price = formatPrice(ride.amount_kzt)
+  const price = formatPrice(moneyDue(ride))
   const driverRow: [string, ReactNode][] = driver ? [[t('Водитель'), driverLine(driver)]] : []
   return (
     <ResultPage
@@ -121,7 +122,7 @@ export function PayCashScreen({
         <section className="flex w-full flex-col gap-3 rounded-lg bg-bg-canvas p-5">
           <Receipt
             label={t('К оплате')}
-            amount={ride.amount_kzt}
+            amount={moneyDue(ride)}
             pill={{ tone: 'warning', text: t('Ожидает') }}
             rows={[]}
           />
@@ -293,7 +294,11 @@ export function CompletedScreen({
             label={t('Итого')}
             amount={ride.amount_kzt}
             pill={{ tone: 'success', text: t('Оплачено') }}
-            rows={[]}
+            rows={
+              ride.bonus_kzt > 0
+                ? [[t('Бонусами'), `−${formatPrice(ride.bonus_kzt)}`]]
+                : []
+            }
           />
           <Divider />
           <SummaryRows
@@ -350,7 +355,7 @@ export function CancelledScreen({ ride, onReorder }: { ride: RideDetails; onReor
         <section className="flex w-full flex-col gap-3 rounded-lg bg-bg-canvas p-5">
           <Receipt
             label={refunded ? t('Возврат') : t('Списано')}
-            amount={refunded ? ride.amount_kzt : 0}
+            amount={refunded ? moneyDue(ride) : 0}
             pill={
               refunded
                 ? { tone: 'info', text: t('Возвращено') }

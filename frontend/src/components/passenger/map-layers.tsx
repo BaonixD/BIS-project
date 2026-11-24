@@ -3,13 +3,46 @@ import { Marker, useMap, useMapEvents } from 'react-leaflet'
 import { divIcon } from 'leaflet'
 import type { Coordinates } from '@/api'
 import centerPinUrl from '@/assets/passenger/center-pin.svg'
-import pulseUrl from '@/assets/passenger/search-pulse.svg'
 import { fromLatLng, toLatLng } from '@/lib/geo'
 
-/** Figma «Pulse» 5:332: 200px halo around the pickup while a driver is searched. */
+const UYKS = 24
+const GLOW_S = 2.4
+
+/** The yurt's crown (шаңырақ): a ring, the crossed күлдіреуіш and 24 roof poles (уық). */
+function shanyrakSvg(): string {
+  const poles = Array.from({ length: UYKS }, (_, index) => {
+    const angle = (index / UYKS) * Math.PI * 2
+    const x = (radius: number) => (100 + radius * Math.cos(angle)).toFixed(1)
+    const y = (radius: number) => (100 + radius * Math.sin(angle)).toFixed(1)
+    const delay = (-(index / UYKS) * GLOW_S).toFixed(2)
+    return `<line x1="${x(42)}" y1="${y(42)}" x2="${x(86)}" y2="${y(86)}" class="shanyrak-uyk" style="animation-delay:${delay}s" />`
+  }).join('')
+  const bars = [-11, 11]
+    .flatMap((offset) => {
+      const half = Math.sqrt(34 * 34 - offset * offset).toFixed(1)
+      const bend = (100 + offset * 1.9).toFixed(1)
+      const line = (100 + offset).toFixed(1)
+      return [
+        `M${line} ${(100 - Number(half)).toFixed(1)}Q${bend} 100 ${line} ${(100 + Number(half)).toFixed(1)}`,
+        `M${(100 - Number(half)).toFixed(1)} ${line}Q100 ${bend} ${(100 + Number(half)).toFixed(1)} ${line}`,
+      ]
+    })
+    .join('')
+  return (
+    '<svg width="200" height="200" viewBox="0 0 200 200" class="block" aria-hidden="true">' +
+    '<circle cx="100" cy="100" r="96" fill="#00afca" fill-opacity="0.08" />' +
+    '<g class="shanyrak-spin">' +
+    `<g stroke-width="3.5" stroke-linecap="round">${poles}</g>` +
+    '<circle cx="100" cy="100" r="37" fill="#fff" stroke="#000" stroke-width="4" />' +
+    `<path d="${bars}" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round" />` +
+    '</g></svg>'
+  )
+}
+
+/** Instead of Figma «Pulse» 5:332: the turning шаңырақ over the pickup while a driver is searched. */
 const pulseIcon = divIcon({
   className: 'map-marker',
-  html: `<img src="${pulseUrl}" width="200" height="200" alt="" class="block" draggable="false" />`,
+  html: shanyrakSvg(),
   iconSize: [200, 200],
   iconAnchor: [100, 100],
 })
@@ -34,7 +67,7 @@ export function CenterPin() {
       alt=""
       aria-hidden
       draggable={false}
-      className="pointer-events-none absolute top-[253px] left-1/2 z-20 -ml-5 block lg:top-[calc(50%-61px)]"
+      className="pointer-events-none absolute top-[253px] left-1/2 z-20 -ml-5 block lg:top-[calc(50%-61px)] dark:invert"
     />
   )
 }

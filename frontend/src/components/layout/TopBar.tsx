@@ -1,4 +1,5 @@
 import { BrandLogo } from '@/components/common/BrandLogo'
+import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
 import { t, useLocale } from '@/i18n/core'
 import { LogOut } from 'lucide-react'
@@ -7,6 +8,7 @@ import type { UserRole } from '@/api'
 import { ROLE_HOME } from '@/auth/role-home'
 import { cn } from '@/lib/utils'
 import { isNavItemActive, NAV_ITEMS, PROFILE_PATH } from './nav-items'
+import { SupportBadge } from './SupportBadge'
 function Account({ displayName }: { displayName: string }) {
   useLocale()
   return (
@@ -43,11 +45,16 @@ export function TopBar({
   const profile = PROFILE_PATH[role]
   return (
     <header
+      data-theme="light"
       className={cn(
         'h-(--top-bar-height) items-center gap-8 overflow-hidden bg-bg-inverse px-8',
-        preview ? 'flex w-full' : 'fixed inset-x-0 top-0 z-40 hidden lg:flex',
+        preview ? 'relative flex w-full' : 'fixed inset-x-0 top-0 z-40 hidden lg:flex',
       )}
     >
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-linear-to-r from-transparent via-brand-gold/70 to-transparent"
+      />
       <Link to={ROLE_HOME[role]} className="text-headline whitespace-nowrap text-text-inverse">
         <BrandLogo inverse />
       </Link>
@@ -60,15 +67,23 @@ export function TopBar({
               to={item.to}
               aria-current={active ? 'page' : undefined}
               className={cn(
-                'text-callout whitespace-nowrap text-text-inverse transition-opacity duration-150 hover:opacity-100',
+                'relative py-1 text-callout whitespace-nowrap text-text-inverse transition-opacity duration-150 hover:opacity-100',
                 !active && 'opacity-60',
               )}
             >
               {item.topLabel ?? item.label}
+              {item.supportBadge && <SupportBadge className="ml-1.5 align-middle" />}
+              {active && (
+                <span
+                  aria-hidden
+                  className="absolute inset-x-0 -bottom-1 h-0.5 rounded-full bg-brand-gold"
+                />
+              )}
             </Link>
           )
         })}
       </nav>
+      <ThemeToggle className="-mr-4 text-text-inverse opacity-80 hover:opacity-100" />
       <LanguageSwitcher inverse />
       {profile ? (
         <Link to={profile} className="flex shrink-0 items-center gap-2.5">

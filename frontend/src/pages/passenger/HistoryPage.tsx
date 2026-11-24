@@ -1,4 +1,6 @@
 import { t, useLocale } from '@/i18n/core'
+import { AlatauScene } from '@/components/common/AlatauScene'
+import { TitleOrnament } from '@/components/common/Ornament'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { Receipt } from 'lucide-react'
@@ -54,6 +56,7 @@ function EmptyHistory() {
       <Button size="md" asChild>
         <Link to="/">{t('Заказать такси')}</Link>
       </Button>
+      <AlatauScene className="mt-6" />
     </div>
   )
 }
@@ -67,9 +70,10 @@ export function HistoryPage() {
   const empty = page !== undefined && page.total === 0 && filter === 'all'
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 pt-[64px] pb-6 lg:pt-8">
-      <h1 className="w-full text-display text-text-primary">
-        {empty ? t('История') : t('Поездки')}
-      </h1>
+      <div className="flex w-full flex-col gap-2">
+        <h1 className="text-display text-text-primary">{empty ? t('История') : t('Поездки')}</h1>
+        <TitleOrnament />
+      </div>
       {empty ? (
         <EmptyHistory />
       ) : (

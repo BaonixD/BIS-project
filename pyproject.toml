@@ -1,7 +1,7 @@
 [project]
 name = "taxi-service"
 version = "0.1.0"
-description = "TezJet Taxi Service backend MVP (Almaty, KZT)"
+description = "TulparTaxi Service backend MVP (Almaty, KZT)"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
@@ -44,6 +44,10 @@ include = ["*.py", "*.pyi", "**/pyproject.toml"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "N", "B", "UP", "SIM", "RUF", "ASYNC", "PT"]
+
+[tool.ruff.lint.per-file-ignores]
+# Russian product text for the support assistant: Cyrillic letters and long prose lines.
+"backend/taxi_service/modules/support/ai_knowledge.py" = ["RUF001", "E501"]
 
 [tool.mypy]
 python_version = "3.12"

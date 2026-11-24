@@ -3,7 +3,7 @@ import { ChevronDown } from 'lucide-react'
 
 export function SupportPage({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-dvh bg-app-ornament lg:min-h-[calc(100dvh-var(--top-bar-height))]">
+    <div className="min-h-dvh bg-bg-subtle lg:min-h-[calc(100dvh-var(--top-bar-height))]">
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 pt-[calc(32px+env(safe-area-inset-top))] pb-8 sm:px-6 lg:py-10">
         {children}
       </div>

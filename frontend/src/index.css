@@ -15,6 +15,9 @@
   --animate-shimmer: shimmer 1.4s ease-in-out infinite;
   --animate-loader-ring: loader-ring 1.6s ease-out infinite;
   --animate-fade-up: fade-up 260ms ease-out both;
+  --animate-typing-dot: typing-dot 1.2s ease-in-out infinite;
+  --animate-sun-spin: sun-spin 60s linear infinite;
+  --animate-car-glide: car-glide 2.8s ease-in-out infinite;
 
   @keyframes page-in {
     from { opacity: 0; }
@@ -27,6 +30,18 @@
   @keyframes shimmer {
     from { background-position: 150% 0; }
     to { background-position: -50% 0; }
+  }
+  @keyframes typing-dot {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+    30% { transform: translateY(-4px); opacity: 1; }
+  }
+  @keyframes sun-spin {
+    to { transform: rotate(360deg); }
+  }
+  @keyframes car-glide {
+    0% { left: 0; opacity: 0; }
+    15%, 80% { opacity: 1; }
+    100% { left: calc(100% - 44px); opacity: 0; }
   }
   @keyframes loader-ring {
     0% { transform: scale(0.6); opacity: 0.5; }
@@ -47,7 +62,12 @@
   --color-accent-success: #05a357;
   --color-accent-warning: #f6bc2f;
   --color-accent-danger: #e11900;
-  --color-accent-info: #276ef1;
+  --color-accent-info: #00788a;
+  /* Kazakhstan flag accents: sky tints selection, ink colours text and icons, gold draws lines. */
+  --color-brand-sky: #00afca;
+  --color-brand-sky-ink: #00788a;
+  --color-brand-sky-soft: #e8f7fa;
+  --color-brand-gold: #fec50c;
   --color-accent-kaspi: #f14635;
   --color-map-land: #eef0f2;
   --color-dim: rgb(0 0 0 / 0.35);
@@ -113,7 +133,53 @@
   --color-background: var(--background);
 }
 
-/* shadcn/ui semantic variables mapped onto the Figma palette (light theme only). */
+/* Dark theme for the whole app: the same tokens with dark values (html[data-theme=dark]).
+   An element with data-theme="light" inside keeps the light values, e.g. the black top bar. */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+:root[data-theme='dark'] {
+  --color-bg-canvas: #16191b;
+  --color-bg-subtle: #0d0f10;
+  --color-bg-muted: #24292c;
+  --color-bg-inverse: #f2f4f5;
+  --color-text-primary: #f2f4f5;
+  --color-text-secondary: #a6aeb2;
+  --color-text-tertiary: #737c81;
+  --color-text-inverse: #0d0f10;
+  --color-border-default: #2c3235;
+  --color-accent-danger: #ff5a45;
+  --color-accent-info: #4cc3d6;
+  --color-brand-sky-ink: #5fc6d8;
+  --color-brand-sky-soft: #0f3038;
+  --color-map-land: #0f1b20;
+  --color-dim: rgb(0 0 0 / 0.55);
+  --shadow-card: 0px 4px 16px 0px rgb(0 0 0 / 0.5);
+  --shadow-sheet: 0px -4px 24px 0px rgb(0 0 0 / 0.55);
+  color-scheme: dark;
+}
+
+:root[data-theme='dark'] [data-theme='light'] {
+  --color-bg-canvas: #ffffff;
+  --color-bg-subtle: #f6f6f6;
+  --color-bg-muted: #eeeeee;
+  --color-bg-inverse: #000000;
+  --color-text-primary: #000000;
+  --color-text-secondary: #5e5e5e;
+  --color-text-tertiary: #8e8e8e;
+  --color-text-inverse: #ffffff;
+  --color-border-default: #e2e2e2;
+  --color-accent-danger: #e11900;
+  --color-accent-info: #00788a;
+  --color-brand-sky-ink: #00788a;
+  --color-brand-sky-soft: #e8f7fa;
+  --color-map-land: #eef0f2;
+  --color-dim: rgb(0 0 0 / 0.35);
+  --shadow-card: 0px 4px 16px 0px rgb(0 0 0 / 0.1);
+  --shadow-sheet: 0px -4px 24px 0px rgb(0 0 0 / 0.12);
+  color-scheme: light;
+}
+
+/* shadcn/ui semantic variables mapped onto the Figma palette; they follow the theme tokens. */
 :root {
   --background: var(--color-bg-canvas);
   --foreground: var(--color-text-primary);
@@ -152,16 +218,24 @@
     -webkit-tap-highlight-color: transparent;
   }
   body {
-    @apply bg-app-ornament text-foreground;
+    @apply bg-background text-foreground;
   }
 }
 
-@utility bg-app-ornament {
-  background-color: var(--color-bg-subtle);
-  background-image: url('/brand/kazakh-ornament.jpeg');
-  background-position: top center;
-  background-repeat: repeat;
-  background-size: 591px auto;
+/* Text that shimmers while the support assistant works; static under reduced motion. */
+@utility text-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-text-tertiary) 30%,
+    var(--color-text-primary) 50%,
+    var(--color-text-tertiary) 70%
+  );
+  background-size: 250% 100%;
+  background-clip: text;
+  color: transparent;
+  @media (prefers-reduced-motion: no-preference) {
+    animation: var(--animate-shimmer);
+  }
 }
 
 @utility scrollbar-none {
@@ -220,5 +294,41 @@
     animation-duration: 1ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 1ms !important;
+  }
+}
+
+/* «Түнгі Алматы»: the container shows through while tiles load; attribution stays readable. */
+.map-night.leaflet-container {
+  background: #0f1b20;
+}
+.map-night .leaflet-control-attribution {
+  background: rgb(15 27 32 / 0.75);
+  color: #9fb0b4;
+}
+.map-night .leaflet-control-attribution a {
+  color: #5fc6d8;
+}
+
+/* Шаңырақ while a driver is searched: poles light up in turn, the crown turns slowly. */
+.shanyrak-uyk {
+  stroke: rgb(142 142 142 / 0.45);
+  animation: uyk-glow 2.4s linear infinite;
+}
+.shanyrak-spin {
+  transform-box: view-box;
+  transform-origin: 100px 100px;
+  animation: shanyrak-turn 40s linear infinite;
+}
+@keyframes uyk-glow {
+  0%, 22%, 100% { stroke: rgb(142 142 142 / 0.45); }
+  6% { stroke: #00afca; }
+}
+@keyframes shanyrak-turn {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shanyrak-uyk,
+  .shanyrak-spin {
+    animation: none;
   }
 }

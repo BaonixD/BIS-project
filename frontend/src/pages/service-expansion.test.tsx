@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { DriverDocumentsPage } from './driver/DriverDocumentsPage'
-import { SupportListPage } from './support/SupportListPage'
+import { SupportChatPage } from './support/SupportChatPage'
 
 const backend = vi.hoisted(() => ({
   calls: [] as { path: string; init?: RequestInit }[],
@@ -53,9 +53,10 @@ vi.mock('@/api/request', () => ({
         can_submit: true,
         history: [],
       }
-    if (path.startsWith('/support/tickets?')) return { items: [], total: 0, offset: 0, limit: 20 }
+    if (path.startsWith('/support/tickets?')) return { items: [], total: 0, offset: 0, limit: 50 }
+    if (path === '/support/assistant') return { available: true }
     if (path === '/support/tickets' && init?.method === 'POST')
-      return { id: 'ticket-1', owner_id: 'u1' }
+      return { id: 'ticket-1', owner_id: 'u1', created_at: '2026-11-23T00:00:00Z' }
     throw new Error(path)
   },
   jsonBody: (body: unknown) => ({
@@ -93,10 +94,8 @@ it('submits the displayed document version and switches to review state', async 
   expect(JSON.parse(String(call?.init?.body))).toEqual({ package_id: 'package-1', version: 3 })
 })
 
-it('creates a ride-linked support request and opens the conversation', async () => {
-  show(<SupportListPage />, '/driver/support?new=1&ride_id=ride-1')
-  await screen.findByRole('dialog')
-  await userEvent.type(screen.getByRole('textbox', { name: 'Тема' }), 'Payment issue')
+it('starts a ride-linked support chat from the first message and opens it', async () => {
+  show(<SupportChatPage />, '/driver/support?ride_id=ride-1')
   await userEvent.type(
     screen.getByRole('textbox', { name: 'Сообщение' }),
     'Please help with this ride',
@@ -106,6 +105,8 @@ it('creates a ride-linked support request and opens the conversation', async () 
   const call = backend.calls.find((item) => item.path === '/support/tickets')
   const body = JSON.parse(String(call?.init?.body))
   expect(body.ride_id).toBe('ride-1')
+  expect(body.category).toBe('ride')
+  expect(body.subject).toBe('Please help with this ride')
   expect(body.body).toBe('Please help with this ride')
   expect(body.client_request_id).toMatch(/^[0-9a-f-]{36}$/)
 })

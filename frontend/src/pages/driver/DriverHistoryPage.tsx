@@ -1,4 +1,6 @@
 import { SupportLink } from '@/components/common/SupportLink'
+import { AlatauScene } from '@/components/common/AlatauScene'
+import { TitleOrnament } from '@/components/common/Ornament'
 import { t, useLocale } from '@/i18n/core'
 import { useState } from 'react'
 import type { RideSummary } from '@/api'
@@ -61,9 +63,12 @@ export function DriverHistoryPage() {
   const stats = summarizeShift(rides)
   const current = PERIODS().find((item) => item.id === period) ?? PERIODS()[0]
   return (
-    <Screen>
+    <Screen tone="subtle">
       <ScreenColumn className="gap-4 pt-[calc(64px+env(safe-area-inset-top))] pb-6">
-        <h1 className="w-full text-display text-text-primary">{t('История')}</h1>
+        <div className="flex w-full flex-col gap-2">
+          <h1 className="text-display text-text-primary">{t('История')}</h1>
+          <TitleOrnament />
+        </div>
         <div className="flex w-full flex-col gap-1 overflow-hidden rounded-[20px] bg-bg-inverse p-5 text-text-inverse">
           <p className="text-callout">{current?.earned}</p>
           <p className="text-display">{formatMoney(stats.earnedKzt)}</p>
@@ -83,9 +88,12 @@ export function DriverHistoryPage() {
         {history.isPending ? (
           <Skeleton className="h-56 w-full rounded-lg" />
         ) : rides.length === 0 ? (
-          <p className="w-full rounded-lg bg-bg-canvas p-5 text-center text-callout text-text-secondary">
-            {t('Поездок за этот период нет')}
-          </p>
+          <div className="flex w-full flex-col gap-4 rounded-lg bg-bg-canvas p-5">
+            <p className="text-center text-callout text-text-secondary">
+              {t('Поездок за этот период нет')}
+            </p>
+            <AlatauScene />
+          </div>
         ) : (
           <ul className="flex w-full flex-col overflow-hidden rounded-lg bg-bg-canvas p-2">
             {rides.map((ride) => (
