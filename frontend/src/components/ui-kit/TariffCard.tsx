@@ -9,7 +9,7 @@ interface TariffCardProps extends Omit<ComponentProps<'button'>, 'children'> {
 }
 /**
  * Figma «TariffCard» 21:81: 176×64, radius 10; Selected — subtle background with a 1.5px black border,
- * Default — white with a 1px border and a 45% car. `mix-blend-multiply` drops the render's white background.
+ * Default — canvas with a 1px border and a 45% car; the car render has a transparent background.
  */
 export function TariffCard({
   name,
@@ -47,7 +47,7 @@ export function TariffCard({
         alt=""
         draggable={false}
         className={cn(
-          'pointer-events-none h-[58px] w-[86px] shrink-0 object-cover mix-blend-multiply transition-opacity duration-150 dark:rounded-md dark:mix-blend-normal',
+          'pointer-events-none h-[58px] w-[86px] shrink-0 object-contain transition-opacity duration-150',
           !selected && 'opacity-45',
         )}
       />

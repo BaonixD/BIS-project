@@ -43,7 +43,7 @@ function ClassShift({ from, to }: { from: Tariff; to: Tariff }) {
           src={carImage}
           alt=""
           draggable={false}
-          className="absolute top-0 left-[calc(50%-22px)] h-7 w-11 object-contain mix-blend-multiply motion-safe:animate-car-glide dark:mix-blend-screen dark:invert"
+          className="absolute top-0 left-[calc(50%-22px)] h-7 w-11 object-contain motion-safe:animate-car-glide"
         />
       </span>
       <ArrowRight className="size-4 shrink-0 text-brand-sky-ink" />
