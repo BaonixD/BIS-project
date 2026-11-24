@@ -22,7 +22,7 @@ const ATTRIBUTION =
 type PaintProperty = Parameters<MaplibreMap['setPaintProperty']>[1]
 type Palette = readonly [layer: string, property: PaintProperty, value: string][]
 
-// Positron, warmed towards the TezJet palette: steppe-light land, sky-blue water,
+// Positron, warmed towards the TulparTaxi palette: steppe-light land, sky-blue water,
 // sage parks and a faint gold casing on main roads. Labels and road geometry stay as they are.
 const DAY: Palette = [
   ['background', 'background-color', '#f5f3ec'],

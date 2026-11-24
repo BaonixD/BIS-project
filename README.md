@@ -1,4 +1,4 @@
-# TezJet
+# TulparTaxi
 
 
 A taxi app for Almaty, built by our team as a course project for Basics of Information Systems.

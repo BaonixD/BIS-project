@@ -69,7 +69,7 @@ describe('TopBar', () => {
     )
     const nav = screen.getByRole('navigation', { name: 'Разделы' })
     expect(activeLabel(nav)).toEqual(['История'])
-    expect(screen.getByText('TezJet')).toBeInTheDocument()
+    expect(screen.getByText('TulparTaxi')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Айгерим/ })).toHaveAttribute('href', '/profile')
   })
 })

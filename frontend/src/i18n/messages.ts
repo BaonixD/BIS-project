@@ -70,7 +70,7 @@ export const en: Record<string, string> = {
   'Отвечает оператор': 'An agent is replying',
   'Отправляем…': 'Sending…',
   'Пишет ответ…': 'Writing a reply…',
-  'Поддержка TezJet': 'TezJet support',
+  'Поддержка TulparTaxi': 'TulparTaxi support',
   'Пользователь позвал оператора. ИИ-помощник больше не отвечает в этом чате.':
     'The user asked for an agent. The AI assistant no longer replies in this chat.',
   'Помощник сейчас не смог ответить. Попробуйте ещё раз или позовите оператора.':
@@ -489,7 +489,7 @@ export const en: Record<string, string> = {
     'This car can take this ride type and all types below it. The driver chooses what to accept before going online.',
   'Доступные тарифы': 'Available ride types',
   'Доступны:': 'Available:',
-  'TEZJET / УПРАВЛЕНИЕ': 'TEZJET / ADMIN',
+  'TULPARTAXI / УПРАВЛЕНИЕ': 'TULPARTAXI / ADMIN',
   'Обновить данные': 'Refresh data',
   Обновить: 'Refresh',
   'Управление сервисом': 'Service management',
@@ -531,7 +531,7 @@ export const en: Record<string, string> = {
   'Войдите с этим именем и паролем': 'Sign in with your new username and password',
   'Назад ко входу': 'Back to sign in',
   'Создать аккаунт': 'Create an account',
-  'Выберите, как будете пользоваться TezJet': "Choose how you'll use TezJet",
+  'Выберите, как будете пользоваться TulparTaxi': "Choose how you'll use TulparTaxi",
   '3–32 символа: латинские буквы, цифры, _':
     '3–32 characters: Latin letters, numbers and underscores',
   'Пароль — от 10 символов': 'Password — at least 10 characters',
@@ -883,7 +883,7 @@ export const kk: Record<string, string> = {
   'Отвечает оператор': 'Оператор жауап береді',
   'Отправляем…': 'Жіберілуде…',
   'Пишет ответ…': 'Жауап жазып жатыр…',
-  'Поддержка TezJet': 'TezJet қолдауы',
+  'Поддержка TulparTaxi': 'TulparTaxi қолдауы',
   'Пользователь позвал оператора. ИИ-помощник больше не отвечает в этом чате.':
     'Пайдаланушы операторды шақырды. ЖИ көмекшісі бұл чатта енді жауап бермейді.',
   'Помощник сейчас не смог ответить. Попробуйте ещё раз или позовите оператора.':
@@ -1300,7 +1300,7 @@ export const kk: Record<string, string> = {
     'Көлік класы осы тарифке және төменгі тарифтерге рұқсат береді. Жүргізуші желіге шыққанда қандай тапсырыстарды қабылдайтынын таңдайды.',
   'Доступные тарифы': 'Қолжетімді тарифтер',
   'Доступны:': 'Қолжетімді:',
-  'TEZJET / УПРАВЛЕНИЕ': 'TEZJET / БАСҚАРУ',
+  'TULPARTAXI / УПРАВЛЕНИЕ': 'TULPARTAXI / БАСҚАРУ',
   'Обновить данные': 'Деректерді жаңарту',
   Обновить: 'Жаңарту',
   'Управление сервисом': 'Қызметті басқару',
@@ -1343,7 +1343,7 @@ export const kk: Record<string, string> = {
   'Войдите с этим именем и паролем': 'Жаңа пайдаланушы аты мен құпиясөзіңізбен кіріңіз',
   'Назад ко входу': 'Кіру бетіне оралу',
   'Создать аккаунт': 'Аккаунт құру',
-  'Выберите, как будете пользоваться TezJet': 'TezJet қызметін қалай пайдаланатыныңызды таңдаңыз',
+  'Выберите, как будете пользоваться TulparTaxi': 'TulparTaxi қызметін қалай пайдаланатыныңызды таңдаңыз',
   '3–32 символа: латинские буквы, цифры, _': '3–32 таңба: латын әріптері, сандар және _',
   'Пароль — от 10 символов': 'Құпиясөз — кемінде 10 таңба',
   'Регистрация не выполняет вход — после неё войдите с этим именем и паролем.':

@@ -1,7 +1,7 @@
 [project]
 name = "taxi-service"
 version = "0.1.0"
-description = "TezJet Taxi Service backend MVP (Almaty, KZT)"
+description = "TulparTaxi Service backend MVP (Almaty, KZT)"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [

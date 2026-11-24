@@ -55,7 +55,7 @@ export function PointMarker({
   )
 }
 /** Route lines use the brand green (accent/success). */
-/** Deep sky blue of the TezJet palette; strong enough over the light basemap. */
+/** Deep sky blue of the TulparTaxi palette; strong enough over the light basemap. */
 export const ROUTE_COLOR = '#0096AE'
 const ROUTE_EVENTS = {
   add({ target }: LeafletEvent) {

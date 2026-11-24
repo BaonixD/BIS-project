@@ -355,7 +355,7 @@ export function KitPage() {
         <header className="flex flex-col gap-2">
           <h1 className="text-display">UI kit</h1>
           <p className="text-body text-text-secondary">
-            Компоненты TezJet по Figma 6VHeDBRKk6RWdTYqH0r66K. Только в режиме разработки.
+            Компоненты TulparTaxi по Figma 6VHeDBRKk6RWdTYqH0r66K. Только в режиме разработки.
           </p>
         </header>
         <div className="grid gap-8 lg:grid-cols-2">

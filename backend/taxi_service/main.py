@@ -49,7 +49,7 @@ def create_app(
     support_ai_provider: SupportAIProvider | None = None,
 ) -> FastAPI:
     app = FastAPI(
-        title="TezJet Taxi Service",
+        title="TulparTaxi Service",
         version="0.1.0",
         description=API_DESCRIPTION,
         lifespan=lifespan,

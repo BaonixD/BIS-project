@@ -288,7 +288,7 @@ function NewChat({
     <>
       <ChatHeader
         title={t('Новый чат')}
-        subtitle={ai ? t('ИИ-помощник') : t('Поддержка TezJet')}
+        subtitle={ai ? t('ИИ-помощник') : t('Поддержка TulparTaxi')}
         base={base}
         onOpenList={onOpenList}
       />
