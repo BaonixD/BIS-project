@@ -41,6 +41,8 @@ export interface GeocoderOptions {
   now?: () => number
   sleep?: (ms: number) => Promise<void>
   minIntervalMs?: number
+  /** Keeps found addresses across reloads (the app's own geocoder only). */
+  persistKey?: string
 }
 function coordinateKey(point: Coordinates): string {
   return `${point.latitude.toFixed(5)},${point.longitude.toFixed(5)}`
@@ -113,10 +115,11 @@ export function createGeocoder({
   now = Date.now,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   minIntervalMs = MIN_INTERVAL_MS,
+  persistKey,
 }: GeocoderOptions = {}) {
   const throttle = createThrottle(minIntervalMs, now, sleep)
   const searches = new Map<string, Place[]>()
-  const reverses = new Map<string, Place>()
+  const reverses = new Map<string, Place>(persistKey ? loadPlaces(persistKey) : [])
   async function request(
     path: 'search' | 'reverse',
     params: Record<string, string>,
@@ -176,6 +179,7 @@ export function createGeocoder({
       if (!isNominatimPlace(body)) return fallbackPlace(point)
       const place = { ...toPlace(body), id: key, point }
       reverses.set(key, place)
+      if (persistKey) savePlaces(persistKey, reverses)
       return place
     } catch {
       return fallbackPlace(point)
@@ -184,7 +188,28 @@ export function createGeocoder({
   return { search, reverse }
 }
 export type Geocoder = ReturnType<typeof createGeocoder>
-export const geocoder = createGeocoder()
+const SAVED_PLACES_LIMIT = 300
+
+function loadPlaces(key: string): [string, Place][] {
+  try {
+    const saved: unknown = JSON.parse(window.localStorage.getItem(key) ?? '[]')
+    return Array.isArray(saved) ? (saved as [string, Place][]) : []
+  } catch {
+    return []
+  }
+}
+
+/** The newest addresses only, so the stored list stays small. */
+function savePlaces(key: string, places: Map<string, Place>): void {
+  try {
+    window.localStorage.setItem(key, JSON.stringify([...places].slice(-SAVED_PLACES_LIMIT)))
+  } catch {
+    /* Storage may be full or disabled. */
+  }
+}
+
+/** Addresses found once appear at once after a reload: Nominatim allows a request a second. */
+export const geocoder = createGeocoder({ persistKey: 'tulpar.places.v1' })
 export function useDebouncedValue<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = useState(value)
   useEffect(() => {

@@ -1,4 +1,5 @@
 import { SupportLink } from '@/components/common/SupportLink'
+import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { AlatauBanner } from '@/components/common/AlatauScene'
 import { AppearanceSettings } from '@/components/common/MapThemeSwitch'
 import { TitleOrnament } from '@/components/common/Ornament'
@@ -27,13 +28,16 @@ export function ProfilePage() {
   const google = data?.login_method === 'google'
   return (
     <div className="min-h-dvh bg-bg-subtle">
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 pt-[64px] pb-6 lg:pt-8">
-        <div className="flex flex-col gap-2 px-1">
-          <h1 className="text-display text-text-primary">{t('Профиль')}</h1>
-          <TitleOrnament />
-        </div>
-        <div className="flex justify-end lg:hidden">
-          <LanguageSwitcher />
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 pt-[calc(64px+env(safe-area-inset-top))] pb-6 lg:pt-8">
+        <div className="flex items-start justify-between gap-3 px-1">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-display text-text-primary">{t('Профиль')}</h1>
+            <TitleOrnament />
+          </div>
+          <div className="flex items-center gap-1 pt-1 lg:hidden">
+            <ThemeToggle className="text-text-primary hover:bg-bg-muted" />
+            <LanguageSwitcher />
+          </div>
         </div>
         <ErrorAlert error={profile.error} />
         <AlatauBanner name={data ? name.split(' ')[0] : undefined}>

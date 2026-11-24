@@ -220,6 +220,14 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* iOS Safari zooms into fields under 16px on focus; touch screens get 16px fields. */
+  @media (pointer: coarse) {
+    input,
+    textarea,
+    select {
+      font-size: max(16px, 1em);
+    }
+  }
 }
 
 /* Text that shimmers while the support assistant works; static under reduced motion. */
