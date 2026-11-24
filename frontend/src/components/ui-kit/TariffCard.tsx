@@ -48,7 +48,7 @@ export function TariffCard({
         draggable={false}
         className={cn(
           'pointer-events-none h-[58px] w-[86px] shrink-0 object-contain transition-opacity duration-150',
-          !selected && 'opacity-45',
+          !selected && 'opacity-45 dark:opacity-90',
         )}
       />
     </button>
