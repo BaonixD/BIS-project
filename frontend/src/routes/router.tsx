@@ -51,6 +51,7 @@ export const router = createBrowserRouter([
               { path: '/ride/:rideId', ...page(passenger, (m) => m.RidePage) },
               { path: '/history', ...page(passenger, (m) => m.HistoryPage) },
               { path: '/history/:rideId', ...page(passenger, (m) => m.RideDetailsPage) },
+              { path: '/history/:rideId/receipt', ...page(passenger, (m) => m.ReceiptPage) },
               { path: '/profile', ...page(passenger, (m) => m.ProfilePage) },
               { path: '/profile/settings', ...page(passenger, (m) => m.SettingsPage) },
             ],

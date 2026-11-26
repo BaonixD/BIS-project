@@ -8,12 +8,11 @@ import {
   RoundAction,
   RouteRows,
   StatusHeading,
-  SummaryRows,
 } from '@/components/passenger/ride-parts'
-import { driverLine } from '@/components/passenger/ride-text'
 import { Button, StatusPill } from '@/components/ui-kit'
 import { elapsedShare, formatCountdown, formatPrice } from '@/pages/passenger/model/format'
 import { cancelText, dropoffCaption, paymentLine } from './ride-text'
+import { ReceiptSlip } from './ReceiptSlip'
 import { UpgradeCard } from './UpgradeCard'
 /** The dispatcher looks for a driver for up to 3 minutes (SEARCH_BUDGET_S). */
 export const SEARCH_BUDGET_S = 180
@@ -92,13 +91,7 @@ export function DriverFoundSheet({
           { p0: price },
         )}
       />
-      <SummaryRows
-        className="gap-2.5 rounded-lg bg-bg-subtle p-4"
-        rows={[
-          [t('Водитель'), driverLine(driver)],
-          [t('Оплата'), `Kaspi · ${price}`],
-        ]}
-      />
+      <ReceiptSlip ride={ride} driver={driver} className="bg-bg-subtle shadow-none" />
       <p className="flex w-full items-center gap-2.5 text-callout text-text-secondary">
         <span aria-hidden className="size-2.5 shrink-0 rounded-full bg-accent-success" />
         {t('Водитель уже едет к вам')}

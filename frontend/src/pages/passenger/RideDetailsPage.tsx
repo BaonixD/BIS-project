@@ -78,6 +78,15 @@ export function RideDetailsPage() {
                   : []),
               ]}
             />
+            {ride.payment_status && ride.payment_status !== 'unpaid' && (
+              <Button
+                variant="secondary"
+                className="w-full"
+                onClick={() => navigate(`/history/${ride.id}/receipt`)}
+              >
+                {t('Открыть чек')}
+              </Button>
+            )}
             {ride.status === 'completed' && !ride.my_rating && (
               <Button
                 variant="secondary"
