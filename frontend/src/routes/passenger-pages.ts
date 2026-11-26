@@ -1,5 +1,6 @@
 export { HistoryPage } from '@/pages/passenger/HistoryPage'
 export { HomePage } from '@/pages/passenger/HomePage'
+export { ReceiptPage } from '@/pages/passenger/ReceiptPage'
 export { ProfilePage } from '@/pages/passenger/ProfilePage'
 export { RideDetailsPage } from '@/pages/passenger/RideDetailsPage'
 export { RidePage } from '@/pages/passenger/RidePage'

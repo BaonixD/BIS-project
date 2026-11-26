@@ -239,7 +239,7 @@ export function RidePage() {
         ride={ride}
         driver={driver}
         onTrack={track}
-        onReceipt={() => navigate(`/history/${ride.id}`)}
+        onReceipt={() => navigate(`/history/${ride.id}/receipt`)}
       />
     )
   } else if ((screen === 'on_the_way' || screen === 'driver_found') && driver) {

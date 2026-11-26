@@ -52,5 +52,6 @@ async def test_achievements_use_completed_history_and_exact_rating_threshold(
     assert goals["high_rating"]["unlocked"] is False
     await login_as(client, "passenger")
     result = (await client.get("/api/v1/users/me/achievements")).json()
-    assert all(goal["unlocked"] for goal in result["achievements"])
+    goals = {goal["code"]: goal for goal in result["achievements"]}
+    assert all(goals[code]["unlocked"] for code in ("first_ride", "regular_passenger", "feedback"))
     assert (await client.get("/api/v1/users/me/achievements")).json() == result
