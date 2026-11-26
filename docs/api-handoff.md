@@ -257,6 +257,18 @@ Admin создаётся только локальной командой (`scri
 - Ошибки по порядку: `404 ride_not_found` (нет поездки или чужая), `403 rating_forbidden` (admin), `422 validation_error` (тег другой стороны — `details.errors[].loc = ["body", "tags", i]`; звёзды вне 1–5, неизвестный тег, лишнее поле), `409 ride_not_completed`, `409 rating_already_exists`. Требует `X-CSRF-Token`.
 - Своя оценка — `my_rating` в `GET /rides/{ride_id}`. Средние (`{average, count}`): водителя — `driver.rating` в деталях поездки и `rating` в `/drivers/me`, пассажира — `passenger_rating` в предложении; свой — `rating` в `/users/me`.
 
+## Прогресс и достижения
+
+`GET /api/v1/users/me/achievements` (вошедший) считает прогресс на лету из завершённых поездок и оценок — отдельных таблиц и миграций нет. Недели — по Алматы (UTC+5), с понедельника.
+
+- `xp`: 100 за поездку, 2 за км, 20 за оценку (пассажир — поставленную, водитель — полученную «5»), 50 за открытое достижение, 150 за каждую неделю с выполненным заданием.
+- `level`: `{number, level_start_xp, next_level_xp}`; пороги 0, 300, 800, 1500, 2500, 4000, 6000, 9000; на верхнем уровне `next_level_xp = null`.
+- `streak`: `{current_weeks, best_weeks, active_this_week}` — недели подряд хотя бы с одной поездкой; текущая серия жива, пока поездка была на этой или прошлой неделе.
+- `weekly_quest`: `{code: "weekly_rides", current, target, completed, reward_xp, ends_at}`; цель — 3 поездки у пассажира, 10 у водителя.
+- `achievements[]`: `{code, current, target, unlocked, xp}`; пассажир — `first_ride`, `regular_passenger`, `loyal_passenger`, `feedback`, `explorer` (км), `night_owl` (22:00–5:00), `premium` («Комфорт+»/«Бизнес»), `kaspi_fan`, `bonus_saver`, `streak_keeper`; водитель — `first_order`, `experienced_driver`, `road_master`, `high_rating` (+`sample_count`, `minimum_samples`), `marathon`, `night_shift`, `five_stars`, `streak_keeper`. У admin список пуст.
+
+Чек оплаты строит фронтенд (`/history/{ride_id}/receipt`) из `GET /rides/{ride_id}` и `GET /rides/{ride_id}/payment`: номер `TT-` + первые 8 символов id поездки. Чек появляется сразу после списания Kaspi (экран «Водитель найден») и доступен из деталей поездки при `paid`/`refunded`. Оплата учебная — чек это отмечает.
+
 ## Опрос (polling)
 
 WebSocket и SSE нет. Сервер обрабатывает истечения раз в секунду, поэтому опрос чаще 1–2 с не нужен; не опрашивайте скрытую вкладку (`document.visibilityState`).
