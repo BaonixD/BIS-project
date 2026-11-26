@@ -1,7 +1,9 @@
 import { t, useLocale } from '@/i18n/core'
 import { moneyDue } from '@/lib/money'
 import { useState, type ReactNode } from 'react'
-import { Banknote, Check, X } from 'lucide-react'
+import { Banknote, Check, Receipt as ReceiptIcon, X } from 'lucide-react'
+import { useNavigate } from 'react-router'
+import { RideRewards } from '@/components/common/RideRewards'
 import type { DriverCard, RideDetails } from '@/api'
 import { FullScreen } from '@/components/passenger/layout'
 import { StatusHeading, SummaryRows } from '@/components/passenger/ride-parts'
@@ -235,6 +237,7 @@ export function CompletedScreen({
   onDone: (message?: string) => void
 }) {
   useLocale()
+  const navigate = useNavigate()
   const rate = useRateRide(ride.id)
   const destination = usePlaceTitle(ride.dropoff)
   const [stars, setStars] = useState(0)
@@ -307,7 +310,19 @@ export function CompletedScreen({
               ...driverRow,
             ]}
           />
+          {ride.payment_status === 'paid' && (
+            <Button
+              variant="secondary"
+              size="md"
+              className="w-full"
+              onClick={() => navigate(`/history/${ride.id}/receipt`)}
+            >
+              <ReceiptIcon className="size-4" aria-hidden />
+              {t('Чек')}
+            </Button>
+          )}
         </section>
+        <RideRewards />
         <RatingCard
           ride={ride}
           driver={driver}

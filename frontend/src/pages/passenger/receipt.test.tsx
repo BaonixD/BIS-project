@@ -12,9 +12,13 @@ import { receiptNumber } from './model/receipt'
 const server = await vi.hoisted(async () => (await import('./test/fake-server')).installFakeFetch())
 
 vi.mock('@/auth/use-session', () => ({
-  useSession: () => ({ user: { id: 'p1', role: 'passenger', username: 'passenger' } }),
+  useSession: () => ({
+    user: { id: 'p1', role: 'passenger', username: 'passenger' },
+  }),
 }))
-vi.mock('@/components/map/MapView', () => ({ MapView: () => <div data-testid="map" /> }))
+vi.mock('@/components/map/MapView', () => ({
+  MapView: () => <div data-testid="map" />,
+}))
 
 const PAID_AT = '2026-11-03T09:00:00Z'
 
@@ -73,7 +77,12 @@ describe('Kaspi receipt', () => {
     const share = vi.fn(async () => {})
     vi.stubGlobal('navigator', { ...navigator, share })
     server.routes.set('GET /api/v1/rides/ride-1', () =>
-      makeRide({ status: 'completed', payment_status: 'paid', bonus_kzt: 200, driver: DRIVER }),
+      makeRide({
+        status: 'completed',
+        payment_status: 'paid',
+        bonus_kzt: 200,
+        driver: DRIVER,
+      }),
     )
     renderRoutes(routes, '/history/ride-1/receipt')
     const slip = await screen.findByRole('region', { name: 'Чек об оплате' })
