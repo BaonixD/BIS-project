@@ -28,7 +28,7 @@ export function ReceiptSlip({
     <section
       aria-label={t('Чек об оплате')}
       className={cn(
-        'receipt-edge relative w-full overflow-hidden rounded-t-[20px] bg-bg-canvas px-5 pt-5 text-left shadow-card motion-safe:animate-receipt-print',
+        'receipt-edge relative w-full shrink-0 overflow-hidden rounded-t-[20px] bg-bg-canvas px-5 pt-5 text-left shadow-card motion-safe:animate-receipt-print',
         className,
       )}
     >

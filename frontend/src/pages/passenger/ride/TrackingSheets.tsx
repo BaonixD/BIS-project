@@ -79,7 +79,7 @@ export function DriverFoundSheet({
   onReceipt: () => void
 }) {
   useLocale()
-  const price = formatPrice(ride.amount_kzt)
+  const price = formatPrice(moneyDue(ride))
   return (
     <>
       <StatusHeading
