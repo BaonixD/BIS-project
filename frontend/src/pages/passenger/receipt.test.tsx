@@ -73,6 +73,14 @@ describe('Kaspi receipt', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/history/ride-1/receipt'))
   })
 
+  it('says how much Kaspi charged after bonuses', async () => {
+    server.routes.set('GET /api/v1/rides/ride-1', () =>
+      makeRide({ status: 'assigned', payment_status: 'paid', bonus_kzt: 200, driver: DRIVER }),
+    )
+    renderRoutes(routes, '/ride/ride-1')
+    expect(await screen.findByText(/^2 000 ₸ списано через Kaspi/)).toBeInTheDocument()
+  })
+
   it('shows the full receipt with bonuses and shares its text', async () => {
     const share = vi.fn(async () => {})
     vi.stubGlobal('navigator', { ...navigator, share })
