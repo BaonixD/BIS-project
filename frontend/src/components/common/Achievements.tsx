@@ -165,12 +165,12 @@ function GoalCard({ goal, fresh }: { goal: Goal; fresh: boolean }) {
   return (
     <div
       className={cn(
-        'flex flex-col gap-2 rounded-lg border bg-bg-canvas p-3.5',
+        'flex flex-col gap-2.5 rounded-lg border bg-bg-canvas p-3.5',
         goal.unlocked ? 'border-brand-gold/70' : 'border-border-default',
         fresh && 'motion-safe:animate-badge-pop',
       )}
     >
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-start justify-between gap-2">
         <span
           className={cn(
             'flex size-9 shrink-0 items-center justify-center rounded-full',
@@ -179,14 +179,15 @@ function GoalCard({ goal, fresh }: { goal: Goal; fresh: boolean }) {
         >
           <Icon className="size-[18px]" aria-hidden />
         </span>
-        <div className="flex min-w-0 flex-col">
-          <p className="truncate text-callout text-text-primary">{meta?.title ?? goal.code}</p>
-          <p className="truncate text-caption text-text-secondary">{meta?.hint}</p>
-        </div>
+        <span className="text-label text-text-tertiary">+{formatXp(goal.xp, getIntlLocale())}</span>
+      </div>
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <p className="text-callout break-words text-text-primary">{meta?.title ?? goal.code}</p>
+        <p className="text-caption break-words text-text-secondary">{meta?.hint}</p>
       </div>
       {goal.unlocked ? (
         <p className="text-caption font-semibold text-brand-sky-ink">
-          {fresh ? t('Новое!') : t('Получено')} · +{formatXp(goal.xp, getIntlLocale())}
+          {fresh ? t('Новое!') : t('Получено')}
         </p>
       ) : (
         <>
