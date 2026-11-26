@@ -1001,6 +1001,11 @@ export interface components {
             target: number;
             /** Unlocked */
             unlocked: boolean;
+            /**
+             * Xp
+             * @description Experience the achievement adds once unlocked.
+             */
+            xp: number;
             /** Sample Count */
             sample_count?: number | null;
             /** Minimum Samples */
@@ -1416,6 +1421,18 @@ export interface components {
             status: "ok";
         };
         JsonValue: unknown;
+        /** Level */
+        Level: {
+            /** Number */
+            number: number;
+            /** Level Start Xp */
+            level_start_xp: number;
+            /**
+             * Next Level Xp
+             * @description Null on the top level.
+             */
+            next_level_xp: number | null;
+        };
         /**
          * LocationUpdate
          * @description Current position; the time of the update is the server's, not the client's.
@@ -1742,6 +1759,11 @@ export interface components {
         Progress: {
             /** Completed Rides */
             completed_rides: number;
+            /** Xp */
+            xp: number;
+            level: components["schemas"]["Level"];
+            streak: components["schemas"]["Streak"];
+            weekly_quest: components["schemas"]["WeeklyQuest"];
             /** Achievements */
             achievements: components["schemas"]["Achievement"][];
         };
@@ -2264,6 +2286,18 @@ export interface components {
             status: "in_progress" | "resolved";
         };
         /**
+         * Streak
+         * @description Weeks in a row (Asia/Almaty, Monday first) with at least one completed ride.
+         */
+        Streak: {
+            /** Current Weeks */
+            current_weeks: number;
+            /** Best Weeks */
+            best_weeks: number;
+            /** Active This Week */
+            active_this_week: boolean;
+        };
+        /**
          * Tariff
          * @enum {string}
          */
@@ -2441,6 +2475,27 @@ export interface components {
              * @description All tariffs permitted by the maximum vehicle class.
              */
             categories: components["schemas"]["Tariff"][];
+        };
+        /** WeeklyQuest */
+        WeeklyQuest: {
+            /** Code */
+            code: string;
+            /** Current */
+            current: number;
+            /** Target */
+            target: number;
+            /** Completed */
+            completed: boolean;
+            /**
+             * Reward Xp
+             * @description Added for every week the target was reached.
+             */
+            reward_xp: number;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
         };
     };
     responses: never;
