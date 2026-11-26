@@ -93,7 +93,7 @@ async def test_passenger_earns_xp_levels_streaks_and_the_weekly_quest(
     assert (quest["current"], quest["target"], quest["completed"]) == (3, 3, True)
     assert quest["reward_xp"] == 150
     assert datetime.fromisoformat(quest["ends_at"]) == utc(8, 19)
-    # 6 rides × 100 + 60 km × 2 + 6 achievements × 50 + one completed weekly quest × 150
+    # 6 rides * 100 + 60 km * 2 + 6 achievements * 50 + one completed weekly quest * 150
     assert body["xp"] == 1170
     assert body["level"] == {"number": 3, "level_start_xp": 800, "next_level_xp": 1500}
 
@@ -142,7 +142,7 @@ async def test_driver_progress_counts_five_star_ratings_and_a_bigger_weekly_ques
     assert body["weekly_quest"]["target"] == 10
     assert body["weekly_quest"]["current"] == 2
     assert body["streak"]["current_weeks"] == 1
-    # 2 rides × 100 + 20 km × 2 + 2 five-star ratings × 20 + first_order × 50
+    # 2 rides * 100 + 20 km * 2 + 2 five-star ratings * 20 + first_order * 50
     assert body["xp"] == 330
     assert body["level"]["number"] == 2
 
